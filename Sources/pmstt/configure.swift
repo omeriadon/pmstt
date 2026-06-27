@@ -44,6 +44,7 @@ public func configure(_ app: Application) async throws {
 	app.migrations.add(CreateAuthoredTimetable())
 	app.migrations.add(CreatePassRecord())
 	app.migrations.add(CreatePassRegistration())
+	app.migrations.add(CreateReceivedPassMirror())
 
 	try routes(app)
 	app.logger.info("pmstt configuration complete")
