@@ -33,8 +33,8 @@ struct ProfileController: RouteCollection {
 			throw Abort(.notFound, reason: "User not found.")
 		}
 
-		if let displayName = body.displayName {
-			user.displayName = displayName.isEmpty ? nil : displayName
+		if let displayName = body.displayName, !displayName.isEmpty {
+			user.displayName = displayName
 		}
 
 		if let email = body.email {

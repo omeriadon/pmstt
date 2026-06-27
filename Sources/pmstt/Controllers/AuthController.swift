@@ -40,10 +40,14 @@ struct AuthController: RouteCollection {
 
 		// Create user
 		let passwordHash = try req.password.hash(body.password)
+		let settingsData = try JSONEncoder().encode(AccountSettings.default)
 		let user = User(
 			email: body.email,
 			passwordHash: passwordHash,
-			displayName: body.displayName
+			appleSubject: nil,
+			displayName: body.displayName ?? "User",
+			selfPassSerialNumber: UUID().uuidString,
+			settingsData: settingsData
 		)
 
 		try await user.save(on: req.db)
@@ -63,7 +67,10 @@ struct AuthController: RouteCollection {
 		}
 
 		// Verify password
-		let isPasswordValid = try req.password.verify(body.password, created: user.passwordHash)
+		guard let passwordHash = user.passwordHash else {
+			throw Abort(.unauthorized, reason: "Invalid email or password.")
+		}
+		let isPasswordValid = try req.password.verify(body.password, created: passwordHash)
 		guard isPasswordValid else {
 			throw Abort(.unauthorized, reason: "Invalid email or password.")
 		}

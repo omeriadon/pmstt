@@ -24,8 +24,8 @@ struct TokenResponse: Content {
 
 struct UserProfileResponse: Content {
 	let id: UUID
-	let email: String
-	let displayName: String?
+	let email: String?
+	let displayName: String
 	let createdAt: Date?
 }
 

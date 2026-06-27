@@ -23,6 +23,7 @@ func routes(_ app: Application) throws {
 
 	try app.register(collection: AuthController())
 	try app.register(collection: ProfileController())
+	try app.register(collection: PassController())
 }
 
 struct HealthResponse: Content {

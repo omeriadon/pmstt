@@ -1,5 +1,5 @@
 {
-  "originHash" : "c59c950f85379955b733184d916f3923433caafe8d99dadcb8e9db7b0d0b69c9",
+  "originHash" : "92c96438b02a81ba7e68fd86b9fda68172a55a14cfec54767514731ff9d479e4",
   "pins" : [
     {
       "identity" : "async-http-client",
@@ -89,6 +89,15 @@
       "state" : {
         "revision" : "3498e60218e6003894ff95192d756e238c01f44e",
         "version" : "4.7.1"
+      }
+    },
+    {
+      "identity" : "openssl-package",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/krzyzanowskim/OpenSSL-Package.git",
+      "state" : {
+        "revision" : "2d180b33702e0e67fd58607d1f96d5fad0816d10",
+        "version" : "3.6.2000"
       }
     },
     {
@@ -359,6 +368,15 @@
       "state" : {
         "revision" : "90bbbdab3ede12c803cfbe91646f291c092517a3",
         "version" : "2.16.2"
+      }
+    },
+    {
+      "identity" : "zipfoundation",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/omeriadon/ZIPFoundation.git",
+      "state" : {
+        "branch" : "development",
+        "revision" : "2eaef551ae0385b1a06ae58320185255589001f4"
       }
     }
   ],

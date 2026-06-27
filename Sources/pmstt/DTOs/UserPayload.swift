@@ -3,7 +3,7 @@ import Vapor
 
 struct UserPayload: JWTPayload, Authenticatable {
 	let sub: UUID
-	let email: String
+	let email: String?
 	let exp: ExpirationClaim
 
 	func verify(using algorithm: some JWTAlgorithm) async throws {
