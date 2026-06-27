@@ -3,7 +3,7 @@ import Vapor
 
 struct PassController: RouteCollection {
 	func boot(routes: any RoutesBuilder) throws {
-		let passes = routes.grouped("api", "v1", "passes")
+		let passes = routes.grouped("v1", "passes")
 		let protected = passes.grouped(UserPayload.authenticator(), UserPayload.guardMiddleware())
 
 		protected.get("owner", use: getOwnerPass)
