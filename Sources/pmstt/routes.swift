@@ -1,11 +1,31 @@
 import Vapor
 
 func routes(_ app: Application) throws {
-    app.get { req async in
-        "It works!"
-    }
+	app.get("health") { req async -> HealthResponse in
+		req.logger.debug("Health check completed")
+		return HealthResponse(
+			status: "ok",
+			uptime: Int(ProcessInfo.processInfo.systemUptime)
+		)
+	}
 
-    app.get("hello") { req async -> String in
-        "Hello, world!"
-    }
+	app.post("register", "pushToken") { req async throws -> HTTPStatus in
+		struct Body: Content {
+			let token: String
+		}
+
+		let body = try req.content.decode(Body.self)
+
+		savePushStartToken(body.token)
+
+		return .ok
+	}
+
+	try app.register(collection: AuthController())
+	try app.register(collection: ProfileController())
+}
+
+struct HealthResponse: Content {
+	let status: String
+	let uptime: Int
 }

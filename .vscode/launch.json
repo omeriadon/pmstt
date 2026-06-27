@@ -1,0 +1,24 @@
+{
+	"configurations": [
+		{
+			"type": "swift",
+			"request": "launch",
+			"args": [],
+			"cwd": "${workspaceFolder:pmstt}",
+			"name": "Debug pmstt",
+			"target": "pmstt",
+			"configuration": "debug",
+			"preLaunchTask": "swift: Build Debug pmstt"
+		},
+		{
+			"type": "swift",
+			"request": "launch",
+			"args": [],
+			"cwd": "${workspaceFolder:pmstt}",
+			"name": "Release pmstt",
+			"target": "pmstt",
+			"configuration": "release",
+			"preLaunchTask": "swift: Build Release pmstt"
+		}
+	]
+}

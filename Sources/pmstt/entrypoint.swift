@@ -3,6 +3,8 @@ import Logging
 import NIOCore
 import NIOPosix
 
+let bundleId = "com.omeriadon.PMS-Timetable"
+
 @main
 enum Entrypoint {
     static func main() async throws {
