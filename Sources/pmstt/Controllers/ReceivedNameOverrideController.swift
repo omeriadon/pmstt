@@ -7,7 +7,7 @@ struct ReceivedNameOverrideController: RouteCollection {
 		let protected = overrides.grouped(UserPayload.authenticator(), UserPayload.guardMiddleware())
 
 		protected.get(use: getOverrides)
-		protected.put(":serialNumber", use: setOverride)
+		protected.put(":serialNumber", use: updateOverride)
 		protected.delete(":serialNumber", use: removeOverride)
 	}
 
@@ -25,7 +25,7 @@ struct ReceivedNameOverrideController: RouteCollection {
 			}
 	}
 
-	func setOverride(req: Request) async throws -> ReceivedNameOverrideResponse {
+	func updateOverride(req: Request) async throws -> ReceivedNameOverrideResponse {
 		let payload = try req.auth.require(UserPayload.self)
 		let serialNumber = try req.parameters.require("serialNumber")
 		let body = try req.content.decode(UpdateReceivedNameOverrideRequest.self)
@@ -48,6 +48,7 @@ struct ReceivedNameOverrideController: RouteCollection {
 			.filter(\.$passSerialNumber == serialNumber)
 			.first() != nil
 		else {
+			req.logger.warning("not found")
 			throw AppError(.notFound, code: .notFound, reason: "Received timetable not found.")
 		}
 

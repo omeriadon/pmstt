@@ -6,11 +6,12 @@ struct ReceivedTimetableController: RouteCollection {
 		let received = routes.grouped("v1", "timetables", "received")
 		let protected = received.grouped(UserPayload.authenticator(), UserPayload.guardMiddleware())
 
-		protected.get(use: getProjection)
-		protected.put(use: replaceProjection)
+		protected.get(use: getReceivedTimetables)
+		protected.put(use: replaceReceivedTimetables)
+		protected.delete(":serialNumber", use: deleteReceivedTimetable)
 	}
 
-	func getProjection(req: Request) async throws -> [ReceivedPassMirrorDTO] {
+	func getReceivedTimetables(req: Request) async throws -> [ReceivedPassMirrorDTO] {
 		let payload = try req.auth.require(UserPayload.self)
 		let records = try await ReceivedPassMirror.query(on: req.db)
 			.filter(\.$user.$id == payload.sub)
@@ -19,41 +20,71 @@ struct ReceivedTimetableController: RouteCollection {
 		return try records.map(response)
 	}
 
-	func replaceProjection(req: Request) async throws -> [ReceivedPassMirrorDTO] {
+	func replaceReceivedTimetables(req: Request) async throws -> [ReceivedPassMirrorDTO] {
 		let payload = try req.auth.require(UserPayload.self)
 		let body = try req.content.decode(ReceivedProjectionUpdateRequest.self)
 		try validate(body)
 
-		let records = try await req.db.transaction { database in
-			try await ReceivedPassMirror.query(on: database)
-				.filter(\.$user.$id == payload.sub)
-				.delete()
+		try await req.db.transaction { database in
+			for timetable in body.timetables {
+				guard !timetable.isDeleted else {
+					continue
+				}
 
-			var created: [ReceivedPassMirror] = []
-			created.reserveCapacity(body.timetables.count)
+				if let existing = try await ReceivedPassMirror.query(on: database)
+					.filter(\.$user.$id == payload.sub)
+					.filter(\.$passSerialNumber == timetable.id)
+					.first()
+				{
+					existing.issuerAccountID = timetable.issuerAccountID
+					existing.sourceKind = timetable.sourceKind
+					existing.signedDisplayName = timetable.signedDisplayName
+					existing.authorDisplayName = timetable.authorDisplayName
+					existing.subjectsData = try JSONEncoder().encode(timetable.subjects)
+					existing.isDeleted = false
+					existing.walletRevision = body.walletRevision
+					existing.receivedAt = timetable.receivedAt
+					existing.passUpdatedAt = timetable.passUpdatedAt
 
-			for timetable in body.timetables where !timetable.isDeleted {
-				let record = try ReceivedPassMirror(
-					userID: payload.sub,
-					passSerialNumber: timetable.id,
-					issuerAccountID: timetable.issuerAccountID,
-					sourceKind: timetable.sourceKind,
-					signedDisplayName: timetable.signedDisplayName,
-					authorDisplayName: timetable.authorDisplayName,
-					subjectsData: JSONEncoder().encode(timetable.subjects),
-					isDeleted: false,
-					walletRevision: body.walletRevision,
-					receivedAt: timetable.receivedAt,
-					passUpdatedAt: timetable.passUpdatedAt
-				)
-				try await record.save(on: database)
-				created.append(record)
+					try await existing.save(on: database)
+				} else {
+					let record = try ReceivedPassMirror(
+						userID: payload.sub,
+						passSerialNumber: timetable.id,
+						issuerAccountID: timetable.issuerAccountID,
+						sourceKind: timetable.sourceKind,
+						signedDisplayName: timetable.signedDisplayName,
+						authorDisplayName: timetable.authorDisplayName,
+						subjectsData: JSONEncoder().encode(timetable.subjects),
+						isDeleted: false,
+						walletRevision: body.walletRevision,
+						receivedAt: timetable.receivedAt,
+						passUpdatedAt: timetable.passUpdatedAt
+					)
+
+					try await record.save(on: database)
+				}
 			}
-
-			return created
 		}
 
+		let records = try await ReceivedPassMirror.query(on: req.db)
+			.filter(\.$user.$id == payload.sub)
+			.sort(\.$receivedAt, .ascending)
+			.all()
+
 		return try records.map(response)
+	}
+
+	func deleteReceivedTimetable(req: Request) async throws -> HTTPStatus {
+		let payload = try req.auth.require(UserPayload.self)
+		let serialNumber = try req.parameters.require("serialNumber")
+
+		try await ReceivedPassMirror.query(on: req.db)
+			.filter(\.$user.$id == payload.sub)
+			.filter(\.$passSerialNumber == serialNumber)
+			.delete()
+
+		return .noContent
 	}
 
 	private func response(_ record: ReceivedPassMirror) throws -> ReceivedPassMirrorDTO {
