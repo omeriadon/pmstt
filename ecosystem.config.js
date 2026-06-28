@@ -5,10 +5,10 @@ module.exports = {
 			script: ".build/release/pmstt",
 			cwd: "/var/www/timetable",
 			args: "serve --env production",
-			interpreter: "none",
+      interpreter: "none",
 			env_production: {
 				HOSTNAME: "127.0.0.1",
-				PORT: "8080"
+				PORT: "8081"
 			}
 		}
 	]
