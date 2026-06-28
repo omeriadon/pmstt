@@ -21,46 +21,6 @@ func routes(_ app: Application) throws {
 		return .ok
 	}
 
-	app.post("v1", "report", "user") { req async throws -> HTTPStatus in
-		let payload = try req.auth.require(UserPayload.self)
-		let body = try req.content.decode(ReportUserRequest.self)
-
-		let reporterUserID = payload.sub
-
-		guard let reportedUserID = UUID(uuidString: body.reportedAccountID) else {
-			throw AppError(
-				.badRequest,
-				code: .accountNotFound,
-				reason: "Unable to convert reportedUserID from string to UUID. This most likely means reportedUserID isn't a valid user ID.",
-				field: "reportedUserID"
-			)
-		}
-
-		guard reporterUserID != reportedUserID else {
-			throw AppError(
-				.badRequest,
-				code: .invalidRequest,
-				reason: "You cannot report yourself.",
-				field: "reportedUserID"
-			)
-		}
-
-		guard try await User.find(reportedUserID, on: req.db) != nil else {
-			throw AppError(
-				.notFound,
-				code: .notFound,
-				reason: "Reported user was not found.",
-				field: "reportedUserID"
-			)
-		}
-
-		guard try await User.find(reporterUserID, on: req.db) != nil else {
-			throw Abort(.unauthorized)
-		}
-
-		return try await sendReportEmail(body: body, req: req)
-	}
-
 	try app.register(collection: AuthController())
 	try app.register(collection: AccountController())
 	try app.register(collection: OwnerTimetableController())

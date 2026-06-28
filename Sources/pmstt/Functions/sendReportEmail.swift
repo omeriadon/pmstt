@@ -16,7 +16,7 @@ struct ResendEmailRequest: Content {
 	let html: String
 }
 
-func sendReportEmail(body: ReportUserRequest, req: Request) async throws -> HTTPStatus {
+func sendReportEmail(body: ReportUserRequest, req: Request) async throws -> Response {
 	let email = ResendEmailRequest(
 		from: "onboarding@resend.dev",
 		to: "adon.omeri@student.education.wa.edu.au",
@@ -48,5 +48,5 @@ func sendReportEmail(body: ReportUserRequest, req: Request) async throws -> HTTP
 		throw Abort(.badGateway, reason: "Email failed to send.")
 	}
 
-	return .created
+	return Response(status: .created)
 }
