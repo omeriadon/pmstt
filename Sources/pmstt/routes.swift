@@ -22,7 +22,7 @@ func routes(_ app: Application) throws {
 	}
 
 	try app.register(collection: AuthController())
-	try app.register(collection: ProfileController())
+	try app.register(collection: AccountController())
 	try app.register(collection: OwnerTimetableController())
 	try app.register(collection: ReceivedTimetableController())
 	try app.register(collection: ReceivedNameOverrideController())

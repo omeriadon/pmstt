@@ -34,17 +34,17 @@ struct AppleSignInRequest: Content {
 struct TokenResponse: Content {
 	let accessToken: String
 	let refreshToken: String
-	let user: UserProfileResponse
+	let user: UserAccountResponse
 }
 
-struct UserProfileResponse: Content {
+struct UserAccountResponse: Content {
 	let id: UUID
 	let email: String?
 	let displayName: String
 	let createdAt: Date?
 }
 
-struct UpdateProfileRequest: Content {
+struct UpdateAccountRequest: Content {
 	let displayName: String?
 	let email: String?
 }

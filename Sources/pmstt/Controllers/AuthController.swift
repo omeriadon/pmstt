@@ -197,7 +197,7 @@ struct AuthController: RouteCollection {
 		)
 		try await userToken.save(on: req.db)
 
-		let profile = UserProfileResponse(
+		let account = UserAccountResponse(
 			id: userID,
 			email: user.email,
 			displayName: user.displayName,
@@ -207,7 +207,7 @@ struct AuthController: RouteCollection {
 		return TokenResponse(
 			accessToken: accessToken,
 			refreshToken: rawRefreshToken,
-			user: profile
+			user: account
 		)
 	}
 

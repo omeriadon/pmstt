@@ -1,23 +1,23 @@
 import Fluent
 import Vapor
 
-struct ProfileController: RouteCollection {
+struct AccountController: RouteCollection {
 	func boot(routes: any RoutesBuilder) throws {
-		let profile = routes.grouped("v1", "profile")
-		let protected = profile.grouped(UserPayload.authenticator(), UserPayload.guardMiddleware())
+		let account = routes.grouped("v1", "account")
+		let protected = account.grouped(UserPayload.authenticator(), UserPayload.guardMiddleware())
 
-		protected.get(use: getProfile)
-		protected.put(use: updateProfile)
+		protected.get(use: getAccount)
+		protected.put(use: updateAccount)
 		protected.delete(use: deleteAccount)
 	}
 
-	func getProfile(req: Request) async throws -> UserProfileResponse {
+	func getAccount(req: Request) async throws -> UserAccountResponse {
 		let payload = try req.auth.require(UserPayload.self)
 		guard let user = try await User.find(payload.sub, on: req.db) else {
 			throw AppError(.notFound, code: .accountNotFound, reason: "User not found.")
 		}
 
-		return UserProfileResponse(
+		return UserAccountResponse(
 			id: try user.requireID(),
 			email: user.email,
 			displayName: user.displayName,
@@ -25,9 +25,9 @@ struct ProfileController: RouteCollection {
 		)
 	}
 
-	func updateProfile(req: Request) async throws -> UserProfileResponse {
+	func updateAccount(req: Request) async throws -> UserAccountResponse {
 		let payload = try req.auth.require(UserPayload.self)
-		let body = try req.content.decode(UpdateProfileRequest.self)
+		let body = try req.content.decode(UpdateAccountRequest.self)
 
 		guard let user = try await User.find(payload.sub, on: req.db) else {
 			throw AppError(.notFound, code: .accountNotFound, reason: "User not found.")
@@ -55,7 +55,7 @@ struct ProfileController: RouteCollection {
 
 		try await user.save(on: req.db)
 
-		return UserProfileResponse(
+		return UserAccountResponse(
 			id: try user.requireID(),
 			email: user.email,
 			displayName: user.displayName,
