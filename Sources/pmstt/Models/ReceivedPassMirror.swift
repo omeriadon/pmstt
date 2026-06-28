@@ -17,12 +17,7 @@ final class ReceivedPassMirror: Model, Content, @unchecked Sendable {
 	var issuerAccountID: String
 
 	@Field(key: "source_kind")
-	private var sourceKindRawValue: String
-
-	var sourceKind: SourceKind {
-		get { SourceKind(rawValueOrDefault: sourceKindRawValue) }
-		set { sourceKindRawValue = newValue.rawValue }
-	}
+	var sourceKind: SourceKind
 
 	@Field(key: "signed_display_name")
 	var signedDisplayName: String
@@ -68,7 +63,7 @@ final class ReceivedPassMirror: Model, Content, @unchecked Sendable {
 		$user.id = userID
 		self.passSerialNumber = passSerialNumber
 		self.issuerAccountID = issuerAccountID
-		sourceKindRawValue = sourceKind.rawValue
+		self.sourceKind = sourceKind
 		self.signedDisplayName = signedDisplayName
 		self.authorDisplayName = authorDisplayName
 		self.subjectsData = subjectsData

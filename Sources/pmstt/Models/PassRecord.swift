@@ -14,12 +14,7 @@ final class PassRecord: Model, Content, @unchecked Sendable {
 	var issuerAccountID: String
 
 	@Field(key: "source_kind")
-	private var sourceKindRawValue: String
-
-	var sourceKind: SourceKind {
-		get { SourceKind(rawValueOrDefault: sourceKindRawValue) }
-		set { sourceKindRawValue = newValue.rawValue }
-	}
+	var sourceKind: SourceKind
 
 	@OptionalParent(key: "authored_timetable_id")
 	var authoredTimetable: AuthoredTimetable?
@@ -54,7 +49,7 @@ final class PassRecord: Model, Content, @unchecked Sendable {
 		self.id = id
 		self.serialNumber = serialNumber
 		self.issuerAccountID = issuerAccountID
-		sourceKindRawValue = sourceKind.rawValue
+		self.sourceKind = sourceKind
 		$authoredTimetable.id = authoredTimetableID
 		self.revision = revision
 		self.authenticationTokenHash = authenticationTokenHash
