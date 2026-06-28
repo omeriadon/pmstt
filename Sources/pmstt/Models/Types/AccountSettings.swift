@@ -1,15 +1,16 @@
 import Foundation
+import Vapor
 
-struct TimeOfDay: Codable, Hashable, Sendable {
+struct TimeOfDay: Codable, Hashable {
 	var hour: Int
 	var minute: Int
 }
 
-enum SchoolWeekday: String, Codable, Hashable, Sendable {
+enum SchoolWeekday: String, Codable, Hashable {
 	case monday, tuesday, wednesday, thursday, friday, saturday, sunday
 }
 
-struct AccountSettings: Codable, Hashable, Sendable {
+struct AccountSettings: Content, Hashable {
 	var liveActivitiesEnabled: Bool
 	var liveActivityStartTime: TimeOfDay
 	var liveActivityEndTime: TimeOfDay
