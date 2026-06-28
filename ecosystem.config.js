@@ -2,7 +2,7 @@ module.exports = {
 	apps: [
 		{
 			name: "timetable-api",
-			script: ".build/release/App",
+			script: ".build/release/pmstt",
 			cwd: "/var/www/timetable",
 			args: "serve --env production",
 			interpreter: "none",
