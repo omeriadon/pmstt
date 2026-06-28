@@ -99,3 +99,30 @@ struct OwnerTimetableResponse: Content {
 	let revision: Int
 	let updatedAt: Date?
 }
+
+struct ReceivedPassMirrorDTO: Content {
+	let id: String
+	let issuerAccountID: String
+	let sourceKind: String
+	let signedDisplayName: String
+	let authorDisplayName: String?
+	let subjects: [TimetableSubjectDTO]
+	let receivedAt: Date
+	let passUpdatedAt: Date
+	let isDeleted: Bool
+	let walletRevision: Int
+}
+
+struct ReceivedProjectionUpdateRequest: Content {
+	let timetables: [ReceivedPassMirrorDTO]
+	let walletRevision: Int
+}
+
+struct ReceivedNameOverrideResponse: Content {
+	let serialNumber: String
+	let displayName: String
+}
+
+struct UpdateReceivedNameOverrideRequest: Content {
+	let displayName: String
+}

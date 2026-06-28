@@ -24,6 +24,8 @@ func routes(_ app: Application) throws {
 	try app.register(collection: AuthController())
 	try app.register(collection: ProfileController())
 	try app.register(collection: OwnerTimetableController())
+	try app.register(collection: ReceivedTimetableController())
+	try app.register(collection: ReceivedNameOverrideController())
 	try app.register(collection: SettingsController())
 	try app.register(collection: PassController())
 }
