@@ -18,10 +18,14 @@ public func configure(_ app: Application) async throws {
 		app.databases.use(.sqlite(.memory), as: .sqlite)
 		app.logger.info("Configured in-memory SQLite database for tests")
 	} else {
-		let databasePort = Environment.get("DATABASE_PORT").flatMap(Int.init) ?? 8081
+		let databasePort = Environment.get("DATABASE_PORT").flatMap(Int.init) ?? 5432
 		let databaseHostname = Environment.get("DATABASE_HOSTNAME") ?? "127.0.0.1"
 		let databaseName = Environment.get("DATABASE_NAME") ?? "pmstt"
 		let databaseUsername = Environment.get("DATABASE_USERNAME") ?? "pmstt"
+
+		let serverPort = Environment.get("PORT").flatMap(Int.init) ?? 8081
+		let serverHostname = Environment.get("HOSTNAME") ?? "127.0.0.1"
+
 
 		app.databases.use(
 			.postgres(
