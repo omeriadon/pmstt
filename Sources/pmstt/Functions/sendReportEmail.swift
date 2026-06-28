@@ -8,6 +8,8 @@
 import Fluent
 import Vapor
 
+let resendAPIKey = "re_GSwEFAdz_H52TxxRZbeNekpR5me3Bkizn"
+
 struct ResendEmailRequest: Content {
 	let from: String
 	let to: String
@@ -21,10 +23,6 @@ func sendReportEmail(
 	reportedUser: User,
 	req: Request
 ) async throws -> Response {
-	guard let resendAPIKey = Environment.get("RESEND_API_KEY") else {
-		throw Abort(.internalServerError, reason: "Missing RESEND_API_KEY.")
-	}
-
 	let reportedUserID = try reportedUser.requireID()
 
 	let ownerTimetable: OwnerTimetable? = try await OwnerTimetable.query(on: req.db)
