@@ -38,3 +38,33 @@ struct UpdateProfileRequest: Content {
 	let displayName: String?
 	let email: String?
 }
+
+struct TimetableSlotDTO: Content, Hashable {
+	let day: Int
+	let session: Int
+}
+
+struct TimetableColorDTO: Content {
+	let r: Double
+	let g: Double
+	let b: Double
+	let a: Double
+}
+
+struct TimetableSubjectDTO: Content {
+	let id: String
+	let symbol: String
+	let colour: TimetableColorDTO
+	let slots: [TimetableSlotDTO]
+}
+
+struct OwnerTimetableUpdateRequest: Content {
+	let subjects: [TimetableSubjectDTO]
+	let expectedRevision: Int?
+}
+
+struct OwnerTimetableResponse: Content {
+	let subjects: [TimetableSubjectDTO]
+	let revision: Int
+	let updatedAt: Date?
+}

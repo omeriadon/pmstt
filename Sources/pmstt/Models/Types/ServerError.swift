@@ -1,6 +1,6 @@
 import Vapor
 
-enum ServerErrorCode: String, Codable, Sendable {
+enum ServerErrorCode: String, Codable {
 	case accountNotFound
 	case invalidRequest
 	case invalidCredentials
@@ -9,6 +9,8 @@ enum ServerErrorCode: String, Codable, Sendable {
 	case unauthorized
 	case emailAlreadyExists
 	case sessionExpired
+	case timetableConflict
+	case invalidTimetable
 	case conflict
 	case rateLimited
 	case internalServerError
