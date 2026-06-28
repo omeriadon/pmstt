@@ -37,7 +37,7 @@ struct ReceivedTimetableController: RouteCollection {
 					.first()
 				{
 					existing.issuerAccountID = timetable.issuerAccountID
-					existing.sourceKind = timetable.sourceKind
+					existing.sourceKind = SourceKind(rawValue: timetable.sourceKind) ?? .accountOwner
 					existing.signedDisplayName = timetable.signedDisplayName
 					existing.authorDisplayName = timetable.authorDisplayName
 					existing.subjectsData = try JSONEncoder().encode(timetable.subjects)
@@ -52,7 +52,7 @@ struct ReceivedTimetableController: RouteCollection {
 						userID: payload.sub,
 						passSerialNumber: timetable.id,
 						issuerAccountID: timetable.issuerAccountID,
-						sourceKind: timetable.sourceKind,
+						sourceKind: SourceKind(rawValue: timetable.sourceKind) ?? .accountOwner,
 						signedDisplayName: timetable.signedDisplayName,
 						authorDisplayName: timetable.authorDisplayName,
 						subjectsData: JSONEncoder().encode(timetable.subjects),
