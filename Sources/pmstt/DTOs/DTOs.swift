@@ -39,6 +39,10 @@ struct UpdateProfileRequest: Content {
 	let email: String?
 }
 
+struct UpdateSettingsRequest: Content {
+	var liveActivitiesEnabled: Bool?
+}
+
 struct TimetableSlotDTO: Content, Hashable {
 	let day: Int
 	let session: Int

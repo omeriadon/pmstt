@@ -181,14 +181,14 @@ struct AuthController: RouteCollection {
 		let payload = UserPayload(
 			sub: userID,
 			email: user.email,
-			exp: .init(value: Date().addingTimeInterval(15 * 60))
+			exp: .init(value: Date().addingTimeInterval(60 * 15))
 		)
 		let accessToken = try await req.jwt.sign(payload)
 
-		// Generate long-lived rotating refresh token (expiring in 30 days)
+		// Generate long-lived rotating refresh token (expiring in 90 days)
 		let rawRefreshToken = generateRandomToken()
 		let tokenHash = hashToken(rawRefreshToken)
-		let expiresAt = Date().addingTimeInterval(60 * 60 * 24 * 90) // 90 days
+		let expiresAt = Date().addingTimeInterval(60 * 60 * 24 * 90)
 
 		let userToken = UserToken(
 			tokenHash: tokenHash,
