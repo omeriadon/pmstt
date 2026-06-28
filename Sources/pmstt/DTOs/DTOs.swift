@@ -1,6 +1,16 @@
 import Foundation
 import Vapor
 
+extension KeyedDecodingContainer {
+	func decodeIfPresent<T: Decodable>(
+		_ type: T.Type,
+		forKey key: Key,
+		default defaultValue: T
+	) throws -> T {
+		try decodeIfPresent(type, forKey: key) ?? defaultValue
+	}
+}
+
 struct RegisterRequest: Content {
 	let email: String
 	let password: String
@@ -40,7 +50,24 @@ struct UpdateProfileRequest: Content {
 }
 
 struct UpdateSettingsRequest: Content {
-	var liveActivitiesEnabled: Bool?
+	var liveActivitiesEnabled: Bool
+
+	static let `default` = UpdateSettingsRequest(
+		liveActivitiesEnabled: true
+	)
+}
+
+extension UpdateSettingsRequest {
+	init(from decoder: any Decoder) throws {
+		let container = try decoder.container(keyedBy: CodingKeys.self)
+		let defaults = Self.default
+
+		liveActivitiesEnabled = try container.decodeIfPresent(
+			Bool.self,
+			forKey: .liveActivitiesEnabled,
+			default: defaults.liveActivitiesEnabled
+		)
+	}
 }
 
 struct TimetableSlotDTO: Content, Hashable {

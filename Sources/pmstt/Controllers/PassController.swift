@@ -14,6 +14,7 @@ struct PassController: RouteCollection {
 
 		// 1. Fetch user to get selfPassSerialNumber and displayName
 		guard let user = try await User.find(payload.sub, on: req.db) else {
+			req.logger.warning("Owner pass failed: user not found for id \(payload.sub)")
 			throw Abort(.notFound, reason: "User not found.")
 		}
 
@@ -22,6 +23,7 @@ struct PassController: RouteCollection {
 			.filter(\.$user.$id == payload.sub)
 			.first()
 		else {
+			req.logger.warning("Owner pass failed: no owner timetable for user id \(payload.sub)")
 			throw Abort(.notFound, reason: "No timetable data has been uploaded yet.")
 		}
 
@@ -54,7 +56,7 @@ struct PassController: RouteCollection {
 		try? FileManager.default.removeItem(at: fileURL.deletingLastPathComponent())
 
 		// 7. Construct Response with Apple Wallet Content-Type
-		let response = Response(
+		return Response(
 			status: .ok,
 			headers: [
 				"Content-Type": "application/vnd.apple.pkpass",
@@ -62,7 +64,5 @@ struct PassController: RouteCollection {
 			],
 			body: .init(data: data)
 		)
-
-		return response
 	}
 }
