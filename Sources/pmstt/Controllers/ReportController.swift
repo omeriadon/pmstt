@@ -6,7 +6,7 @@ struct ReportController: RouteCollection {
 		let passes = routes.grouped("v1", "report")
 		let protected = passes.grouped(UserPayload.authenticator(), UserPayload.guardMiddleware())
 
-		protected.get("user", use: reportUser)
+		protected.post("user", use: reportUser)
 	}
 
 	func reportUser(req: Request) async throws -> Response {
