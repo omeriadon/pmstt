@@ -14,7 +14,6 @@ let package = Package(
 		.package(url: "https://github.com/apple/swift-nio.git", from: "2.65.0"),
 		.package(url: "https://github.com/vapor/jwt.git", from: "5.0.0"),
 		.package(url: "https://github.com/omeriadon/ZIPFoundation.git", branch: "development"),
-		.package(url: "https://github.com/krzyzanowskim/OpenSSL-Package.git", from: "3.6.2000"),
 	],
 	targets: [
 		.executableTarget(
@@ -28,7 +27,6 @@ let package = Package(
 				.product(name: "NIOPosix", package: "swift-nio"),
 				.product(name: "JWT", package: "jwt"),
 				.product(name: "ZIPFoundation", package: "ZIPFoundation"),
-				.product(name: "OpenSSL", package: "OpenSSL-Package"),
 			],
 			exclude: [
 				"Services/Passes/pass.pem",

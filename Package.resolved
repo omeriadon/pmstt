@@ -1,5 +1,5 @@
 {
-  "originHash" : "92c96438b02a81ba7e68fd86b9fda68172a55a14cfec54767514731ff9d479e4",
+  "originHash" : "20a1340a7e2268427e6aecc9d89bbfbb0cd68241598f5163f3e191ae2c3b5c58",
   "pins" : [
     {
       "identity" : "async-http-client",
@@ -89,15 +89,6 @@
       "state" : {
         "revision" : "3498e60218e6003894ff95192d756e238c01f44e",
         "version" : "4.7.1"
-      }
-    },
-    {
-      "identity" : "openssl-package",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/krzyzanowskim/OpenSSL-Package.git",
-      "state" : {
-        "revision" : "2d180b33702e0e67fd58607d1f96d5fad0816d10",
-        "version" : "3.6.2000"
       }
     },
     {

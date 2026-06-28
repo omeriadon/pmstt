@@ -1,13 +1,22 @@
 import Foundation
-import OpenSSL
 
-enum SigningError: Error {
-	case resourceNotFound
-	case cryptoInitializationFailed
-	case parsePrivateKeyFailed
-	case parseCertificateFailed
-	case signingFailed
-	case dataExtractionFailed
+enum SigningError: Error, CustomStringConvertible {
+	case resourceNotFound(String)
+	case opensslNotFound
+	case opensslFailed(status: Int32, stderr: String)
+
+	var description: String {
+		switch self {
+			case .resourceNotFound(let path):
+				return "Required signing resource not found: \(path)"
+
+			case .opensslNotFound:
+				return "Could not find an openssl executable."
+
+			case .opensslFailed(let status, let stderr):
+				return "OpenSSL failed with status \(status): \(stderr)"
+		}
+	}
 }
 
 private func Print(_ message: String) {
@@ -18,87 +27,82 @@ private func PrintError(_ message: String) {
 	print("ERROR: \(message)")
 }
 
-/// Helper to extract the concrete OpenSSL error string
-func getOpenSSLError() -> String {
-	let errorCode = ERR_get_error()
-	if errorCode == 0 { return "No OpenSSL error code recorded." }
+private func findOpenSSL() throws -> URL {
+	let candidates = [
+		"/opt/homebrew/bin/openssl", // Apple Silicon Homebrew
+		"/usr/bin/openssl" // macOS system / Ubuntu system
+	]
 
-	let buffer = UnsafeMutablePointer<Int8>.allocate(capacity: 256)
-	defer { buffer.deallocate() }
-
-	if let result = ERR_error_string(errorCode, buffer) {
-		return String(cString: result)
+	for path in candidates {
+		if FileManager.default.isExecutableFile(atPath: path) {
+			return URL(fileURLWithPath: path)
+		}
 	}
-	return "Unknown OpenSSL Error (Code: \(errorCode))"
+
+	throw SigningError.opensslNotFound
 }
 
-func signDataWithBundledKey(_ manifestData: Data, resourceDirectory: URL) throws -> Data {
-	// 1. Initialize OpenSSL configuration so it recognizes key formats
-	OSSL_PROVIDER_load(nil, "default")
-	OpenSSL_add_all_algorithms()
+private func requireFile(_ url: URL) throws {
+	guard FileManager.default.fileExists(atPath: url.path) else {
+		throw SigningError.resourceNotFound(url.path)
+	}
+}
 
-	// 2. Locate the .pem keys in the resource directory
+func signManifestWithBundledKey(
+	manifestURL: URL,
+	outputSignatureURL: URL,
+	resourceDirectory: URL
+) throws {
 	let passKeyURL = resourceDirectory.appendingPathComponent("pass.pem")
 	let walletCertURL = resourceDirectory.appendingPathComponent("wallet_pass.pem")
 
-	let passKeyData = try Data(contentsOf: passKeyURL)
-	let walletCertData = try Data(contentsOf: walletCertURL)
+	try requireFile(manifestURL)
+	try requireFile(passKeyURL)
+	try requireFile(walletCertURL)
 
-	// 3. Initialize OpenSSL memory buffers
-	let manifestBio = BIO_new_mem_buf((manifestData as NSData).bytes, Int32(manifestData.count))
-	let pkeyBio = BIO_new_mem_buf((passKeyData as NSData).bytes, Int32(passKeyData.count))
-	let certBio = BIO_new_mem_buf((walletCertData as NSData).bytes, Int32(walletCertData.count))
+	let opensslURL = try findOpenSSL()
 
-	defer {
-		BIO_free(manifestBio)
-		BIO_free(pkeyBio)
-		BIO_free(certBio)
+	Print("Using OpenSSL at: \(opensslURL.path)")
+
+	let process = Process()
+	process.executableURL = opensslURL
+
+	process.arguments = [
+		"smime",
+		"-binary",
+		"-sign",
+		"-signer", walletCertURL.path,
+		"-inkey", passKeyURL.path,
+		"-in", manifestURL.path,
+		"-out", outputSignatureURL.path,
+		"-outform", "DER"
+	]
+
+	let stderrPipe = Pipe()
+	let stdoutPipe = Pipe()
+
+	process.standardError = stderrPipe
+	process.standardOutput = stdoutPipe
+
+	try process.run()
+	process.waitUntilExit()
+
+	let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+	let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+
+	let stderr = String(data: stderrData, encoding: .utf8) ?? ""
+	let stdout = String(data: stdoutData, encoding: .utf8) ?? ""
+
+	if process.terminationStatus != 0 {
+		PrintError("OpenSSL stdout: \(stdout)")
+		PrintError("OpenSSL stderr: \(stderr)")
+		throw SigningError.opensslFailed(
+			status: process.terminationStatus,
+			stderr: stderr.isEmpty ? stdout : stderr
+		)
 	}
 
-	// 4. Try parsing the private key
-	guard let pkey = PEM_read_bio_PrivateKey(pkeyBio, nil, nil, nil) else {
-		PrintError("❌ OpenSSL Private Key Parsing Failed!")
-		PrintError("Detailed OpenSSL Error: \(getOpenSSLError())")
-		throw SigningError.parsePrivateKeyFailed
-	}
-	Print("✅ Private key parsed successfully")
-	defer { EVP_PKEY_free(pkey) }
+	try requireFile(outputSignatureURL)
 
-	// 5. Try parsing the certificate
-	guard let cert = PEM_read_bio_X509(certBio, nil, nil, nil) else {
-		PrintError("❌ OpenSSL Certificate Parsing Failed!")
-		PrintError("Detailed OpenSSL Error: \(getOpenSSLError())")
-		throw SigningError.parseCertificateFailed
-	}
-	Print("✅ Certificate parsed successfully")
-	defer { X509_free(cert) }
-
-	// 6. Generate the PKCS7 Signature envelope
-	let signingFlags: Int32 = PKCS7_DETACHED | PKCS7_BINARY
-
-	guard let pkcs7Structure = PKCS7_sign(cert, pkey, nil, manifestBio, signingFlags) else {
-		PrintError("❌ PKCS7 Signing Failed!")
-		let error = getOpenSSLError()
-		PrintError("Detailed OpenSSL Error: \(error)")
-		throw SigningError.signingFailed
-	}
-	defer { PKCS7_free(pkcs7Structure) }
-
-	// 7. Convert to DER format
-	let outputBio = BIO_new(BIO_s_mem())
-	defer { BIO_free(outputBio) }
-
-	guard i2d_PKCS7_bio(outputBio, pkcs7Structure) == 1 else {
-		throw SigningError.dataExtractionFailed
-	}
-
-	// 8. Extract raw bytes
-	var internalBuffer: UnsafeMutablePointer<Int8>? = nil
-	let dataLength = BIO_ctrl(outputBio, BIO_CTRL_INFO, 0, &internalBuffer)
-
-	if let safeBuffer = internalBuffer, dataLength > 0 {
-		return Data(bytes: safeBuffer, count: Int(dataLength))
-	} else {
-		throw SigningError.dataExtractionFailed
-	}
+	Print("Pass manifest signed successfully")
 }
