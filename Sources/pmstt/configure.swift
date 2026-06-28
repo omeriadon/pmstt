@@ -19,8 +19,9 @@ public func configure(_ app: Application) async throws {
 	} else {
 		let databasePort = Environment.get("DATABASE_PORT").flatMap(Int.init) ?? 5432
 		let databaseHostname = Environment.get("DATABASE_HOSTNAME") ?? "127.0.0.1"
-		let databaseName = Environment.get("DATABASE_NAME") ?? "pmstt"
-		let databaseUsername = Environment.get("DATABASE_USERNAME") ?? "pmstt"
+		let databaseName = Environment.get("DATABASE_NAME") ?? "timetable"
+		let databaseUsername = Environment.get("DATABASE_USERNAME") ?? "timetable_user"
+		let databasePassword = Environment.get("DATABASE_PASSWORD") ?? "new_strong_password"
 
 		let serverPort = Environment.get("PORT").flatMap(Int.init) ?? 8081
 		let serverHostname = Environment.get("HOSTNAME") ?? "127.0.0.1"
@@ -34,7 +35,7 @@ public func configure(_ app: Application) async throws {
 					hostname: databaseHostname,
 					port: databasePort,
 					username: databaseUsername,
-					password: Environment.get("DATABASE_PASSWORD"),
+					password: databasePassword,
 					database: databaseName,
 					tls: .disable
 				),
