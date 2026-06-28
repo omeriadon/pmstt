@@ -21,7 +21,7 @@ func routes(_ app: Application) throws {
 		return .ok
 	}
 
-	app.post("report", "User") { req async throws -> HTTPStatus in
+	app.post("v1", "report", "user") { req async throws -> HTTPStatus in
 		let payload = try req.auth.require(UserPayload.self)
 		let body = try req.content.decode(ReportUserRequest.self)
 

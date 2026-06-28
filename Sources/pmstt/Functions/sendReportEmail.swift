@@ -24,7 +24,7 @@ func sendReportEmail(body: ReportUserRequest, req: Request) async throws -> HTTP
 		html: """
 		<h1>Timetable App Report</h1>
 		<p><strong>Reported Account ID:</strong> \(body.reportedAccountID)</p>
-		<p><strong>Reporter Account ID:</strong> \(body.reportedAccountID)</p>
+		<p><strong>Reporter Account ID:</strong> \(body.reporterAccountID)</p>
 		"""
 	)
 
