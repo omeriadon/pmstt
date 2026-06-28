@@ -28,6 +28,7 @@ func routes(_ app: Application) throws {
 	try app.register(collection: ReceivedNameOverrideController())
 	try app.register(collection: SettingsController())
 	try app.register(collection: PassController())
+	try app.register(collection: ReportController())
 }
 
 struct HealthResponse: Content {
