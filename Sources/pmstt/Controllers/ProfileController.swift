@@ -14,7 +14,7 @@ struct ProfileController: RouteCollection {
 	func getProfile(req: Request) async throws -> UserProfileResponse {
 		let payload = try req.auth.require(UserPayload.self)
 		guard let user = try await User.find(payload.sub, on: req.db) else {
-			throw Abort(.notFound, reason: "User not found.")
+			throw AppError(.notFound, code: .accountNotFound, reason: "User not found.")
 		}
 
 		return UserProfileResponse(
@@ -30,7 +30,7 @@ struct ProfileController: RouteCollection {
 		let body = try req.content.decode(UpdateProfileRequest.self)
 
 		guard let user = try await User.find(payload.sub, on: req.db) else {
-			throw Abort(.notFound, reason: "User not found.")
+			throw AppError(.notFound, code: .accountNotFound, reason: "User not found.")
 		}
 
 		if let displayName = body.displayName, !displayName.isEmpty {
@@ -39,7 +39,7 @@ struct ProfileController: RouteCollection {
 
 		if let email = body.email {
 			guard !email.isEmpty, email.contains("@") else {
-				throw Abort(.badRequest, reason: "Invalid email format.")
+				throw AppError(.badRequest, code: .invalidRequest, reason: "Invalid email format.", field: "email")
 			}
 			let normalizedEmail = email.lowercased()
 			if normalizedEmail != user.email {
@@ -47,7 +47,7 @@ struct ProfileController: RouteCollection {
 					.filter(\.$email == normalizedEmail)
 					.first()
 				if existing != nil {
-					throw Abort(.conflict, reason: "Email is already registered.")
+					throw AppError(.conflict, code: .emailAlreadyExists, reason: "Email is already registered.", field: "email")
 				}
 				user.email = normalizedEmail
 			}
@@ -66,7 +66,7 @@ struct ProfileController: RouteCollection {
 	func deleteAccount(req: Request) async throws -> HTTPStatus {
 		let payload = try req.auth.require(UserPayload.self)
 		guard let user = try await User.find(payload.sub, on: req.db) else {
-			throw Abort(.notFound, reason: "User not found.")
+			throw AppError(.notFound, code: .accountNotFound, reason: "User not found.")
 		}
 
 		try await user.delete(on: req.db)

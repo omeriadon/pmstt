@@ -1,9 +1,14 @@
 import Vapor
 
 enum ServerErrorCode: String, Codable, Sendable {
+	case accountNotFound
 	case invalidRequest
+	case invalidCredentials
+	case invalidAppleIdentityToken
 	case notFound
 	case unauthorized
+	case emailAlreadyExists
+	case sessionExpired
 	case conflict
 	case rateLimited
 	case internalServerError

@@ -8,6 +8,7 @@ struct AuthController: RouteCollection {
 		let auth = routes.grouped("v1", "auth")
 		auth.post("register", use: register)
 		auth.post("login", use: login)
+		auth.post("apple", use: signInWithApple)
 		auth.post("refresh", use: refresh)
 
 		let protected = auth.grouped(UserPayload.authenticator(), UserPayload.guardMiddleware())
@@ -22,11 +23,11 @@ struct AuthController: RouteCollection {
 		let body = try req.content.decode(RegisterRequest.self)
 
 		guard !body.email.isEmpty, body.email.contains("@") else {
-			throw Abort(.badRequest, reason: "Invalid email format.")
+			throw AppError(.badRequest, code: .invalidRequest, reason: "Invalid email format.", field: "email")
 		}
 
 		guard body.password.count >= 8 else {
-			throw Abort(.badRequest, reason: "Password must be at least 8 characters long.")
+			throw AppError(.badRequest, code: .invalidRequest, reason: "Password must be at least 8 characters long.", field: "password")
 		}
 
 		// Check if user already exists
@@ -35,7 +36,7 @@ struct AuthController: RouteCollection {
 			.first()
 
 		if existing != nil {
-			throw Abort(.conflict, reason: "Email is already registered.")
+			throw AppError(.conflict, code: .emailAlreadyExists, reason: "Email is already registered.", field: "email")
 		}
 
 		// Create user
@@ -63,17 +64,63 @@ struct AuthController: RouteCollection {
 			.filter(\.$email == body.email.lowercased())
 			.first()
 		else {
-			throw Abort(.unauthorized, reason: "Invalid email or password.")
+			throw AppError(.unauthorized, code: .invalidCredentials, reason: "Invalid email or password.")
 		}
 
 		// Verify password
 		guard let passwordHash = user.passwordHash else {
-			throw Abort(.unauthorized, reason: "Invalid email or password.")
+			throw AppError(.unauthorized, code: .invalidCredentials, reason: "Invalid email or password.")
 		}
 		let isPasswordValid = try req.password.verify(body.password, created: passwordHash)
 		guard isPasswordValid else {
-			throw Abort(.unauthorized, reason: "Invalid email or password.")
+			throw AppError(.unauthorized, code: .invalidCredentials, reason: "Invalid email or password.")
 		}
+
+		return try await generateTokens(for: user, on: req)
+	}
+
+	func signInWithApple(req: Request) async throws -> TokenResponse {
+		let body = try req.content.decode(AppleSignInRequest.self)
+
+		let token: AppleIdentityToken
+		do {
+			token = try await req.jwt.apple.verify(body.identityToken)
+		} catch {
+			throw AppError(.unauthorized, code: .invalidAppleIdentityToken, reason: "The Apple identity token is invalid.")
+		}
+
+		let appleSubject = token.subject.value
+		if let existingAppleUser = try await User.query(on: req.db)
+			.filter(\.$appleSubject == appleSubject)
+			.first()
+		{
+			return try await generateTokens(for: existingAppleUser, on: req)
+		}
+
+		let normalizedEmail = token.email?.lowercased()
+		if let normalizedEmail,
+		   let existingEmailUser = try await User.query(on: req.db)
+		   	.filter(\.$email == normalizedEmail)
+		   	.first()
+		{
+			existingEmailUser.appleSubject = appleSubject
+			if existingEmailUser.email == nil {
+				existingEmailUser.email = normalizedEmail
+			}
+			try await existingEmailUser.save(on: req.db)
+			return try await generateTokens(for: existingEmailUser, on: req)
+		}
+
+		let settingsData = try JSONEncoder().encode(AccountSettings.default)
+		let user = User(
+			email: normalizedEmail,
+			passwordHash: nil,
+			appleSubject: appleSubject,
+			displayName: resolvedDisplayName(body.displayName, fallbackEmail: normalizedEmail),
+			selfPassSerialNumber: UUID().uuidString,
+			settingsData: settingsData
+		)
+		try await user.save(on: req.db)
 
 		return try await generateTokens(for: user, on: req)
 	}
@@ -88,12 +135,12 @@ struct AuthController: RouteCollection {
 			.with(\.$user)
 			.first()
 		else {
-			throw Abort(.unauthorized, reason: "Invalid or expired session.")
+			throw AppError(.unauthorized, code: .sessionExpired, reason: "Invalid or expired session.")
 		}
 
 		guard userToken.expiresAt > Date() else {
 			try await userToken.delete(on: req.db)
-			throw Abort(.unauthorized, reason: "Session has expired.")
+			throw AppError(.unauthorized, code: .sessionExpired, reason: "Session has expired.")
 		}
 
 		// Rotate token: delete old, create new
@@ -167,6 +214,19 @@ struct AuthController: RouteCollection {
 	private func hashToken(_ token: String) -> String {
 		let hash = SHA256.hash(data: Data(token.utf8))
 		return hash.compactMap { String(format: "%02x", $0) }.joined()
+	}
+
+	private func resolvedDisplayName(_ displayName: String?, fallbackEmail: String?) -> String {
+		let trimmedDisplayName = displayName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+		if !trimmedDisplayName.isEmpty {
+			return trimmedDisplayName
+		}
+
+		if let fallbackEmail, let prefix = fallbackEmail.split(separator: "@").first, !prefix.isEmpty {
+			return String(prefix)
+		}
+
+		return "User"
 	}
 
 	private func generateRandomToken() -> String {

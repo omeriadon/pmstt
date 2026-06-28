@@ -16,6 +16,11 @@ struct RefreshRequest: Content {
 	let refreshToken: String
 }
 
+struct AppleSignInRequest: Content {
+	let identityToken: String
+	let displayName: String?
+}
+
 struct TokenResponse: Content {
 	let accessToken: String
 	let refreshToken: String
