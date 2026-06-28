@@ -127,9 +127,6 @@ struct ReceivedTimetableController: RouteCollection {
 			guard serialNumbers.insert(serialNumber).inserted else {
 				throw invalidProjection("Pass serial numbers must be unique.")
 			}
-			guard ["accountOwner", "authoredForThirdParty"].contains(timetable.sourceKind) else {
-				throw invalidProjection("A received timetable has an invalid source kind.")
-			}
 			guard !timetable.signedDisplayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
 				throw invalidProjection("A received timetable has no signed display name.")
 			}

@@ -103,7 +103,7 @@ struct OwnerTimetableResponse: Content {
 struct ReceivedPassMirrorDTO: Content {
 	let id: String
 	let issuerAccountID: String
-	let sourceKind: String
+	let sourceKind: SourceKind
 	let signedDisplayName: String
 	let authorDisplayName: String?
 	let subjects: [TimetableSubjectDTO]

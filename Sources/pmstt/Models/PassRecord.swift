@@ -14,7 +14,12 @@ final class PassRecord: Model, Content, @unchecked Sendable {
 	var issuerAccountID: String
 
 	@Field(key: "source_kind")
-	var sourceKind: String
+	private var sourceKindRawValue: String
+
+	var sourceKind: SourceKind {
+		get { SourceKind(rawValueOrDefault: sourceKindRawValue) }
+		set { sourceKindRawValue = newValue.rawValue }
+	}
 
 	@OptionalParent(key: "authored_timetable_id")
 	var authoredTimetable: AuthoredTimetable?
@@ -40,7 +45,7 @@ final class PassRecord: Model, Content, @unchecked Sendable {
 		id: UUID? = nil,
 		serialNumber: String,
 		issuerAccountID: String,
-		sourceKind: String,
+		sourceKind: SourceKind,
 		authoredTimetableID: AuthoredTimetable.IDValue? = nil,
 		revision: Int,
 		authenticationTokenHash: String,
@@ -49,8 +54,8 @@ final class PassRecord: Model, Content, @unchecked Sendable {
 		self.id = id
 		self.serialNumber = serialNumber
 		self.issuerAccountID = issuerAccountID
-		self.sourceKind = sourceKind
-		self.$authoredTimetable.id = authoredTimetableID
+		sourceKindRawValue = sourceKind.rawValue
+		$authoredTimetable.id = authoredTimetableID
 		self.revision = revision
 		self.authenticationTokenHash = authenticationTokenHash
 		self.isDeleted = isDeleted
