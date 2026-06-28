@@ -12,6 +12,8 @@ struct PassController: RouteCollection {
 	func getOwnerPass(req: Request) async throws -> Response {
 		let payload = try req.auth.require(UserPayload.self)
 
+		req.logger.info("test")
+
 		// 1. Fetch user to get selfPassSerialNumber and displayName
 		guard let user = try await User.find(payload.sub, on: req.db) else {
 			req.logger.warning("Owner pass failed: user not found for id \(payload.sub)")
