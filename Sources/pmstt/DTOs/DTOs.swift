@@ -128,6 +128,5 @@ struct UpdateReceivedNameOverrideRequest: Content {
 }
 
 struct ReportUserRequest: Content {
-	let reporterAccountID: String
 	let reportedAccountID: String
 }

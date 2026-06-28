@@ -3,8 +3,11 @@ import Vapor
 
 struct ReportController: RouteCollection {
 	func boot(routes: any RoutesBuilder) throws {
-		let passes = routes.grouped("v1", "report")
-		let protected = passes.grouped(UserPayload.authenticator(), UserPayload.guardMiddleware())
+		let report = routes.grouped("v1", "report")
+		let protected = report.grouped(
+			UserPayload.authenticator(),
+			UserPayload.guardMiddleware()
+		)
 
 		protected.post("user", use: reportUser)
 	}
@@ -18,9 +21,9 @@ struct ReportController: RouteCollection {
 		guard let reportedUserID = UUID(uuidString: body.reportedAccountID) else {
 			throw AppError(
 				.badRequest,
-				code: .accountNotFound,
-				reason: "Unable to convert reportedUserID from string to UUID. This most likely means reportedUserID isn't a valid user ID.",
-				field: "reportedUserID"
+				code: .invalidRequest,
+				reason: "reportedAccountID is not a valid UUID.",
+				field: "reportedAccountID"
 			)
 		}
 
@@ -29,23 +32,28 @@ struct ReportController: RouteCollection {
 				.badRequest,
 				code: .invalidRequest,
 				reason: "You cannot report yourself.",
-				field: "reportedUserID"
+				field: "reportedAccountID"
 			)
 		}
 
-		guard try await User.find(reportedUserID, on: req.db) != nil else {
-			throw AppError(
-				.notFound,
-				code: .notFound,
-				reason: "Reported user was not found.",
-				field: "reportedUserID"
-			)
-		}
-
-		guard try await User.find(reporterUserID, on: req.db) != nil else {
+		guard let reporterUser = try await User.find(reporterUserID, on: req.db) else {
 			throw Abort(.unauthorized)
 		}
 
-		return try await sendReportEmail(body: body, req: req)
+		guard let reportedUser = try await User.find(reportedUserID, on: req.db) else {
+			throw AppError(
+				.notFound,
+				code: .accountNotFound,
+				reason: "Reported user was not found.",
+				field: "reportedAccountID"
+			)
+		}
+
+		return try await sendReportEmail(
+			body: body,
+			reporterUser: reporterUser,
+			reportedUser: reportedUser,
+			req: req
+		)
 	}
 }
