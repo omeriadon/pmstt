@@ -46,19 +46,6 @@ struct SettingsController: RouteCollection {
 	}
 
 	private func validate(_ settings: UpdateSettingsRequest) throws {
-		guard isValid(settings.liveActivityStartTime), isValid(settings.liveActivityEndTime) else {
-			throw invalidSettings("Live Activity start and end times must be valid clock times.")
-		}
-		guard !settings.liveActivityWeekdays.isEmpty else {
-			throw invalidSettings("At least one Live Activity weekday is required.")
-		}
-	}
-
-	private func isValid(_ time: TimeOfDay) -> Bool {
-		(0 ... 23).contains(time.hour) && (0 ... 59).contains(time.minute)
-	}
-
-	private func invalidSettings(_ reason: String) -> AppError {
-		AppError(.badRequest, code: .invalidRequest, reason: reason, field: "accountSettings")
+		_ = settings
 	}
 }
