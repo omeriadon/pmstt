@@ -51,10 +51,43 @@ struct UpdateAccountRequest: Content {
 
 struct UpdateSettingsRequest: Content {
 	var liveActivitiesEnabled: Bool
+	var liveActivityStartTime: TimeOfDay
+	var liveActivityEndTime: TimeOfDay
+	var liveActivityWeekdays: Set<SchoolWeekday>
+	var showBreaksInLiveActivity: Bool
+	var showNextSubjectInLiveActivity: Bool
+	var widgetShowsReceivedTimetables: Bool
+	var spotlightIndexingEnabled: Bool
+	var siriAccessEnabled: Bool
+	var notificationsEnabled: Bool
 
 	static let `default` = UpdateSettingsRequest(
-		liveActivitiesEnabled: true
+		liveActivitiesEnabled: true,
+		liveActivityStartTime: TimeOfDay(hour: 8, minute: 0),
+		liveActivityEndTime: TimeOfDay(hour: 15, minute: 40),
+		liveActivityWeekdays: [.monday, .tuesday, .wednesday, .thursday, .friday],
+		showBreaksInLiveActivity: true,
+		showNextSubjectInLiveActivity: true,
+		widgetShowsReceivedTimetables: true,
+		spotlightIndexingEnabled: true,
+		siriAccessEnabled: true,
+		notificationsEnabled: false
 	)
+
+	var accountSettings: AccountSettings {
+		AccountSettings(
+			liveActivitiesEnabled: liveActivitiesEnabled,
+			liveActivityStartTime: liveActivityStartTime,
+			liveActivityEndTime: liveActivityEndTime,
+			liveActivityWeekdays: liveActivityWeekdays,
+			showBreaksInLiveActivity: showBreaksInLiveActivity,
+			showNextSubjectInLiveActivity: showNextSubjectInLiveActivity,
+			widgetShowsReceivedTimetables: widgetShowsReceivedTimetables,
+			spotlightIndexingEnabled: spotlightIndexingEnabled,
+			siriAccessEnabled: siriAccessEnabled,
+			notificationsEnabled: notificationsEnabled
+		)
+	}
 }
 
 extension UpdateSettingsRequest {
@@ -67,6 +100,15 @@ extension UpdateSettingsRequest {
 			forKey: .liveActivitiesEnabled,
 			default: defaults.liveActivitiesEnabled
 		)
+		liveActivityStartTime = try container.decodeIfPresent(TimeOfDay.self, forKey: .liveActivityStartTime, default: defaults.liveActivityStartTime)
+		liveActivityEndTime = try container.decodeIfPresent(TimeOfDay.self, forKey: .liveActivityEndTime, default: defaults.liveActivityEndTime)
+		liveActivityWeekdays = try container.decodeIfPresent(Set<SchoolWeekday>.self, forKey: .liveActivityWeekdays, default: defaults.liveActivityWeekdays)
+		showBreaksInLiveActivity = try container.decodeIfPresent(Bool.self, forKey: .showBreaksInLiveActivity, default: defaults.showBreaksInLiveActivity)
+		showNextSubjectInLiveActivity = try container.decodeIfPresent(Bool.self, forKey: .showNextSubjectInLiveActivity, default: defaults.showNextSubjectInLiveActivity)
+		widgetShowsReceivedTimetables = try container.decodeIfPresent(Bool.self, forKey: .widgetShowsReceivedTimetables, default: defaults.widgetShowsReceivedTimetables)
+		spotlightIndexingEnabled = try container.decodeIfPresent(Bool.self, forKey: .spotlightIndexingEnabled, default: defaults.spotlightIndexingEnabled)
+		siriAccessEnabled = try container.decodeIfPresent(Bool.self, forKey: .siriAccessEnabled, default: defaults.siriAccessEnabled)
+		notificationsEnabled = try container.decodeIfPresent(Bool.self, forKey: .notificationsEnabled, default: defaults.notificationsEnabled)
 	}
 }
 

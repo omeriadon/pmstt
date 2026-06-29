@@ -20,7 +20,7 @@ struct SettingsController: RouteCollection {
 		try validate(settings)
 
 		let user = try await authenticatedUser(req)
-		user.settingsData = try JSONEncoder().encode(settings)
+		user.settingsData = try JSONEncoder().encode(settings.accountSettings)
 		try await user.save(on: req.db)
 		return try decodeSettings(for: user)
 	}
@@ -46,7 +46,12 @@ struct SettingsController: RouteCollection {
 	}
 
 	private func validate(_ settings: UpdateSettingsRequest) throws {
-		// currently, any settings config is valid so never throw.
+		guard isValid(settings.liveActivityStartTime), isValid(settings.liveActivityEndTime) else {
+			throw invalidSettings("Live Activity start and end times must be valid clock times.")
+		}
+		guard !settings.liveActivityWeekdays.isEmpty else {
+			throw invalidSettings("At least one Live Activity weekday is required.")
+		}
 	}
 
 	private func isValid(_ time: TimeOfDay) -> Bool {
