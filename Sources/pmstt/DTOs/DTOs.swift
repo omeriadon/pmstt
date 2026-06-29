@@ -140,3 +140,19 @@ struct UpdateReceivedNameOverrideRequest: Content {
 struct ReportUserRequest: Content {
 	let reportedAccountID: String
 }
+
+struct RegisterUserDeviceRequest: Content {
+	let installationID: String
+	let platform: String
+	let apnsToken: String
+}
+
+struct UserDeviceResponse: Content {
+	let installationID: String
+	let platform: String
+	let lastSeenAt: Date
+}
+
+struct TestNotificationResponse: Content {
+	let deliveredDeviceCount: Int
+}

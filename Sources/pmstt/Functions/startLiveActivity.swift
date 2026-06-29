@@ -5,8 +5,8 @@
 //  Created by Adon Omeri on 14/5/2026.
 //
 
-import Foundation
 import AsyncHTTPClient
+import Foundation
 import NIO
 
 func startLiveActivity(token: String, jwt: String) async throws {
@@ -35,5 +35,5 @@ func startLiveActivity(token: String, jwt: String) async throws {
 	}
 	"""))
 
-	try await APNSClient().send(request: request)
+	_ = try await APNSClient().send(request: request)
 }
