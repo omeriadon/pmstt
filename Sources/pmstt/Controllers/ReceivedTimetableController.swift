@@ -26,6 +26,15 @@ struct ReceivedTimetableController: RouteCollection {
 		try validate(body)
 
 		try await req.db.transaction { database in
+			let submittedSerialNumbers = Set(body.timetables.lazy.filter { !$0.isDeleted }.map(\.id))
+			let existingRecords = try await ReceivedPassMirror.query(on: database)
+				.filter(\.$user.$id == payload.sub)
+				.all()
+
+			for record in existingRecords where !submittedSerialNumbers.contains(record.passSerialNumber) {
+				try await record.delete(on: database)
+			}
+
 			for timetable in body.timetables {
 				guard !timetable.isDeleted else {
 					continue
