@@ -188,6 +188,10 @@ struct RegisterUserDeviceRequest: Content {
 	let apnsToken: String
 }
 
+struct RemoveUserDeviceRequest: Content {
+	let installationID: String
+}
+
 struct UserDeviceResponse: Content {
 	let installationID: String
 	let platform: String

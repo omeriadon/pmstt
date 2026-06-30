@@ -34,10 +34,13 @@ struct NotificationController: RouteCollection {
 
 	func removeDevice(req: Request) async throws -> HTTPStatus {
 		let payload = try req.auth.require(UserPayload.self)
-		let installationID = try req.query.get(String.self, at: "installationID")
+		let body = try req.content.decode(RemoveUserDeviceRequest.self)
+		guard !body.installationID.isEmpty, body.installationID.count <= 200 else {
+			throw AppError(.badRequest, code: .invalidRequest, reason: "The installation ID is invalid.", field: "installationID")
+		}
 		try await UserDevice.query(on: req.db)
 			.filter(\.$user.$id == payload.sub)
-			.filter(\.$installationID == installationID)
+			.filter(\.$installationID == body.installationID)
 			.delete()
 		return .noContent
 	}
