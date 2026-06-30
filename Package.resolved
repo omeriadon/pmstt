@@ -1,5 +1,5 @@
 {
-  "originHash" : "20a1340a7e2268427e6aecc9d89bbfbb0cd68241598f5163f3e191ae2c3b5c58",
+  "originHash" : "e70cea60f77c42d42ce9b8b9e8e0b7b7f61baef68ebce4f59be02d365961fa31",
   "pins" : [
     {
       "identity" : "async-http-client",
@@ -62,6 +62,15 @@
       "state" : {
         "revision" : "e227d94dc3fe7099a096ac2ca28cad1f69bd8d5b",
         "version" : "4.9.0"
+      }
+    },
+    {
+      "identity" : "fuzzymatchingswift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/seanoshea/FuzzyMatchingSwift.git",
+      "state" : {
+        "revision" : "87b14bd5780a73214d45025f678d66160af45a2c",
+        "version" : "0.11.1"
       }
     },
     {

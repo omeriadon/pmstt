@@ -29,42 +29,7 @@ struct PassController: RouteCollection {
 			throw Abort(.notFound, reason: "No timetable data has been uploaded yet.")
 		}
 
-		// 3. Resolve passes resource directory path
-		let workingDir = req.application.directory.workingDirectory
-		let resourceDirectory = URL(fileURLWithPath: workingDir)
-			.appendingPathComponent("Sources")
-			.appendingPathComponent("pmstt")
-			.appendingPathComponent("Services")
-			.appendingPathComponent("Passes")
-
-		// 4. Generate the Apple Wallet pass
-		let fileURL: URL
-		do {
-			fileURL = try await generatePass(
-				serialNumber: user.selfPassSerialNumber,
-				displayName: user.displayName,
-				subjectsData: ownerTimetable.subjectsData,
-				resourceDirectory: resourceDirectory
-			)
-		} catch {
-			req.logger.error("Pass generation failed: \(error)")
-			throw Abort(.internalServerError, reason: "Failed to generate Apple Wallet pass.")
-		}
-
-		// 5. Read generated pass bytes
-		let data = try Data(contentsOf: fileURL)
-
-		// 6. Cleanup temporary directory
-		try? FileManager.default.removeItem(at: fileURL.deletingLastPathComponent())
-
-		// 7. Construct Response with Apple Wallet Content-Type
-		return Response(
-			status: .ok,
-			headers: [
-				"Content-Type": "application/vnd.apple.pkpass",
-				"Content-Disposition": "attachment; filename=\"timetable.pkpass\""
-			],
-			body: .init(data: data)
-		)
+		ownerTimetable.user = user
+		return try await PassFactory.response(for: .owner(ownerTimetable), req: req)
 	}
 }

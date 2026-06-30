@@ -16,6 +16,9 @@ final class OwnerTimetable: Model, Content, @unchecked Sendable {
 	@Field(key: "revision")
 	var revision: Int
 
+	@Field(key: "is_searchable")
+	var isSearchable: Bool
+
 	@Timestamp(key: "created_at", on: .create)
 	var createdAt: Date?
 
@@ -24,10 +27,11 @@ final class OwnerTimetable: Model, Content, @unchecked Sendable {
 
 	init() {}
 
-	init(id: UUID? = nil, userID: User.IDValue, subjectsData: Data, revision: Int) {
+	init(id: UUID? = nil, userID: User.IDValue, subjectsData: Data, revision: Int, isSearchable: Bool = true) {
 		self.id = id
 		self.$user.id = userID
 		self.subjectsData = subjectsData
 		self.revision = revision
+		self.isSearchable = isSearchable
 	}
 }

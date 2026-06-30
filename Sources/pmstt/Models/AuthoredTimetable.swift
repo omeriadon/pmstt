@@ -22,8 +22,8 @@ final class AuthoredTimetable: Model, Content, @unchecked Sendable {
 	@Field(key: "revision")
 	var revision: Int
 
-	@Field(key: "is_deleted")
-	var isDeleted: Bool
+	@Field(key: "is_searchable")
+	var isSearchable: Bool
 
 	@Timestamp(key: "created_at", on: .create)
 	var createdAt: Date?
@@ -40,7 +40,7 @@ final class AuthoredTimetable: Model, Content, @unchecked Sendable {
 		passSerialNumber: String,
 		subjectsData: Data,
 		revision: Int,
-		isDeleted: Bool = false
+		isSearchable: Bool = true
 	) {
 		self.id = id
 		self.$author.id = authorUserID
@@ -48,6 +48,6 @@ final class AuthoredTimetable: Model, Content, @unchecked Sendable {
 		self.passSerialNumber = passSerialNumber
 		self.subjectsData = subjectsData
 		self.revision = revision
-		self.isDeleted = isDeleted
+		self.isSearchable = isSearchable
 	}
 }

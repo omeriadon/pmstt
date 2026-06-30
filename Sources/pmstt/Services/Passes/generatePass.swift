@@ -21,6 +21,12 @@ func generatePass(
 	serialNumber: String,
 	displayName: String,
 	subjectsData: Data,
+	authenticationToken: String,
+	webServiceURL: String,
+	isDeleted: Bool = false,
+	issuerAccountID: String? = nil,
+	sourceKind: SourceKind = .accountOwner,
+	authorDisplayName: String? = nil,
 	resourceDirectory: URL
 ) async throws -> URL {
 	let startTime = ContinuousClock.now
@@ -57,6 +63,13 @@ func generatePass(
 	passDict["userInfo"] = userInfo
 
 	passDict["serialNumber"] = serialNumber
+	passDict["authenticationToken"] = authenticationToken
+	passDict["webServiceURL"] = webServiceURL
+	userInfo["isDeleted"] = isDeleted
+	userInfo["issuerAccountID"] = issuerAccountID
+	userInfo["sourceKind"] = sourceKind.rawValue
+	userInfo["authorDisplayName"] = authorDisplayName
+	passDict["userInfo"] = userInfo
 
 	let dateFormatter = ISO8601DateFormatter()
 	dateFormatter.formatOptions = [.withInternetDateTime]

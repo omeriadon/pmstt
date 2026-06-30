@@ -30,6 +30,9 @@ func routes(_ app: Application) throws {
 	try app.register(collection: PassController())
 	try app.register(collection: NotificationController())
 	try app.register(collection: ReportController())
+	try app.register(collection: AuthoredTimetableController())
+	try app.register(collection: TimetableDiscoveryController())
+	try app.register(collection: WalletWebServiceController())
 }
 
 struct HealthResponse: Content {

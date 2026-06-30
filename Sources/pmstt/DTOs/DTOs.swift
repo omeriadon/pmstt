@@ -102,12 +102,53 @@ struct TimetableSubjectDTO: Content {
 struct OwnerTimetableUpdateRequest: Content {
 	let subjects: [TimetableSubjectDTO]
 	let expectedRevision: Int?
+	let isSearchable: Bool?
 }
 
 struct OwnerTimetableResponse: Content {
 	let subjects: [TimetableSubjectDTO]
 	let revision: Int
 	let updatedAt: Date?
+	let isSearchable: Bool
+}
+
+struct TimetableSearchResult: Content {
+	let id: UUID
+	let title: String
+	let authorAccountID: UUID
+	let authorDisplayName: String
+	let sourceKind: SourceKind
+	let confidence: Double
+}
+
+struct TimetableDetailResponse: Content {
+	let id: UUID
+	let title: String
+	let authorAccountID: UUID
+	let authorDisplayName: String
+	let sourceKind: SourceKind
+	let subjects: [TimetableSubjectDTO]
+	let subjectCount: Int
+	let weeklyLessonCount: Int
+	let updatedAt: Date?
+	let activeInstallCount: Int
+	let isSearchable: Bool
+	let canEdit: Bool
+}
+
+struct AuthoredTimetableUpdateRequest: Content {
+	let title: String
+	let subjects: [TimetableSubjectDTO]
+	let isSearchable: Bool
+}
+
+struct WalletRegistrationRequest: Content {
+	let pushToken: String
+}
+
+struct WalletSerialNumbersResponse: Content {
+	let serialNumbers: [String]
+	let lastUpdated: String
 }
 
 struct ReceivedPassMirrorDTO: Content {

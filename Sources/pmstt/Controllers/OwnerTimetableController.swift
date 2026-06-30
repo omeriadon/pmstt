@@ -16,7 +16,7 @@ struct OwnerTimetableController: RouteCollection {
 			.filter(\.$user.$id == payload.sub)
 			.first()
 		else {
-			return OwnerTimetableResponse(subjects: [], revision: 0, updatedAt: nil)
+			return OwnerTimetableResponse(subjects: [], revision: 0, updatedAt: nil, isSearchable: true)
 		}
 
 		return try response(for: timetable)
@@ -44,6 +44,7 @@ struct OwnerTimetableController: RouteCollection {
 				}
 
 				existing.subjectsData = subjectsData
+				existing.isSearchable = body.isSearchable ?? existing.isSearchable
 				existing.revision += 1
 				try await existing.save(on: database)
 				return existing
@@ -61,6 +62,7 @@ struct OwnerTimetableController: RouteCollection {
 				userID: payload.sub,
 				subjectsData: subjectsData,
 				revision: 1
+				,isSearchable: body.isSearchable ?? true
 			)
 			try await created.save(on: database)
 			return created
@@ -85,6 +87,7 @@ struct OwnerTimetableController: RouteCollection {
 			subjects: subjects,
 			revision: timetable.revision,
 			updatedAt: timetable.updatedAt
+			,isSearchable: timetable.isSearchable
 		)
 	}
 

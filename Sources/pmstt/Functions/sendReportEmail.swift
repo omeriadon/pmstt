@@ -195,7 +195,7 @@ private func renderAuthoredTimetablesHTML(_ timetables: [AuthoredTimetable]) -> 
 		  </tr>
 		  <tr>
 		   <td>Is Deleted</td>
-		   <td>\(timetable.isDeleted)</td>
+		   <td>false</td>
 		  </tr>
 		  <tr>
 		   <td>Created At</td>
