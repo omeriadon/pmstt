@@ -27,20 +27,56 @@ struct TimetableDiscoveryController: RouteCollection {
 			.with(\.$author)
 			.all()
 
+		let maxConfidence = 0.5
+
 		var results: [TimetableSearchResult] = []
 		for timetable in owners {
 			guard let id = timetable.id, let authorID = timetable.user.id else { continue }
 			let title = "\(timetable.user.displayName)'s Timetable"
-			guard let confidence = bestConfidence(query: query, title: title, author: timetable.user.displayName) else { continue }
-			results.append(.init(id: id, title: title, authorAccountID: authorID, authorDisplayName: timetable.user.displayName, sourceKind: .accountOwner, confidence: confidence))
+
+			guard let confidence = bestConfidence(
+				query: query,
+				title: title,
+				author: timetable.user.displayName
+			),
+				confidence <= maxConfidence
+			else { continue }
+
+			results.append(
+				.init(
+					id: id,
+					title: title,
+					authorAccountID: authorID,
+					authorDisplayName: timetable.user.displayName,
+					sourceKind: .accountOwner,
+					confidence: confidence
+				)
+			)
 		}
 		for timetable in authored {
 			guard let id = timetable.id, let authorID = timetable.author.id else { continue }
-			guard let confidence = bestConfidence(query: query, title: timetable.subjectDisplayName, author: timetable.author.displayName) else { continue }
-			results.append(.init(id: id, title: timetable.subjectDisplayName, authorAccountID: authorID, authorDisplayName: timetable.author.displayName, sourceKind: .authoredForThirdParty, confidence: confidence))
+
+			guard let confidence = bestConfidence(
+				query: query,
+				title: timetable.subjectDisplayName,
+				author: timetable.author.displayName
+			),
+				confidence <= maxConfidence
+			else { continue }
+
+			results.append(
+				.init(id: id,
+				      title: timetable.subjectDisplayName,
+				      authorAccountID: authorID,
+				      authorDisplayName: timetable.author.displayName,
+				      sourceKind: .authoredForThirdParty,
+				      confidence: confidence)
+			)
 		}
 		return results.sorted {
-			if $0.confidence == $1.confidence { return $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+			if $0.confidence == $1.confidence {
+				return $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending
+			}
 			return $0.confidence < $1.confidence
 		}
 	}
@@ -66,36 +102,64 @@ enum ResolvedTimetable {
 	case owner(OwnerTimetable)
 	case authored(AuthoredTimetable)
 
-	var id: UUID { get throws { try modelID() } }
-	var title: String { switch self { case let .owner(value): "\(value.user.displayName)'s Timetable"; case let .authored(value): value.subjectDisplayName } }
-	var author: User { switch self { case let .owner(value): value.user; case let .authored(value): value.author } }
-	var sourceKind: SourceKind { switch self { case .owner: .accountOwner; case .authored: .authoredForThirdParty } }
-	var subjectsData: Data { switch self { case let .owner(value): value.subjectsData; case let .authored(value): value.subjectsData } }
-	var revision: Int { switch self { case let .owner(value): value.revision; case let .authored(value): value.revision } }
-	var isSearchable: Bool { switch self { case let .owner(value): value.isSearchable; case let .authored(value): value.isSearchable } }
-	var updatedAt: Date? { switch self { case let .owner(value): value.updatedAt; case let .authored(value): value.updatedAt } }
-	var serialNumber: String { get throws { switch self { case let .owner(value): return value.user.selfPassSerialNumber; case let .authored(value): return value.passSerialNumber } } }
+	var id: UUID {
+		get throws { try modelID() }
+	}
+
+	var title: String {
+		switch self { case let .owner(value): "\(value.user.displayName)'s Timetable"; case let .authored(value): value.subjectDisplayName }
+	}
+
+	var author: User {
+		switch self { case let .owner(value): value.user; case let .authored(value): value.author }
+	}
+
+	var sourceKind: SourceKind {
+		switch self { case .owner: .accountOwner; case .authored: .authoredForThirdParty }
+	}
+
+	var subjectsData: Data {
+		switch self { case let .owner(value): value.subjectsData; case let .authored(value): value.subjectsData }
+	}
+
+	var revision: Int {
+		switch self { case let .owner(value): value.revision; case let .authored(value): value.revision }
+	}
+
+	var isSearchable: Bool {
+		switch self { case let .owner(value): value.isSearchable; case let .authored(value): value.isSearchable }
+	}
+
+	var updatedAt: Date? {
+		switch self { case let .owner(value): value.updatedAt; case let .authored(value): value.updatedAt }
+	}
+
+	var serialNumber: String {
+		get throws { switch self { case let .owner(value): return value.user.selfPassSerialNumber; case let .authored(value): return value.passSerialNumber } }
+	}
 
 	func detail(on database: any Database, viewerID: UUID) async throws -> TimetableDetailResponse {
 		let subjects = try JSONDecoder().decode([TimetableSubjectDTO].self, from: subjectsData)
 		let serial = try serialNumber
 		let installs = try await PassRegistration.query(on: database).filter(\.$serialNumber == serial).count()
 		let authorID = try author.requireID()
-		return .init(id: try id, title: title, authorAccountID: authorID, authorDisplayName: author.displayName, sourceKind: sourceKind, subjects: subjects, subjectCount: subjects.count, weeklyLessonCount: subjects.reduce(0) { $0 + $1.slots.count }, updatedAt: updatedAt, activeInstallCount: installs, isSearchable: isSearchable, canEdit: viewerID == authorID)
+		return try .init(id: id, title: title, authorAccountID: authorID, authorDisplayName: author.displayName, sourceKind: sourceKind, subjects: subjects, subjectCount: subjects.count, weeklyLessonCount: subjects.reduce(0) { $0 + $1.slots.count }, updatedAt: updatedAt, activeInstallCount: installs, isSearchable: isSearchable, canEdit: viewerID == authorID)
 	}
 
-	private func modelID() throws -> UUID { switch self { case let .owner(value): try value.requireID(); case let .authored(value): try value.requireID() } }
+	private func modelID() throws -> UUID {
+		switch self { case let .owner(value): try value.requireID(); case let .authored(value): try value.requireID() }
+	}
 }
 
 enum TimetableResolver {
 	static func resolve(req: Request, userID: UUID) async throws -> ResolvedTimetable {
 		guard let idString = req.parameters.get("timetableID"), let id = UUID(uuidString: idString) else { throw Abort(.notFound) }
 		if let owner = try await OwnerTimetable.query(on: req.db).filter(\.$id == id).with(\.$user).first() {
-			try await authorize(owner.isSearchable, authorID: try owner.user.requireID(), serial: owner.user.selfPassSerialNumber, issuer: try owner.user.requireID().uuidString, kind: .accountOwner, viewerID: userID, req: req)
+			try await authorize(owner.isSearchable, authorID: owner.user.requireID(), serial: owner.user.selfPassSerialNumber, issuer: owner.user.requireID().uuidString, kind: .accountOwner, viewerID: userID, req: req)
 			return .owner(owner)
 		}
 		if let authored = try await AuthoredTimetable.query(on: req.db).filter(\.$id == id).with(\.$author).first() {
-			try await authorize(authored.isSearchable, authorID: try authored.author.requireID(), serial: authored.passSerialNumber, issuer: try authored.author.requireID().uuidString, kind: .authoredForThirdParty, viewerID: userID, req: req)
+			try await authorize(authored.isSearchable, authorID: authored.author.requireID(), serial: authored.passSerialNumber, issuer: authored.author.requireID().uuidString, kind: .authoredForThirdParty, viewerID: userID, req: req)
 			return .authored(authored)
 		}
 		throw Abort(.notFound)

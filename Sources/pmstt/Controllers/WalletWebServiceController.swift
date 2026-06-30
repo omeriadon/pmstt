@@ -49,18 +49,44 @@ struct WalletWebServiceController: RouteCollection {
 	}
 
 	func updatedPass(req: Request) async throws -> Response {
-		guard req.parameters.get("passTypeID") == expectedPassType, let serial = req.parameters.get("serialNumber") else { throw Abort(.notFound) }
+		guard req.parameters.get("passTypeID") == expectedPassType,
+		      let serial = req.parameters.get("serialNumber")
+		else {
+			throw Abort(.notFound)
+		}
+
 		let record = try await authenticatedRecord(req: req, serial: serial)
-		if record.isDeleted { return try await PassFactory.deletedResponse(record: record, req: req) }
-		if let authored = try await AuthoredTimetable.query(on: req.db).filter(\.$passSerialNumber == serial).with(\.$author).first() { return try await PassFactory.response(for: .authored(authored), req: req) }
-		if let user = try await User.query(on: req.db).filter(\.$selfPassSerialNumber == serial).first(), let userID = user.id, let owner = try await OwnerTimetable.query(on: req.db).filter(\.$user.$id == userID).first() {
-			owner.user = user
+
+		if record.isDeleted {
+			return try await PassFactory.deletedResponse(record: record, req: req)
+		}
+
+		if let authored = try await AuthoredTimetable.query(on: req.db)
+			.filter(\.$passSerialNumber == serial)
+			.with(\.$author)
+			.first()
+		{
+			return try await PassFactory.response(for: .authored(authored), req: req)
+		}
+
+		if let user = try await User.query(on: req.db)
+			.filter(\.$selfPassSerialNumber == serial)
+			.first(),
+			let userID = user.id,
+			let owner = try await OwnerTimetable.query(on: req.db)
+			.filter(\.$user.$id == userID)
+			.with(\.$user)
+			.first()
+		{
 			return try await PassFactory.response(for: .owner(owner), req: req)
 		}
+
 		throw Abort(.notFound)
 	}
 
-	private var expectedPassType: String { Environment.get("PASS_TYPE_IDENTIFIER") ?? "pass.com.omeriadon.Timetable" }
+	private var expectedPassType: String {
+		Environment.get("PASS_TYPE_IDENTIFIER") ?? "pass.com.omeriadon.Timetable"
+	}
 
 	private func parameters(_ req: Request) throws -> (String, String, String) {
 		guard let device = req.parameters.get("deviceID"), let passType = req.parameters.get("passTypeID"), let serial = req.parameters.get("serialNumber") else { throw Abort(.badRequest) }
@@ -68,12 +94,18 @@ struct WalletWebServiceController: RouteCollection {
 	}
 
 	private func authenticatedRecord(req: Request, serial: String) async throws -> PassRecord {
-		guard let authorization = req.headers.bearerAuthorization, authorization.token.hasPrefix("ApplePass ") == false else {
-			let raw = req.headers.first(name: .authorization) ?? ""
-			guard raw.hasPrefix("ApplePass ") else { throw Abort(.unauthorized) }
-			return try await verify(token: String(raw.dropFirst("ApplePass ".count)), serial: serial, req: req)
+		let raw = req.headers.first(name: .authorization) ?? ""
+
+		let token: String
+		if raw.hasPrefix("ApplePass ") {
+			token = String(raw.dropFirst("ApplePass ".count))
+		} else if let bearer = req.headers.bearerAuthorization {
+			token = bearer.token
+		} else {
+			throw Abort(.unauthorized)
 		}
-		return try await verify(token: authorization.token, serial: serial, req: req)
+
+		return try await verify(token: token, serial: serial, req: req)
 	}
 
 	private func verify(token: String, serial: String, req: Request) async throws -> PassRecord {

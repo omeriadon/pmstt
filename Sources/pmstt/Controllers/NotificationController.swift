@@ -6,6 +6,7 @@ struct NotificationController: RouteCollection {
 		let protected = routes
 			.grouped("v1")
 			.grouped(UserPayload.authenticator(), UserPayload.guardMiddleware())
+
 		protected.put("devices", "current", use: registerDevice)
 		protected.delete("devices", "current", use: removeDevice)
 		protected.post("notifications", "test", use: sendTestNotification)
@@ -60,12 +61,16 @@ struct NotificationController: RouteCollection {
 	}
 
 	private func validate(_ body: RegisterUserDeviceRequest) throws {
-		guard !body.installationID.isEmpty, body.installationID.count <= 200,
-		      ["iOS", "macOS", "visionOS"].contains(body.platform),
-		      body.apnsToken.count >= 32, body.apnsToken.count <= 200,
-		      body.apnsToken.allSatisfy(\.isHexDigit)
-		else {
-			throw AppError(.badRequest, code: .invalidRequest, reason: "The device registration is invalid.", field: "device")
+		guard ["iOS", "macOS", "watchOS"].contains(body.platform) else {
+			throw AppError(.badRequest, code: .invalidRequest, reason: "The platform is invalid.", field: "platform")
+		}
+
+		guard !body.installationID.isEmpty, body.installationID.count <= 200 else {
+			throw AppError(.badRequest, code: .invalidRequest, reason: "The installation ID is invalid.", field: "installationID")
+		}
+
+		guard !body.apnsToken.isEmpty, body.apnsToken.count >= 32, body.apnsToken.count <= 200 else {
+			throw AppError(.badRequest, code: .invalidRequest, reason: "The APNS token is invalid.", field: "apnsToken")
 		}
 	}
 }
