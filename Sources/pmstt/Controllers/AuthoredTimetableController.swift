@@ -6,8 +6,30 @@ struct AuthoredTimetableController: RouteCollection {
 		let routes = routes.grouped("v1", "timetables", "authored")
 			.grouped(UserPayload.authenticator(), UserPayload.guardMiddleware())
 		routes.get(use: list)
+		routes.post(use: create)
 		routes.put(":timetableID", use: update)
 		routes.delete(":timetableID", use: delete)
+	}
+
+	func create(req: Request) async throws -> TimetableDetailResponse {
+		let payload = try req.auth.require(UserPayload.self)
+		let body = try req.content.decode(AuthoredTimetableCreateRequest.self)
+		let title = body.title.trimmingCharacters(in: .whitespacesAndNewlines)
+		guard !title.isEmpty, title.count <= 100 else {
+			throw AppError(.badRequest, code: .invalidRequest, reason: "The title must contain between 1 and 100 characters.", field: "title")
+		}
+		guard let user = try await User.find(payload.sub, on: req.db) else { throw Abort(.notFound) }
+		let timetable = try AuthoredTimetable(
+			authorUserID: payload.sub,
+			subjectDisplayName: title,
+			passSerialNumber: UUID().uuidString,
+			subjectsData: JSONEncoder().encode(body.subjects),
+			revision: 1,
+			isSearchable: body.isSearchable
+		)
+		timetable.$author.value = user
+		try await timetable.save(on: req.db)
+		return try await ResolvedTimetable.authored(timetable).detail(on: req.db, viewerID: payload.sub)
 	}
 
 	func list(req: Request) async throws -> [TimetableDetailResponse] {

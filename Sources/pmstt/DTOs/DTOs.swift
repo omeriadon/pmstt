@@ -142,6 +142,8 @@ struct AuthoredTimetableUpdateRequest: Content {
 	let isSearchable: Bool
 }
 
+typealias AuthoredTimetableCreateRequest = AuthoredTimetableUpdateRequest
+
 struct WalletRegistrationRequest: Content {
 	let pushToken: String
 }
@@ -161,6 +163,7 @@ struct ReceivedPassMirrorDTO: Content {
 	let receivedAt: Date
 	let passUpdatedAt: Date
 	let isDeleted: Bool
+	let isShareable: Bool
 	let walletRevision: Int
 }
 
