@@ -8,7 +8,7 @@ module.exports = {
       interpreter: "none",
 			env_production: {
 				HOSTNAME: "127.0.0.1",
-				PORT: "8081"
+				PORT: "8081",
 
         APNS_TEAM_ID: "P6PV2R9443",
 				APNS_KEY_ID: "LS45S5RDJ2",
