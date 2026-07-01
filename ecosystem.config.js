@@ -12,7 +12,7 @@ module.exports = {
 
         APNS_TEAM_ID: "P6PV2R9443",
 				APNS_KEY_ID: "LS45S5RDJ2",
-        APNS_PRIVATE_KEY_PATH: "/etc/timetable/apns/AuthKey_KEYID.p8",
+        APNS_PRIVATE_KEY_PATH: "/etc/timetable/apns/AuthKey.p8",
 				APNS_BUNDLE_ID: "com.omeriadon.Timetable",
 				APNS_USE_SANDBOX: "false"
 			}
