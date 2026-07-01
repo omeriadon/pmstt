@@ -51,6 +51,7 @@ struct ReceivedTimetableController: RouteCollection {
 					existing.authorDisplayName = timetable.authorDisplayName
 					existing.subjectsData = try JSONEncoder().encode(timetable.subjects)
 					existing.isDeleted = false
+					existing.isShareable = timetable.isShareable
 					existing.walletRevision = body.walletRevision
 					existing.receivedAt = timetable.receivedAt
 					existing.passUpdatedAt = timetable.passUpdatedAt
@@ -66,6 +67,7 @@ struct ReceivedTimetableController: RouteCollection {
 						authorDisplayName: timetable.authorDisplayName,
 						subjectsData: JSONEncoder().encode(timetable.subjects),
 						isDeleted: false,
+						isShareable: timetable.isShareable,
 						walletRevision: body.walletRevision,
 						receivedAt: timetable.receivedAt,
 						passUpdatedAt: timetable.passUpdatedAt
@@ -118,6 +120,7 @@ struct ReceivedTimetableController: RouteCollection {
 			receivedAt: record.receivedAt,
 			passUpdatedAt: record.passUpdatedAt,
 			isDeleted: record.isDeleted,
+			isShareable: record.isShareable,
 			walletRevision: record.walletRevision
 		)
 	}

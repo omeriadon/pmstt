@@ -31,6 +31,9 @@ final class ReceivedPassMirror: Model, Content, @unchecked Sendable {
 	@Field(key: "is_deleted")
 	var isDeleted: Bool
 
+	@Field(key: "is_shareable")
+	var isShareable: Bool
+
 	@Field(key: "wallet_revision")
 	var walletRevision: Int
 
@@ -55,6 +58,7 @@ final class ReceivedPassMirror: Model, Content, @unchecked Sendable {
 		authorDisplayName: String? = nil,
 		subjectsData: Data,
 		isDeleted: Bool = false,
+		isShareable: Bool = false,
 		walletRevision: Int,
 		receivedAt: Date,
 		passUpdatedAt: Date
@@ -68,6 +72,7 @@ final class ReceivedPassMirror: Model, Content, @unchecked Sendable {
 		self.authorDisplayName = authorDisplayName
 		self.subjectsData = subjectsData
 		self.isDeleted = isDeleted
+		self.isShareable = isShareable
 		self.walletRevision = walletRevision
 		self.receivedAt = receivedAt
 		self.passUpdatedAt = passUpdatedAt

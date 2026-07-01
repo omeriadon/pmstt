@@ -27,6 +27,7 @@ func generatePass(
 	issuerAccountID: String? = nil,
 	sourceKind: SourceKind = .accountOwner,
 	authorDisplayName: String? = nil,
+	isShareable: Bool = false,
 	resourceDirectory: URL
 ) async throws -> URL {
 	let startTime = ContinuousClock.now
@@ -69,6 +70,7 @@ func generatePass(
 	userInfo["issuerAccountID"] = issuerAccountID
 	userInfo["sourceKind"] = sourceKind.rawValue
 	userInfo["authorDisplayName"] = authorDisplayName
+	userInfo["isShareable"] = isShareable
 	passDict["userInfo"] = userInfo
 
 	let dateFormatter = ISO8601DateFormatter()

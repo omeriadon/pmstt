@@ -8,12 +8,12 @@ enum PassFactory {
 		let serial = try timetable.serialNumber
 		let token = authenticationToken(serial: serial)
 		let record = try await upsertRecord(for: timetable, token: token, on: req.db)
-		return try await response(serial: serial, displayName: timetable.title, subjectsData: timetable.subjectsData, token: token, isDeleted: record.isDeleted, issuerAccountID: try timetable.author.requireID().uuidString, sourceKind: timetable.sourceKind, authorDisplayName: timetable.author.displayName, req: req)
+		return try await response(serial: serial, displayName: timetable.title, subjectsData: timetable.subjectsData, token: token, isDeleted: record.isDeleted, issuerAccountID: try timetable.author.requireID().uuidString, sourceKind: timetable.sourceKind, authorDisplayName: timetable.author.displayName, isShareable: timetable.isSearchable, req: req)
 	}
 
 	static func deletedResponse(record: PassRecord, req: Request) async throws -> Response {
 		let empty = try JSONEncoder().encode([TimetableSubjectDTO]())
-		return try await response(serial: record.serialNumber, displayName: "Deleted Timetable", subjectsData: empty, token: authenticationToken(serial: record.serialNumber), isDeleted: true, issuerAccountID: record.issuerAccountID, sourceKind: record.sourceKind, authorDisplayName: nil, req: req)
+		return try await response(serial: record.serialNumber, displayName: "Deleted Timetable", subjectsData: empty, token: authenticationToken(serial: record.serialNumber), isDeleted: true, issuerAccountID: record.issuerAccountID, sourceKind: record.sourceKind, authorDisplayName: nil, isShareable: false, req: req)
 	}
 
 	static func authenticationToken(serial: String) -> String {
@@ -43,10 +43,10 @@ enum PassFactory {
 		return value.id
 	}
 
-	private static func response(serial: String, displayName: String, subjectsData: Data, token: String, isDeleted: Bool, issuerAccountID: String, sourceKind: SourceKind, authorDisplayName: String?, req: Request) async throws -> Response {
+	private static func response(serial: String, displayName: String, subjectsData: Data, token: String, isDeleted: Bool, issuerAccountID: String, sourceKind: SourceKind, authorDisplayName: String?, isShareable: Bool, req: Request) async throws -> Response {
 		let workingDir = req.application.directory.workingDirectory
 		let resources = URL(fileURLWithPath: workingDir).appendingPathComponent("Sources/pmstt/Services/Passes")
-		let fileURL = try await generatePass(serialNumber: serial, displayName: displayName, subjectsData: subjectsData, authenticationToken: token, webServiceURL: Environment.get("PASS_WEB_SERVICE_URL") ?? "https://timetable.adonis.pt/v1", isDeleted: isDeleted, issuerAccountID: issuerAccountID, sourceKind: sourceKind, authorDisplayName: authorDisplayName, resourceDirectory: resources)
+		let fileURL = try await generatePass(serialNumber: serial, displayName: displayName, subjectsData: subjectsData, authenticationToken: token, webServiceURL: Environment.get("PASS_WEB_SERVICE_URL") ?? "https://timetable.adonis.pt/v1", isDeleted: isDeleted, issuerAccountID: issuerAccountID, sourceKind: sourceKind, authorDisplayName: authorDisplayName, isShareable: isShareable, resourceDirectory: resources)
 		let data = try Data(contentsOf: fileURL)
 		try? FileManager.default.removeItem(at: fileURL.deletingLastPathComponent())
 		return Response(status: .ok, headers: ["Content-Type": "application/vnd.apple.pkpass", "Content-Disposition": "attachment; filename=\"timetable.pkpass\""], body: .init(data: data))
