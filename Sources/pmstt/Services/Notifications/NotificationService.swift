@@ -36,8 +36,7 @@ struct NotificationService {
 		authorization: String,
 		config: APNSConfig
 	) async throws -> HTTPResponseStatus {
-		let host = Environment.get("APNS_USE_SANDBOX") == "true" ? "https://api.sandbox.push.apple.com" : "https://api.push.apple.com"
-		var request = HTTPClientRequest(url: "\(host)/3/device/\(token)")
+		var request = HTTPClientRequest(url: "https://api.push.apple.com/3/device/\(token)")
 		request.method = .POST
 		request.headers.add(name: "apns-push-type", value: "alert")
 		request.headers.add(name: "apns-priority", value: "10")
