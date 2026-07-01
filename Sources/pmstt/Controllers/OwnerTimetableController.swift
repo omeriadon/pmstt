@@ -28,28 +28,27 @@ struct OwnerTimetableController: RouteCollection {
 		try validate(body.subjects)
 		let subjectsData = try JSONEncoder().encode(body.subjects)
 
-		let timetable = try await req.db.transaction { database in
-			if let existing = try await OwnerTimetable.query(on: database)
-				.filter(\.$user.$id == payload.sub)
-				.first()
+		let timetable: OwnerTimetable
+		if let existing = try await OwnerTimetable.query(on: req.db)
+			.filter(\.$user.$id == payload.sub)
+			.first()
+		{
+			if let expectedRevision = body.expectedRevision,
+			   expectedRevision != existing.revision
 			{
-				if let expectedRevision = body.expectedRevision,
-				   expectedRevision != existing.revision
-				{
-					throw AppError(
-						.conflict,
-						code: .timetableConflict,
-						reason: "The timetable changed on another device. Refresh and try again."
-					)
-				}
-
-				existing.subjectsData = subjectsData
-				existing.isSearchable = body.isSearchable ?? existing.isSearchable
-				existing.revision += 1
-				try await existing.save(on: database)
-				return existing
+				throw AppError(
+					.conflict,
+					code: .timetableConflict,
+					reason: "The timetable changed on another device. Refresh and try again."
+				)
 			}
 
+			existing.subjectsData = subjectsData
+			existing.isSearchable = body.isSearchable ?? existing.isSearchable
+			existing.revision += 1
+			try await existing.save(on: req.db)
+			timetable = existing
+		} else {
 			if let expectedRevision = body.expectedRevision, expectedRevision != 0 {
 				throw AppError(
 					.conflict,
@@ -58,14 +57,13 @@ struct OwnerTimetableController: RouteCollection {
 				)
 			}
 
-			let created = OwnerTimetable(
+			timetable = OwnerTimetable(
 				userID: payload.sub,
 				subjectsData: subjectsData,
-				revision: 1
-				,isSearchable: body.isSearchable ?? true
+				revision: 1,
+				isSearchable: body.isSearchable ?? true
 			)
-			try await created.save(on: database)
-			return created
+			try await timetable.save(on: req.db)
 		}
 
 		return try response(for: timetable)
@@ -86,8 +84,8 @@ struct OwnerTimetableController: RouteCollection {
 		return OwnerTimetableResponse(
 			subjects: subjects,
 			revision: timetable.revision,
-			updatedAt: timetable.updatedAt
-			,isSearchable: timetable.isSearchable
+			updatedAt: timetable.updatedAt,
+			isSearchable: timetable.isSearchable
 		)
 	}
 
