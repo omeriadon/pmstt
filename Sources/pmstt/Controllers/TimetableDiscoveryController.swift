@@ -73,12 +73,15 @@ struct TimetableDiscoveryController: RouteCollection {
 				      confidence: confidence)
 			)
 		}
-		return results.sorted {
+
+		let sortedResults = results.sorted {
 			if $0.confidence == $1.confidence {
 				return $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending
 			}
 			return $0.confidence < $1.confidence
 		}
+
+		return Array(sortedResults.prefix(50))
 	}
 
 	func detail(req: Request) async throws -> TimetableDetailResponse {
