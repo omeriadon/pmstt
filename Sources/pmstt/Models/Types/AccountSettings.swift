@@ -15,12 +15,14 @@ enum NotificationLeadTime: Int, Content, CaseIterable, Hashable {
 struct AccountSettings: Content, Hashable {
 	var liveActivitiesEnabled: Bool
 	var notificationsEnabled: Bool
+	var broadcastNotificationsEnabled: Bool
 	var notificationLeadTime: NotificationLeadTime
 
 	static var `default`: AccountSettings {
 		AccountSettings(
 			liveActivitiesEnabled: true,
 			notificationsEnabled: false,
+			broadcastNotificationsEnabled: true,
 			notificationLeadTime: .zero
 		)
 	}
@@ -33,6 +35,7 @@ extension AccountSettings {
 
 		liveActivitiesEnabled = try container.decodeIfPresent(Bool.self, forKey: .liveActivitiesEnabled) ?? defaults.liveActivitiesEnabled
 		notificationsEnabled = try container.decodeIfPresent(Bool.self, forKey: .notificationsEnabled) ?? defaults.notificationsEnabled
+		broadcastNotificationsEnabled = try container.decodeIfPresent(Bool.self, forKey: .broadcastNotificationsEnabled) ?? defaults.broadcastNotificationsEnabled
 		notificationLeadTime = try container.decodeIfPresent(NotificationLeadTime.self, forKey: .notificationLeadTime) ?? defaults.notificationLeadTime
 	}
 }

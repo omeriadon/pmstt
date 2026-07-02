@@ -52,11 +52,13 @@ struct UpdateAccountRequest: Content {
 struct UpdateSettingsRequest: Content {
 	var liveActivitiesEnabled: Bool
 	var notificationsEnabled: Bool
+	var broadcastNotificationsEnabled: Bool
 	var notificationLeadTime: NotificationLeadTime
 
 	static let `default` = UpdateSettingsRequest(
 		liveActivitiesEnabled: true,
 		notificationsEnabled: false,
+		broadcastNotificationsEnabled: true,
 		notificationLeadTime: .zero
 	)
 
@@ -64,6 +66,7 @@ struct UpdateSettingsRequest: Content {
 		AccountSettings(
 			liveActivitiesEnabled: liveActivitiesEnabled,
 			notificationsEnabled: notificationsEnabled,
+			broadcastNotificationsEnabled: broadcastNotificationsEnabled,
 			notificationLeadTime: notificationLeadTime
 		)
 	}
@@ -80,6 +83,7 @@ extension UpdateSettingsRequest {
 			default: defaults.liveActivitiesEnabled
 		)
 		notificationsEnabled = try container.decodeIfPresent(Bool.self, forKey: .notificationsEnabled, default: defaults.notificationsEnabled)
+		broadcastNotificationsEnabled = try container.decodeIfPresent(Bool.self, forKey: .broadcastNotificationsEnabled, default: defaults.broadcastNotificationsEnabled)
 		notificationLeadTime = try container.decodeIfPresent(NotificationLeadTime.self, forKey: .notificationLeadTime, default: defaults.notificationLeadTime)
 	}
 }
@@ -211,4 +215,17 @@ struct UserDeviceResponse: Content {
 
 struct TestNotificationResponse: Content {
 	let deliveredDeviceCount: Int
+}
+
+struct BroadcastNotificationRequest: Content {
+	let title: String
+	let subtitle: String
+	let body: String
+}
+
+struct BroadcastNotificationResponse: Content {
+	let eligibleDeviceCount: Int
+	let deliveredDeviceCount: Int
+	let invalidatedDeviceCount: Int
+	let failedDeviceCount: Int
 }

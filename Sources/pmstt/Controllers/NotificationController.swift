@@ -10,6 +10,7 @@ struct NotificationController: RouteCollection {
 		protected.put("devices", "current", use: registerDevice)
 		protected.delete("devices", "current", use: removeDevice)
 		protected.post("notifications", "test", use: sendTestNotification)
+		routes.post("v1", "developer", "broadcast-notification", use: sendBroadcastNotification)
 	}
 
 	func registerDevice(req: Request) async throws -> UserDeviceResponse {
@@ -63,6 +64,15 @@ struct NotificationController: RouteCollection {
 		return TestNotificationResponse(deliveredDeviceCount: count)
 	}
 
+	func sendBroadcastNotification(req: Request) async throws -> BroadcastNotificationResponse {
+		let body = try req.content.decode(BroadcastNotificationRequest.self)
+		let title = body.title.trimmingCharacters(in: .whitespacesAndNewlines)
+		let subtitle = body.subtitle.trimmingCharacters(in: .whitespacesAndNewlines)
+		let message = body.body.trimmingCharacters(in: .whitespacesAndNewlines)
+		try validateBroadcast(title: title, subtitle: subtitle, body: message)
+		return try await NotificationService().broadcast(title: title, subtitle: subtitle, body: message, on: req)
+	}
+
 	private func validate(_ body: RegisterUserDeviceRequest) throws {
 		guard ["iOS", "macOS", "watchOS"].contains(body.platform) else {
 			throw AppError(.badRequest, code: .invalidRequest, reason: "The platform is invalid.", field: "platform")
@@ -74,6 +84,18 @@ struct NotificationController: RouteCollection {
 
 		guard !body.apnsToken.isEmpty, body.apnsToken.count >= 32, body.apnsToken.count <= 200 else {
 			throw AppError(.badRequest, code: .invalidRequest, reason: "The APNS token is invalid.", field: "apnsToken")
+		}
+	}
+
+	private func validateBroadcast(title: String, subtitle: String, body: String) throws {
+		guard !title.isEmpty, title.count <= 200 else {
+			throw AppError(.badRequest, code: .invalidRequest, reason: "The broadcast title is invalid.", field: "title")
+		}
+		guard !subtitle.isEmpty, subtitle.count <= 200 else {
+			throw AppError(.badRequest, code: .invalidRequest, reason: "The broadcast subtitle is invalid.", field: "subtitle")
+		}
+		guard !body.isEmpty, body.count <= 2_000 else {
+			throw AppError(.badRequest, code: .invalidRequest, reason: "The broadcast body is invalid.", field: "body")
 		}
 	}
 }

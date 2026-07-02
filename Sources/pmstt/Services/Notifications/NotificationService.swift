@@ -20,7 +20,7 @@ struct NotificationService {
 		for device in devices {
 			guard let token = device.apnsToken else { continue }
 			do {
-				let status = try await send(title: title, body: body, token: token, authorization: authorization, config: config)
+				let status = try await send(title: title, subtitle: nil, body: body, token: token, authorization: authorization, config: config)
 				switch status {
 					case .ok:
 						deliveredCount += 1
@@ -37,8 +37,67 @@ struct NotificationService {
 		return deliveredCount
 	}
 
+	func broadcast(title: String, subtitle: String, body: String, on req: Request) async throws -> BroadcastNotificationResponse {
+		let users = try await User.query(on: req.db).all()
+		var eligibleUserIDs: [UUID] = []
+		for user in users {
+			guard let userID = user.id else { continue }
+			let settings = try JSONDecoder().decode(AccountSettings.self, from: user.settingsData)
+			if settings.broadcastNotificationsEnabled {
+				eligibleUserIDs.append(userID)
+			}
+		}
+
+		guard !eligibleUserIDs.isEmpty else {
+			return BroadcastNotificationResponse(eligibleDeviceCount: 0, deliveredDeviceCount: 0, invalidatedDeviceCount: 0, failedDeviceCount: 0)
+		}
+
+		let devices = try await UserDevice.query(on: req.db)
+			.filter(\.$user.$id ~~ eligibleUserIDs)
+			.all()
+		let eligibleDevices = devices.filter { $0.apnsToken != nil }
+		guard !eligibleDevices.isEmpty else {
+			return BroadcastNotificationResponse(eligibleDeviceCount: 0, deliveredDeviceCount: 0, invalidatedDeviceCount: 0, failedDeviceCount: 0)
+		}
+
+		let config = try configuration()
+		let authorization = try await makeJWT(config: config)
+		var deliveredCount = 0
+		var invalidatedCount = 0
+		var failedCount = 0
+
+		for device in eligibleDevices {
+			guard let token = device.apnsToken else { continue }
+			do {
+				let status = try await send(title: title, subtitle: subtitle, body: body, token: token, authorization: authorization, config: config)
+				switch status {
+					case .ok:
+						deliveredCount += 1
+					case .badRequest, .gone:
+						device.apnsToken = nil
+						try await device.save(on: req.db)
+						invalidatedCount += 1
+					default:
+						failedCount += 1
+						req.logger.error("APNs rejected broadcast notification with status \(status.code).")
+				}
+			} catch {
+				failedCount += 1
+				req.logger.report(error: error)
+			}
+		}
+
+		return BroadcastNotificationResponse(
+			eligibleDeviceCount: eligibleDevices.count,
+			deliveredDeviceCount: deliveredCount,
+			invalidatedDeviceCount: invalidatedCount,
+			failedDeviceCount: failedCount
+		)
+	}
+
 	private func send(
 		title: String,
+		subtitle: String?,
 		body: String,
 		token: String,
 		authorization: String,
@@ -51,7 +110,7 @@ struct NotificationService {
 		request.headers.add(name: "apns-topic", value: config.bundleId)
 		request.headers.add(name: "authorization", value: "bearer \(authorization)")
 		request.body = try .bytes(ByteBuffer(data: JSONEncoder().encode(
-			NotificationPayload(aps: .init(alert: .init(title: title, body: body), sound: "default"))
+			NotificationPayload(aps: .init(alert: .init(title: title, subtitle: subtitle, body: body), sound: "default"))
 		)))
 		return try await APNSClient().send(request: request)
 	}
@@ -82,6 +141,7 @@ private struct NotificationPayload: Encodable {
 
 	struct Alert: Encodable {
 		let title: String
+		let subtitle: String?
 		let body: String
 	}
 }
