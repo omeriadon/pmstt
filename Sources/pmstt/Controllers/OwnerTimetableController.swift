@@ -8,6 +8,33 @@ struct OwnerTimetableController: RouteCollection {
 
 		protected.get(use: getOwnerTimetable)
 		protected.put(use: updateOwnerTimetable)
+		protected.put("visibility", use: updateVisibility)
+	}
+
+	func updateVisibility(req: Request) async throws -> OwnerTimetableResponse {
+		let payload = try req.auth.require(UserPayload.self)
+		let body = try req.content.decode(OwnerTimetableVisibilityUpdateRequest.self)
+
+		let timetable: OwnerTimetable
+		if let existing = try await OwnerTimetable.query(on: req.db)
+			.filter(\.$user.$id == payload.sub)
+			.first()
+		{
+			existing.isSearchable = body.isSearchable
+			existing.revision += 1
+			try await existing.save(on: req.db)
+			timetable = existing
+		} else {
+			timetable = OwnerTimetable(
+				userID: payload.sub,
+				subjectsData: try JSONEncoder().encode([TimetableSubjectDTO]()),
+				revision: 1,
+				isSearchable: body.isSearchable
+			)
+			try await timetable.save(on: req.db)
+		}
+
+		return try response(for: timetable)
 	}
 
 	func getOwnerTimetable(req: Request) async throws -> OwnerTimetableResponse {

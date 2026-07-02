@@ -94,6 +94,8 @@ struct AuthController: RouteCollection {
 			.filter(\.$appleSubject == appleSubject)
 			.first()
 		{
+			existingAppleUser.appleAuthorizationRevokedAt = nil
+			try await existingAppleUser.save(on: req.db)
 			return try await generateTokens(for: existingAppleUser, on: req)
 		}
 
@@ -104,6 +106,7 @@ struct AuthController: RouteCollection {
 		   	.first()
 		{
 			existingEmailUser.appleSubject = appleSubject
+			existingEmailUser.appleAuthorizationRevokedAt = nil
 			if existingEmailUser.email == nil {
 				existingEmailUser.email = normalizedEmail
 			}

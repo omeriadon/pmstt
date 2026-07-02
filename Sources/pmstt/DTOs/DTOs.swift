@@ -105,6 +105,10 @@ struct OwnerTimetableUpdateRequest: Content {
 	let isSearchable: Bool?
 }
 
+struct OwnerTimetableVisibilityUpdateRequest: Content {
+	let isSearchable: Bool
+}
+
 struct OwnerTimetableResponse: Content {
 	let subjects: [TimetableSubjectDTO]
 	let revision: Int

@@ -58,6 +58,7 @@ public func configure(_ app: Application) async throws {
 	app.migrations.add(AddTimetableSearchability())
 	app.migrations.add(RemoveAuthoredTimetableSoftDelete())
 	app.migrations.add(AddReceivedPassShareability())
+	app.migrations.add(AddAppleAccountState())
 
 	try routes(app)
 	app.logger.info("pmstt configuration complete")
