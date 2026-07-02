@@ -14,8 +14,8 @@ struct TimetableDiscoveryController: RouteCollection {
 	func search(req: Request) async throws -> [TimetableSearchResult] {
 		_ = try req.auth.require(UserPayload.self)
 		let query = (req.query[String.self, at: "q"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-		guard (3 ..< 50).contains(query.count) else {
-			throw AppError(.badRequest, code: .invalidRequest, reason: "Search queries must contain between 3 and 49 characters.", field: "q")
+		guard (1 ..< 50).contains(query.count) else {
+			throw AppError(.badRequest, code: .invalidRequest, reason: "Search queries must be under 49 characters.", field: "q")
 		}
 
 		let owners = try await OwnerTimetable.query(on: req.db)
