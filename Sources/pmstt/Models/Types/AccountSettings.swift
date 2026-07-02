@@ -1,14 +1,27 @@
 import Foundation
 import Vapor
 
+enum NotificationLeadTime: Int, Content, CaseIterable, Hashable {
+	case zero = 0
+	case one = 1
+	case two = 2
+	case three = 3
+	case four = 4
+	case five = 5
+
+	var minutes: Int { rawValue }
+}
+
 struct AccountSettings: Content, Hashable {
 	var liveActivitiesEnabled: Bool
 	var notificationsEnabled: Bool
+	var notificationLeadTime: NotificationLeadTime
 
 	static var `default`: AccountSettings {
 		AccountSettings(
 			liveActivitiesEnabled: true,
-			notificationsEnabled: false
+			notificationsEnabled: false,
+			notificationLeadTime: .zero
 		)
 	}
 }
@@ -20,5 +33,6 @@ extension AccountSettings {
 
 		liveActivitiesEnabled = try container.decodeIfPresent(Bool.self, forKey: .liveActivitiesEnabled) ?? defaults.liveActivitiesEnabled
 		notificationsEnabled = try container.decodeIfPresent(Bool.self, forKey: .notificationsEnabled) ?? defaults.notificationsEnabled
+		notificationLeadTime = try container.decodeIfPresent(NotificationLeadTime.self, forKey: .notificationLeadTime) ?? defaults.notificationLeadTime
 	}
 }

@@ -7,7 +7,11 @@ import Vapor
 
 struct NotificationService {
 	func send(title: String, body: String, to userID: UUID, on req: Request) async throws -> Int {
-		let devices = try await UserDevice.query(on: req.db).filter(\.$user.$id == userID).all()
+		try await send(title: title, body: body, to: userID, on: req.db, logger: req.logger)
+	}
+
+	func send(title: String, body: String, to userID: UUID, on database: any Database, logger: Logger) async throws -> Int {
+		let devices = try await UserDevice.query(on: database).filter(\.$user.$id == userID).all()
 		guard !devices.isEmpty else { return 0 }
 		let config = try configuration()
 		let authorization = try await makeJWT(config: config)
@@ -15,15 +19,19 @@ struct NotificationService {
 
 		for device in devices {
 			guard let token = device.apnsToken else { continue }
-			let status = try await send(title: title, body: body, token: token, authorization: authorization, config: config)
-			switch status {
-				case .ok:
-					deliveredCount += 1
-				case .badRequest, .gone:
-					device.apnsToken = nil
-					try await device.save(on: req.db)
-				default:
-					throw AppError(.badGateway, code: .internalServerError, reason: "APNs rejected the notification with status \(status.code).")
+			do {
+				let status = try await send(title: title, body: body, token: token, authorization: authorization, config: config)
+				switch status {
+					case .ok:
+						deliveredCount += 1
+					case .badRequest, .gone:
+						device.apnsToken = nil
+						try await device.save(on: database)
+					default:
+						logger.error("APNs rejected a notification", metadata: ["status": .stringConvertible(status.code), "user_id": .string(userID.uuidString)])
+				}
+			} catch {
+				logger.report(error: error, metadata: ["notification_user_id": .string(userID.uuidString)])
 			}
 		}
 		return deliveredCount

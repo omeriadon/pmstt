@@ -52,16 +52,19 @@ struct UpdateAccountRequest: Content {
 struct UpdateSettingsRequest: Content {
 	var liveActivitiesEnabled: Bool
 	var notificationsEnabled: Bool
+	var notificationLeadTime: NotificationLeadTime
 
 	static let `default` = UpdateSettingsRequest(
 		liveActivitiesEnabled: true,
-		notificationsEnabled: false
+		notificationsEnabled: false,
+		notificationLeadTime: .zero
 	)
 
 	var accountSettings: AccountSettings {
 		AccountSettings(
 			liveActivitiesEnabled: liveActivitiesEnabled,
-			notificationsEnabled: notificationsEnabled
+			notificationsEnabled: notificationsEnabled,
+			notificationLeadTime: notificationLeadTime
 		)
 	}
 }
@@ -77,6 +80,7 @@ extension UpdateSettingsRequest {
 			default: defaults.liveActivitiesEnabled
 		)
 		notificationsEnabled = try container.decodeIfPresent(Bool.self, forKey: .notificationsEnabled, default: defaults.notificationsEnabled)
+		notificationLeadTime = try container.decodeIfPresent(NotificationLeadTime.self, forKey: .notificationLeadTime, default: defaults.notificationLeadTime)
 	}
 }
 
