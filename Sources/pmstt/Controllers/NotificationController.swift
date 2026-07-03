@@ -41,10 +41,14 @@ struct NotificationController: RouteCollection {
 		guard !body.installationID.isEmpty, body.installationID.count <= 200 else {
 			throw AppError(.badRequest, code: .invalidRequest, reason: "The installation ID is invalid.", field: "installationID")
 		}
-		try await UserDevice.query(on: req.db)
+		if let device = try await UserDevice.query(on: req.db)
 			.filter(\.$user.$id == payload.sub)
 			.filter(\.$installationID == body.installationID)
-			.delete()
+			.first()
+		{
+			await SchoolDayActivityCoordinator().endActivities(for: device, database: req.db, logger: req.logger)
+			try await device.delete(on: req.db)
+		}
 		return .noContent
 	}
 

@@ -69,6 +69,7 @@ struct AccountController: RouteCollection {
 			throw AppError(.notFound, code: .accountNotFound, reason: "User not found.")
 		}
 
+		await SchoolDayActivityCoordinator().endActivities(forUserID: payload.sub, database: req.db, logger: req.logger)
 		try await user.delete(on: req.db)
 		return .noContent
 	}

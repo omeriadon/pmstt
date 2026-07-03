@@ -35,6 +35,7 @@ struct LiveActivityController: RouteCollection {
 		try validateInstallationID(body.installationID)
 
 		if let device = try await device(userID: payload.sub, installationID: body.installationID, database: req.db) {
+			await SchoolDayActivityCoordinator().endActivities(for: device, database: req.db, logger: req.logger)
 			device.liveActivityPushToStartToken = nil
 			device.lastSeenAt = Date()
 			try await device.save(on: req.db)

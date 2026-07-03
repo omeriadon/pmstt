@@ -20,8 +20,16 @@ struct SettingsController: RouteCollection {
 		try validate(settings)
 
 		let user = try await authenticatedUser(req)
+		let previousSettings = try decodeSettings(for: user)
 		user.settingsData = try JSONEncoder().encode(settings.accountSettings)
 		try await user.save(on: req.db)
+		if previousSettings.liveActivitiesEnabled, !settings.liveActivitiesEnabled {
+			await SchoolDayActivityCoordinator().endActivities(forUserID: try user.requireID(), database: req.db, logger: req.logger)
+			try await UserDevice.query(on: req.db)
+				.filter(\.$user.$id == user.requireID())
+				.set(\.$liveActivityPushToStartToken, to: nil)
+				.update()
+		}
 		return try decodeSettings(for: user)
 	}
 

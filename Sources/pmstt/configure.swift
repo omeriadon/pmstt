@@ -63,7 +63,9 @@ public func configure(_ app: Application) async throws {
 	app.migrations.add(AddTimetableClassroomAndTeacher())
 	app.migrations.add(AddUserDeviceDebugFlag())
 	app.migrations.add(CreateSchoolDayLiveActivity())
+	app.migrations.add(CreateSchoolDayLiveActivityTransition())
 	app.lifecycle.use(SchoolNotificationSchedulerLifecycle())
+	app.lifecycle.use(SchoolDayActivitySchedulerLifecycle())
 
 	try routes(app)
 	app.logger.info("pmstt configuration complete")
