@@ -21,7 +21,7 @@ struct AccountSettings: Content, Hashable {
 	static var `default`: AccountSettings {
 		AccountSettings(
 			liveActivitiesEnabled: true,
-			notificationsEnabled: false,
+			notificationsEnabled: true,
 			broadcastNotificationsEnabled: true,
 			notificationLeadTime: .zero
 		)

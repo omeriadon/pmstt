@@ -57,7 +57,7 @@ struct UpdateSettingsRequest: Content {
 
 	static let `default` = UpdateSettingsRequest(
 		liveActivitiesEnabled: true,
-		notificationsEnabled: false,
+		notificationsEnabled: true,
 		broadcastNotificationsEnabled: true,
 		notificationLeadTime: .zero
 	)
