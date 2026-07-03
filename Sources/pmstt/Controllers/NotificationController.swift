@@ -24,11 +24,13 @@ struct NotificationController: RouteCollection {
 		device.$user.id = payload.sub
 		device.platform = body.platform
 		device.apnsToken = body.apnsToken
+		device.isDebug = body.isDebug
 		device.lastSeenAt = Date()
 		try await device.save(on: req.db)
 		return UserDeviceResponse(
 			installationID: device.installationID,
 			platform: device.platform,
+			isDebug: device.isDebug,
 			lastSeenAt: device.lastSeenAt
 		)
 	}

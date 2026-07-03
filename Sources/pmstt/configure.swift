@@ -60,6 +60,8 @@ public func configure(_ app: Application) async throws {
 	app.migrations.add(AddReceivedPassShareability())
 	app.migrations.add(AddAppleAccountState())
 	app.migrations.add(CreateSchoolNotificationDelivery())
+	app.migrations.add(AddTimetableClassroomAndTeacher())
+	app.migrations.add(AddUserDeviceDebugFlag())
 	app.lifecycle.use(SchoolNotificationSchedulerLifecycle())
 
 	try routes(app)

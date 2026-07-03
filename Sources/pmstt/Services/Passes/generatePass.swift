@@ -55,6 +55,7 @@ func generatePass(
 
 	// MARK: - Encode data
 
+	let subjects = try JSONDecoder().decode([TimetableSubjectDTO].self, from: subjectsData)
 	let subjectsArray = try JSONSerialization.jsonObject(with: subjectsData, options: []) as? [[String: Any]] ?? []
 
 	var userInfo = passDict["userInfo"] as? [String: Any] ?? [String: Any]()
@@ -94,13 +95,11 @@ func generatePass(
 
 			var currentBackFields = subField["backFields"] as? [[String: Any]] ?? [[String: Any]]()
 
-			let subjectBackFields: [[String: Any]] = subjectsArray.compactMap { subj in
-				guard let id = subj["id"] as? String else { return nil }
-				let slots = subj["slots"] as? [Any] ?? []
+			let subjectBackFields: [[String: Any]] = subjects.map { subject in
 				return [
-					"key": id,
-					"label": id,
-					"value": "\(slots.count) slots"
+					"key": subject.id,
+					"label": subject.id,
+					"value": "\(subject.classroom.displayName)\n\(subject.teacher.displayName)\n\(subject.slots.count) slots"
 				]
 			}
 

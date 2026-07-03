@@ -20,7 +20,7 @@ struct NotificationService {
 		for device in devices {
 			guard let token = device.apnsToken else { continue }
 			do {
-				let status = try await send(title: title, subtitle: nil, body: body, token: token, authorization: authorization, config: config)
+				let status = try await send(title: title, subtitle: nil, body: body, token: token, isDebug: device.isDebug, authorization: authorization, config: config)
 				switch status {
 					case .ok:
 						deliveredCount += 1
@@ -69,7 +69,7 @@ struct NotificationService {
 		for device in eligibleDevices {
 			guard let token = device.apnsToken else { continue }
 			do {
-				let status = try await send(title: title, subtitle: subtitle, body: body, token: token, authorization: authorization, config: config)
+				let status = try await send(title: title, subtitle: subtitle, body: body, token: token, isDebug: device.isDebug, authorization: authorization, config: config)
 				switch status {
 					case .ok:
 						deliveredCount += 1
@@ -100,10 +100,12 @@ struct NotificationService {
 		subtitle: String?,
 		body: String,
 		token: String,
+		isDebug: Bool,
 		authorization: String,
 		config: APNSConfig
 	) async throws -> HTTPResponseStatus {
-		var request = HTTPClientRequest(url: "https://api.push.apple.com/3/device/\(token)")
+		let host = isDebug ? "api.sandbox.push.apple.com" : "api.push.apple.com"
+		var request = HTTPClientRequest(url: "https://\(host)/3/device/\(token)")
 		request.method = .POST
 		request.headers.add(name: "apns-push-type", value: "alert")
 		request.headers.add(name: "apns-priority", value: "10")

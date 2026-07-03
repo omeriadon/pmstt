@@ -100,11 +100,99 @@ struct TimetableColorDTO: Content {
 	let a: Double
 }
 
+enum TimetableClassroomDTO: Content, Hashable {
+	case room(building: Building, floor: Floor?, number: Int)
+	case unknown(rawLocation: String)
+
+	enum Building: String, Content, Hashable {
+		case mills
+		case andrews
+		case beasley
+		case gardham
+		case embletonMusicCentre
+		case stokes
+
+		var displayName: String {
+			switch self {
+				case .mills: "Mills"
+				case .andrews: "Andrews"
+				case .beasley: "Beasley"
+				case .gardham: "Gardham"
+				case .embletonMusicCentre: "Embleton Music Centre"
+				case .stokes: "Stokes"
+			}
+		}
+	}
+
+	enum Floor: String, Content, Hashable {
+		case upper
+		case lower
+
+		var displayName: String { rawValue.capitalized }
+	}
+
+	var displayName: String {
+		switch self {
+			case let .room(building, floor, number):
+				if let floor {
+					"\(building.displayName), \(floor.displayName), \(number)"
+				} else {
+					"\(building.displayName), \(number)"
+				}
+			case let .unknown(rawLocation): rawLocation
+		}
+	}
+}
+
+enum TimetableTeacherDTO: Content, Hashable {
+	case named(lastName: String)
+	case unknown(rawNotes: String)
+
+	var displayName: String {
+		switch self {
+			case let .named(lastName): "Teacher: \(lastName)"
+			case let .unknown(rawNotes): rawNotes
+		}
+	}
+}
+
 struct TimetableSubjectDTO: Content {
 	let id: String
 	let symbol: String
 	let colour: TimetableColorDTO
 	let slots: [TimetableSlotDTO]
+	let classroom: TimetableClassroomDTO
+	let teacher: TimetableTeacherDTO
+
+	init(
+		id: String,
+		symbol: String,
+		colour: TimetableColorDTO,
+		slots: [TimetableSlotDTO],
+		classroom: TimetableClassroomDTO,
+		teacher: TimetableTeacherDTO
+	) {
+		self.id = id
+		self.symbol = symbol
+		self.colour = colour
+		self.slots = slots
+		self.classroom = classroom
+		self.teacher = teacher
+	}
+
+	private enum CodingKeys: String, CodingKey {
+		case id, symbol, colour, slots, classroom, teacher
+	}
+
+	init(from decoder: any Decoder) throws {
+		let container = try decoder.container(keyedBy: CodingKeys.self)
+		id = try container.decode(String.self, forKey: .id)
+		symbol = try container.decode(String.self, forKey: .symbol)
+		colour = try container.decode(TimetableColorDTO.self, forKey: .colour)
+		slots = try container.decode([TimetableSlotDTO].self, forKey: .slots)
+		classroom = try container.decodeIfPresent(TimetableClassroomDTO.self, forKey: .classroom) ?? .unknown(rawLocation: "Test classroom")
+		teacher = try container.decodeIfPresent(TimetableTeacherDTO.self, forKey: .teacher) ?? .unknown(rawNotes: "Teacher: Test")
+	}
 }
 
 struct OwnerTimetableUpdateRequest: Content {
@@ -201,6 +289,8 @@ struct RegisterUserDeviceRequest: Content {
 	let installationID: String
 	let platform: String
 	let apnsToken: String
+	/// `true` when the token was obtained from a debug/sandbox build (APNs sandbox endpoint).
+	let isDebug: Bool
 }
 
 struct RemoveUserDeviceRequest: Content {
@@ -210,6 +300,7 @@ struct RemoveUserDeviceRequest: Content {
 struct UserDeviceResponse: Content {
 	let installationID: String
 	let platform: String
+	let isDebug: Bool
 	let lastSeenAt: Date
 }
 

@@ -19,6 +19,9 @@ final class UserDevice: Model, Content, @unchecked Sendable {
 	@Field(key: "apns_token")
 	var apnsToken: String?
 
+	@Field(key: "is_debug")
+	var isDebug: Bool
+
 	@Field(key: "live_activity_push_to_start_token")
 	var liveActivityPushToStartToken: String?
 
@@ -39,6 +42,7 @@ final class UserDevice: Model, Content, @unchecked Sendable {
 		installationID: String,
 		platform: String,
 		apnsToken: String? = nil,
+		isDebug: Bool = false,
 		liveActivityPushToStartToken: String? = nil,
 		lastSeenAt: Date = Date()
 	) {
@@ -47,6 +51,7 @@ final class UserDevice: Model, Content, @unchecked Sendable {
 		self.installationID = installationID
 		self.platform = platform
 		self.apnsToken = apnsToken
+		self.isDebug = isDebug
 		self.liveActivityPushToStartToken = liveActivityPushToStartToken
 		self.lastSeenAt = lastSeenAt
 	}
