@@ -9,18 +9,6 @@ func routes(_ app: Application) throws {
 		)
 	}
 
-	app.post("register", "pushToken") { req async throws -> HTTPStatus in
-		struct Body: Content {
-			let token: String
-		}
-
-		let body = try req.content.decode(Body.self)
-
-		savePushStartToken(body.token)
-
-		return .ok
-	}
-
 	try app.register(collection: AuthController())
 	try app.register(collection: AppleNotificationController())
 	try app.register(collection: AccountController())
@@ -30,6 +18,7 @@ func routes(_ app: Application) throws {
 	try app.register(collection: SettingsController())
 	try app.register(collection: PassController())
 	try app.register(collection: NotificationController())
+	try app.register(collection: LiveActivityController())
 	try app.register(collection: ReportController())
 	try app.register(collection: AuthoredTimetableController())
 	try app.register(collection: TimetableDiscoveryController())

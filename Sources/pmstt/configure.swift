@@ -62,6 +62,7 @@ public func configure(_ app: Application) async throws {
 	app.migrations.add(CreateSchoolNotificationDelivery())
 	app.migrations.add(AddTimetableClassroomAndTeacher())
 	app.migrations.add(AddUserDeviceDebugFlag())
+	app.migrations.add(CreateSchoolDayLiveActivity())
 	app.lifecycle.use(SchoolNotificationSchedulerLifecycle())
 
 	try routes(app)
