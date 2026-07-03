@@ -39,7 +39,9 @@ struct SchoolCalendar: Sendable {
 		let components = dayComponents(for: date)
 		guard let weekday = calendar.dateComponents([.weekday], from: date).weekday,
 		      (2 ... 6).contains(weekday),
-		      !excludedDates.contains(components),
+		      !excludedDates.contains(where: { excluded in
+		      	excluded.year == components.year && excluded.month == components.month && excluded.day == components.day
+		      }),
 		      let day = calendar.date(from: components)
 		else { return false }
 
