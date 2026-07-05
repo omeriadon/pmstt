@@ -4,7 +4,7 @@ import Logging
 import NIOCore
 import Vapor
 
-struct SchoolDayActivityScheduler: Sendable {
+struct SchoolDayActivityScheduler {
 	private let schoolCalendar: SchoolCalendar
 	private let projector: SchoolDayActivityProjector
 	private let apns: LiveActivityAPNSService

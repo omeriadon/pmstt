@@ -25,9 +25,9 @@ struct OwnerTimetableController: RouteCollection {
 			try await existing.save(on: req.db)
 			timetable = existing
 		} else {
-			timetable = OwnerTimetable(
+			timetable = try OwnerTimetable(
 				userID: payload.sub,
-				subjectsData: try JSONEncoder().encode([TimetableSubjectDTO]()),
+				subjectsData: JSONEncoder().encode([TimetableSubjectDTO]()),
 				revision: 1,
 				isSearchable: body.isSearchable
 			)

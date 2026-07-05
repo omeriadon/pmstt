@@ -9,7 +9,9 @@ enum NotificationLeadTime: Int, Content, CaseIterable, Hashable {
 	case four = 4
 	case five = 5
 
-	var minutes: Int { rawValue }
+	var minutes: Int {
+		rawValue
+	}
 }
 
 struct AccountSettings: Content, Hashable {

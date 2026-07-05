@@ -85,7 +85,8 @@ struct ReceivedTimetableController: RouteCollection {
 		if let record = try await ReceivedPassMirror.query(on: req.db)
 			.filter(\.$user.$id == payload.sub)
 			.filter(\.$passSerialNumber == serialNumber)
-			.first() {
+			.first()
+		{
 			record.isDeleted = true
 			record.contentRevision += 1
 			record.passUpdatedAt = Date()

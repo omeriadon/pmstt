@@ -29,7 +29,7 @@ final class OwnerTimetable: Model, Content, @unchecked Sendable {
 
 	init(id: UUID? = nil, userID: User.IDValue, subjectsData: Data, revision: Int, isSearchable: Bool = true) {
 		self.id = id
-		self.$user.id = userID
+		$user.id = userID
 		self.subjectsData = subjectsData
 		self.revision = revision
 		self.isSearchable = isSearchable

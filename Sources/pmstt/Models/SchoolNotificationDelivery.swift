@@ -23,7 +23,7 @@ final class SchoolNotificationDelivery: Model, Content, @unchecked Sendable {
 
 	init(id: UUID? = nil, userID: User.IDValue, schoolDate: String, event: String) {
 		self.id = id
-		self.$user.id = userID
+		$user.id = userID
 		self.schoolDate = schoolDate
 		self.event = event
 	}

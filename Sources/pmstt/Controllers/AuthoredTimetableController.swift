@@ -75,7 +75,9 @@ struct AuthoredTimetableController: RouteCollection {
 private extension Array {
 	func asyncMap<T>(_ transform: (Element) async throws -> T) async rethrows -> [T] {
 		var result: [T] = []
-		for element in self { try await result.append(transform(element)) }
+		for element in self {
+			try await result.append(transform(element))
+		}
 		return result
 	}
 }

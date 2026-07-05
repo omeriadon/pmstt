@@ -4,12 +4,17 @@ import NIOCore
 import NIOHTTP1
 import Vapor
 
-struct LiveActivityAPNSService: Sendable {
-	struct Result: Sendable {
+struct LiveActivityAPNSService {
+	struct Result {
 		let status: HTTPResponseStatus
 
-		var succeeded: Bool { status == .ok }
-		var permanentlyInvalidToken: Bool { status == .badRequest || status == .gone }
+		var succeeded: Bool {
+			status == .ok
+		}
+
+		var permanentlyInvalidToken: Bool {
+			status == .badRequest || status == .gone
+		}
 	}
 
 	func sendStart(
@@ -74,7 +79,7 @@ struct LiveActivityAPNSService: Sendable {
 		request.headers.add(name: "apns-topic", value: "\(config.bundleId).push-type.liveactivity")
 		request.headers.add(name: "authorization", value: "bearer \(authorization)")
 		request.body = try .bytes(ByteBuffer(data: JSONEncoder().encode(payload)))
-		return Result(status: try await APNSClient().send(request: request))
+		return try await Result(status: APNSClient().send(request: request))
 	}
 
 	private func configuration() throws -> APNSConfig {

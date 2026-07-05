@@ -43,7 +43,7 @@ final class AuthoredTimetable: Model, Content, @unchecked Sendable {
 		isSearchable: Bool = true
 	) {
 		self.id = id
-		self.$author.id = authorUserID
+		$author.id = authorUserID
 		self.subjectDisplayName = subjectDisplayName
 		self.passSerialNumber = passSerialNumber
 		self.subjectsData = subjectsData

@@ -24,7 +24,7 @@ struct SettingsController: RouteCollection {
 		user.settingsData = try JSONEncoder().encode(settings.accountSettings)
 		try await user.save(on: req.db)
 		if previousSettings.liveActivitiesEnabled, !settings.liveActivitiesEnabled {
-			await SchoolDayActivityCoordinator().endActivities(forUserID: try user.requireID(), database: req.db, logger: req.logger)
+			try await SchoolDayActivityCoordinator().endActivities(forUserID: user.requireID(), database: req.db, logger: req.logger)
 			try await UserDevice.query(on: req.db)
 				.filter(\.$user.$id == user.requireID())
 				.set(\.$liveActivityPushToStartToken, to: nil)

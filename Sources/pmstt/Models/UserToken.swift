@@ -24,7 +24,7 @@ final class UserToken: Model, Content, @unchecked Sendable {
 	init(id: UUID? = nil, tokenHash: String, userID: User.IDValue, expiresAt: Date) {
 		self.id = id
 		self.tokenHash = tokenHash
-		self.$user.id = userID
+		$user.id = userID
 		self.expiresAt = expiresAt
 	}
 }

@@ -4,7 +4,7 @@ import Logging
 import NIOCore
 import Vapor
 
-struct SchoolNotificationScheduler: Sendable {
+struct SchoolNotificationScheduler {
 	private let schoolCalendar: SchoolCalendar
 	private let now: @Sendable () -> Date
 
@@ -104,7 +104,7 @@ struct SchoolNotificationScheduler: Sendable {
 	}
 }
 
-private enum SchoolNotificationEvent: String, CaseIterable, Sendable {
+private enum SchoolNotificationEvent: String, CaseIterable {
 	case morning
 	case period1
 	case period2
@@ -116,7 +116,9 @@ private enum SchoolNotificationEvent: String, CaseIterable, Sendable {
 	case period6
 	case finished
 
-	var id: String { rawValue }
+	var id: String {
+		rawValue
+	}
 
 	private var time: (hour: Int, minute: Int) {
 		switch self {

@@ -128,7 +128,9 @@ enum TimetableClassroomDTO: Content, Hashable {
 		case upper
 		case lower
 
-		var displayName: String { rawValue.capitalized }
+		var displayName: String {
+			rawValue.capitalized
+		}
 	}
 
 	var displayName: String {

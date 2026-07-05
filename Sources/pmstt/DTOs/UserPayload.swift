@@ -6,7 +6,7 @@ struct UserPayload: JWTPayload, Authenticatable {
 	let email: String?
 	let exp: ExpirationClaim
 
-	func verify(using algorithm: some JWTAlgorithm) async throws {
+	func verify(using _: some JWTAlgorithm) async throws {
 		try exp.verifyNotExpired()
 	}
 }

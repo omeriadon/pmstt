@@ -47,7 +47,7 @@ final class UserDevice: Model, Content, @unchecked Sendable {
 		lastSeenAt: Date = Date()
 	) {
 		self.id = id
-		self.$user.id = userID
+		$user.id = userID
 		self.installationID = installationID
 		self.platform = platform
 		self.apnsToken = apnsToken

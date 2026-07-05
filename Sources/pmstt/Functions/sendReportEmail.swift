@@ -64,7 +64,7 @@ func sendReportEmail(
 		URI(string: "https://api.resend.com/emails"),
 		headers: [
 			"Authorization": "Bearer \(resendAPIKey)",
-			"Content-Type": "application/json"
+			"Content-Type": "application/json",
 		]
 	) { clientReq in
 		try clientReq.content.encode(email)

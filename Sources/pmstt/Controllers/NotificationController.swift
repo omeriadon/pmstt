@@ -100,7 +100,7 @@ struct NotificationController: RouteCollection {
 		guard !subtitle.isEmpty, subtitle.count <= 200 else {
 			throw AppError(.badRequest, code: .invalidRequest, reason: "The broadcast subtitle is invalid.", field: "subtitle")
 		}
-		guard !body.isEmpty, body.count <= 2_000 else {
+		guard !body.isEmpty, body.count <= 2000 else {
 			throw AppError(.badRequest, code: .invalidRequest, reason: "The broadcast body is invalid.", field: "body")
 		}
 	}

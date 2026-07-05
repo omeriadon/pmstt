@@ -1,5 +1,5 @@
 //
-//  File.swift
+//  APNSConfig.swift
 //  pmstt
 //
 //  Created by Adon Omeri on 14/5/2026.

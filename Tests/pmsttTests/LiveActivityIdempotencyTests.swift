@@ -39,10 +39,10 @@ struct LiveActivityIdempotencyTests {
 		)
 		try await activity.create(on: app.db)
 
-		try await SchoolDayLiveActivityTransition(liveActivityID: try activity.requireID(), transition: "period1").create(on: app.db)
+		try await SchoolDayLiveActivityTransition(liveActivityID: activity.requireID(), transition: "period1").create(on: app.db)
 		var duplicateWasRejected = false
 		do {
-			try await SchoolDayLiveActivityTransition(liveActivityID: try activity.requireID(), transition: "period1").create(on: app.db)
+			try await SchoolDayLiveActivityTransition(liveActivityID: activity.requireID(), transition: "period1").create(on: app.db)
 		} catch {
 			duplicateWasRejected = true
 		}

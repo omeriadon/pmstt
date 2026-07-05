@@ -1,6 +1,6 @@
 import Foundation
 
-enum SchoolDayActivityPhase: String, Codable, Sendable {
+enum SchoolDayActivityPhase: String, Codable {
 	case beforeSchool
 	case lesson
 	case freePeriod
@@ -9,7 +9,7 @@ enum SchoolDayActivityPhase: String, Codable, Sendable {
 	case finished
 }
 
-struct SchoolDayActivityColor: Codable, Sendable {
+struct SchoolDayActivityColor: Codable {
 	let r: Double
 	let g: Double
 	let b: Double
@@ -20,12 +20,12 @@ struct SchoolDayActivityColor: Codable, Sendable {
 	static let indigo = Self(r: 0.345, g: 0.337, b: 0.839, a: 1)
 }
 
-struct SchoolDayActivityAttributesPayload: Codable, Sendable {
+struct SchoolDayActivityAttributesPayload: Codable {
 	let activityKey: String
 	let schoolDate: String
 }
 
-struct SchoolDayActivityContentState: Codable, Sendable {
+struct SchoolDayActivityContentState: Codable {
 	let phase: SchoolDayActivityPhase
 	let title: String
 	let symbol: String
@@ -35,16 +35,16 @@ struct SchoolDayActivityContentState: Codable, Sendable {
 	let endDate: Date?
 }
 
-enum LiveActivityEvent: String, Codable, Sendable {
+enum LiveActivityEvent: String, Codable {
 	case start
 	case update
 	case end
 }
 
-struct LiveActivityPayload: Encodable, Sendable {
+struct LiveActivityPayload: Encodable {
 	let aps: APS
 
-	struct APS: Encodable, Sendable {
+	struct APS: Encodable {
 		let timestamp: Int
 		let event: LiveActivityEvent
 		let contentState: SchoolDayActivityContentState
@@ -68,7 +68,7 @@ struct LiveActivityPayload: Encodable, Sendable {
 		}
 	}
 
-	struct Alert: Encodable, Sendable {
+	struct Alert: Encodable {
 		let title: String
 		let body: String
 	}

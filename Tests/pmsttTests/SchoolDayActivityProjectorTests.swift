@@ -44,8 +44,8 @@ struct SchoolDayActivityProjectorTests {
 		#expect(morning.title == "Before School")
 		#expect(morning.symbol == "function")
 		#expect(morning.nextText == "First Period: Maths")
-		#expect(calendar.component(.hour, from: try #require(morning.endDate)) == 8)
-		#expect(calendar.component(.minute, from: try #require(morning.endDate)) == 50)
+		#expect(try calendar.component(.hour, from: #require(morning.endDate)) == 8)
+		#expect(try calendar.component(.minute, from: #require(morning.endDate)) == 50)
 
 		let period = projector.projection(for: .period1, on: base, dayIndex: 4, subjects: subjects).content
 		#expect(period.title == "Maths")

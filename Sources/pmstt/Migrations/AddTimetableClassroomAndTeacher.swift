@@ -19,7 +19,7 @@ struct AddTimetableClassroomAndTeacher: AsyncMigration {
 		}
 	}
 
-	func revert(on database: any Database) async throws {}
+	func revert(on _: any Database) async throws {}
 
 	private func migratedSubjectsData(_ data: Data) throws -> Data {
 		let subjects = try JSONDecoder().decode([TimetableSubjectDTO].self, from: data)

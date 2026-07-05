@@ -1,6 +1,6 @@
 import Foundation
 
-enum SchoolDayTransition: String, CaseIterable, Sendable {
+enum SchoolDayTransition: String, CaseIterable {
 	case morning
 	case period1
 	case period2
@@ -41,13 +41,13 @@ enum SchoolDayTransition: String, CaseIterable, Sendable {
 	}
 }
 
-struct SchoolDayActivityProjection: Sendable {
+struct SchoolDayActivityProjection {
 	let transition: SchoolDayTransition
 	let content: SchoolDayActivityContentState
 	let staleDate: Date?
 }
 
-struct SchoolDayActivityProjector: Sendable {
+struct SchoolDayActivityProjector {
 	let calendar: Calendar
 
 	init(calendar: Calendar = SchoolCalendar.configured.calendar) {

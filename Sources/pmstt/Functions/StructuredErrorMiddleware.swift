@@ -33,18 +33,18 @@ struct StructuredErrorMiddleware: AsyncMiddleware {
 
 	private func defaultCode(for status: HTTPResponseStatus) -> ServerErrorCode {
 		switch status {
-		case .unauthorized, .forbidden:
-			.unauthorized
-		case .notFound:
-			.notFound
-		case .conflict:
-			.conflict
-		case .tooManyRequests:
-			.rateLimited
-		case _ where status.code >= 500:
-			.internalServerError
-		default:
-			.invalidRequest
+			case .unauthorized, .forbidden:
+				.unauthorized
+			case .notFound:
+				.notFound
+			case .conflict:
+				.conflict
+			case .tooManyRequests:
+				.rateLimited
+			case _ where status.code >= 500:
+				.internalServerError
+			default:
+				.invalidRequest
 		}
 	}
 }

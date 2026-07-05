@@ -1,5 +1,5 @@
 //
-//  File.swift
+//  JWT.swift
 //  pmstt
 //
 //  Created by Adon Omeri on 14/5/2026.
@@ -12,7 +12,7 @@ struct APNSPayload: JWTPayload {
 	let iss: IssuerClaim
 	let iat: IssuedAtClaim
 
-	func verify(using algorithm: some JWTAlgorithm) async throws {}
+	func verify(using _: some JWTAlgorithm) async throws {}
 }
 
 func makeJWT(config: APNSConfig) async throws -> String {

@@ -39,10 +39,10 @@ struct PassController: RouteCollection {
 
 		if let issuerAccountID = UUID(uuidString: mirror.issuerAccountID),
 		   let owner = try await OwnerTimetable.query(on: req.db)
-			.filter(\.$user.$id == issuerAccountID)
-			.filter(\.$isSearchable == true)
-			.with(\.$user)
-			.first(), owner.user.selfPassSerialNumber == serial
+		   .filter(\.$user.$id == issuerAccountID)
+		   .filter(\.$isSearchable == true)
+		   .with(\.$user)
+		   .first(), owner.user.selfPassSerialNumber == serial
 		{
 			return try await PassFactory.response(for: .owner(owner), req: req)
 		}

@@ -102,8 +102,8 @@ struct AuthController: RouteCollection {
 		let normalizedEmail = token.email?.lowercased()
 		if let normalizedEmail,
 		   let existingEmailUser = try await User.query(on: req.db)
-		   	.filter(\.$email == normalizedEmail)
-		   	.first()
+		   .filter(\.$email == normalizedEmail)
+		   .first()
 		{
 			existingEmailUser.appleSubject = appleSubject
 			existingEmailUser.appleAuthorizationRevokedAt = nil
@@ -233,7 +233,7 @@ struct AuthController: RouteCollection {
 	}
 
 	private func generateRandomToken() -> String {
-		let bytes = (0..<32).map { _ in UInt8.random(in: 0...255) }
+		let bytes = (0 ..< 32).map { _ in UInt8.random(in: 0 ... 255) }
 		return Data(bytes).base64EncodedString()
 	}
 }

@@ -8,7 +8,7 @@ enum PassFactory {
 		let serial = try timetable.serialNumber
 		let token = authenticationToken(serial: serial)
 		let record = try await upsertRecord(for: timetable, token: token, on: req.db)
-		return try await response(serial: serial, displayName: timetable.title, subjectsData: timetable.subjectsData, token: token, isDeleted: record.isDeleted, issuerAccountID: try timetable.author.requireID().uuidString, sourceKind: timetable.sourceKind, authorDisplayName: timetable.author.displayName, isShareable: timetable.isSearchable, contentRevision: record.revision, req: req)
+		return try await response(serial: serial, displayName: timetable.title, subjectsData: timetable.subjectsData, token: token, isDeleted: record.isDeleted, issuerAccountID: timetable.author.requireID().uuidString, sourceKind: timetable.sourceKind, authorDisplayName: timetable.author.displayName, isShareable: timetable.isSearchable, contentRevision: record.revision, req: req)
 	}
 
 	static func deletedResponse(record: PassRecord, req: Request) async throws -> Response {
@@ -28,7 +28,7 @@ enum PassFactory {
 	private static func upsertRecord(for timetable: ResolvedTimetable, token: String, on database: any Database) async throws -> PassRecord {
 		let serial = try timetable.serialNumber
 		let record = try await PassRecord.query(on: database).filter(\.$serialNumber == serial).first()
-			?? PassRecord(serialNumber: serial, issuerAccountID: try timetable.author.requireID().uuidString, sourceKind: timetable.sourceKind, authoredTimetableID: authoredID(timetable), revision: timetable.revision, authenticationTokenHash: tokenHash(token))
+			?? PassRecord(serialNumber: serial, issuerAccountID: timetable.author.requireID().uuidString, sourceKind: timetable.sourceKind, authoredTimetableID: authoredID(timetable), revision: timetable.revision, authenticationTokenHash: tokenHash(token))
 		record.issuerAccountID = try timetable.author.requireID().uuidString
 		record.sourceKind = timetable.sourceKind
 		record.revision = timetable.revision

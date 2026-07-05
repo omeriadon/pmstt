@@ -97,7 +97,7 @@ struct TimetableDiscoveryController: RouteCollection {
 	}
 
 	private func bestConfidence(query: String, title: String, author: String) -> Double? {
-		[title.confidenceScore(query), author.confidenceScore(query)].compactMap { $0 }.min()
+		[title.confidenceScore(query), author.confidenceScore(query)].compactMap(\.self).min()
 	}
 }
 

@@ -30,24 +30,24 @@ struct AppleNotificationController: RouteCollection {
 		}
 
 		switch notification.events.type {
-		case .emailEnabled:
-			user.appleEmailForwardingEnabled = true
-			try await user.save(on: req.db)
-		case .emailDisabled:
-			user.appleEmailForwardingEnabled = false
-			try await user.save(on: req.db)
-		case .consentRevoked:
-			let userID = try user.requireID()
-			try await UserToken.query(on: req.db)
-				.filter(\.$user.$id == userID)
-				.delete()
-			user.appleSubject = nil
-			user.appleAuthorizationRevokedAt = Date()
-			try await user.save(on: req.db)
-		case .accountDelete:
-			try await user.delete(on: req.db)
-		case .unknown:
-			req.logger.notice("Ignored unknown Sign in with Apple event", metadata: ["event_type": .string(notification.events.rawType)])
+			case .emailEnabled:
+				user.appleEmailForwardingEnabled = true
+				try await user.save(on: req.db)
+			case .emailDisabled:
+				user.appleEmailForwardingEnabled = false
+				try await user.save(on: req.db)
+			case .consentRevoked:
+				let userID = try user.requireID()
+				try await UserToken.query(on: req.db)
+					.filter(\.$user.$id == userID)
+					.delete()
+				user.appleSubject = nil
+				user.appleAuthorizationRevokedAt = Date()
+				try await user.save(on: req.db)
+			case .accountDelete:
+				try await user.delete(on: req.db)
+			case .unknown:
+				req.logger.notice("Ignored unknown Sign in with Apple event", metadata: ["event_type": .string(notification.events.rawType)])
 		}
 
 		return .ok
@@ -83,7 +83,7 @@ private struct AppleServerNotificationPayload: JWTPayload {
 	}
 }
 
-private struct AppleServerNotificationEvent: Codable, Sendable {
+private struct AppleServerNotificationEvent: Codable {
 	let rawType: String
 	let subject: String
 	let email: String?

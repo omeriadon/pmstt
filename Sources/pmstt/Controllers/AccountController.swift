@@ -17,8 +17,8 @@ struct AccountController: RouteCollection {
 			throw AppError(.notFound, code: .accountNotFound, reason: "User not found.")
 		}
 
-		return UserAccountResponse(
-			id: try user.requireID(),
+		return try UserAccountResponse(
+			id: user.requireID(),
 			email: user.email,
 			displayName: user.displayName,
 			createdAt: user.createdAt
@@ -55,8 +55,8 @@ struct AccountController: RouteCollection {
 
 		try await user.save(on: req.db)
 
-		return UserAccountResponse(
-			id: try user.requireID(),
+		return try UserAccountResponse(
+			id: user.requireID(),
 			email: user.email,
 			displayName: user.displayName,
 			createdAt: user.createdAt

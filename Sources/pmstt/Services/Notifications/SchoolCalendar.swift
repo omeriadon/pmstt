@@ -1,14 +1,14 @@
 import Foundation
 
-struct SchoolCalendar: Sendable {
-	struct DateRange: Sendable {
+struct SchoolCalendar {
+	struct DateRange {
 		let start: DateComponents
 		let end: DateComponents
 	}
 
 	static let perthTimeZone = TimeZone(identifier: "Australia/Perth")!
 
-	// WA public-school student term dates. Update this configuration before each school year.
+	/// WA public-school student term dates. Update this configuration before each school year.
 	static let configured = SchoolCalendar(
 		termRanges: [
 			.init(start: .ymd(2026, 2, 2), end: .ymd(2026, 4, 2)),

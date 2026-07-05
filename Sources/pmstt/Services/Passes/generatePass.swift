@@ -99,10 +99,10 @@ func generatePass(
 			var currentBackFields = subField["backFields"] as? [[String: Any]] ?? [[String: Any]]()
 
 			let subjectBackFields: [[String: Any]] = subjects.map { subject in
-				return [
+				[
 					"key": subject.id,
 					"label": subject.id,
-					"value": "\(subject.classroom.displayName)\n\(subject.teacher.displayName)\n\(subject.slots.count) slots"
+					"value": "\(subject.classroom.displayName)\n\(subject.teacher.displayName)\n\(subject.slots.count) slots",
 				]
 			}
 
@@ -113,29 +113,29 @@ func generatePass(
 			let subjectsSummaryItem: [String: Any] = [
 				"key": "subjectsSummary",
 				"label": "Subjects Summary",
-				"value": subjectsSummaryString
+				"value": subjectsSummaryString,
 			]
 
 			let contextBackFields: [[String: Any]] = [
 				[
 					"key": "sender",
 					"label": "Sender",
-					"value": displayName
+					"value": displayName,
 				],
 				[
 					"key": "shared",
 					"label": "Shared On",
 					"value": sharedDate,
 					"dateStyle": "PKDateStyleLong",
-					"timeStyle": "PKDateStyleNone"
-				]
+					"timeStyle": "PKDateStyleNone",
+				],
 			] + subjectBackFields + [
 				[
 					"key": "amountOfSubjects",
 					"label": "Total Subjects",
-					"value": subjectsArray.count
+					"value": subjectsArray.count,
 				],
-				subjectsSummaryItem
+				subjectsSummaryItem,
 			]
 
 			let newKeys = contextBackFields.compactMap { $0["key"] as? String }
@@ -162,7 +162,7 @@ func generatePass(
 						"key": "subjectsSummary",
 						"label": "Subjects Summary",
 						"textAlignment": "PKTextAlignmentNatural",
-						"value": subjectsSummaryString
+						"value": subjectsSummaryString,
 					])
 				}
 
@@ -172,7 +172,7 @@ func generatePass(
 					"key": "subjectsSummary",
 					"label": "Subjects Summary",
 					"textAlignment": "PKTextAlignmentNatural",
-					"value": subjectsSummaryString
+					"value": subjectsSummaryString,
 				]]
 			}
 

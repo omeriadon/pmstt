@@ -1,7 +1,7 @@
 import Fluent
 import Vapor
 
-enum SchoolDayLiveActivityStatus: String, Codable, Sendable {
+enum SchoolDayLiveActivityStatus: String, Codable {
 	case active
 	case ended
 }

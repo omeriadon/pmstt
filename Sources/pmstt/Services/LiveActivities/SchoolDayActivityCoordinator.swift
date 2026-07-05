@@ -2,7 +2,7 @@ import Fluent
 import Foundation
 import Logging
 
-struct SchoolDayActivityCoordinator: Sendable {
+struct SchoolDayActivityCoordinator {
 	private let apns = LiveActivityAPNSService()
 	private let projector = SchoolDayActivityProjector()
 

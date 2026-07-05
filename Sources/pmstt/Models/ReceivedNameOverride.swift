@@ -31,7 +31,7 @@ final class ReceivedNameOverride: Model, Content, @unchecked Sendable {
 		displayName: String
 	) {
 		self.id = id
-		self.$user.id = userID
+		$user.id = userID
 		self.passSerialNumber = passSerialNumber
 		self.displayName = displayName
 	}

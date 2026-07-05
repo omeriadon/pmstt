@@ -7,14 +7,14 @@ enum SigningError: Error, CustomStringConvertible {
 
 	var description: String {
 		switch self {
-			case .resourceNotFound(let path):
-				return "Required signing resource not found: \(path)"
+			case let .resourceNotFound(path):
+				"Required signing resource not found: \(path)"
 
 			case .opensslNotFound:
-				return "Could not find an openssl executable."
+				"Could not find an openssl executable."
 
-			case .opensslFailed(let status, let stderr):
-				return "OpenSSL failed with status \(status): \(stderr)"
+			case let .opensslFailed(status, stderr):
+				"OpenSSL failed with status \(status): \(stderr)"
 		}
 	}
 }
@@ -30,7 +30,7 @@ private func PrintError(_ message: String) {
 private func findOpenSSL() throws -> URL {
 	let candidates = [
 		"/opt/homebrew/bin/openssl", // Apple Silicon Homebrew
-		"/usr/bin/openssl" // macOS system / Ubuntu system
+		"/usr/bin/openssl", // macOS system / Ubuntu system
 	]
 
 	for path in candidates {
@@ -75,7 +75,7 @@ func signManifestWithBundledKey(
 		"-inkey", passKeyURL.path,
 		"-in", manifestURL.path,
 		"-out", outputSignatureURL.path,
-		"-outform", "DER"
+		"-outform", "DER",
 	]
 
 	let stderrPipe = Pipe()
