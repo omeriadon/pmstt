@@ -39,6 +39,80 @@ struct SchoolDayActivityScheduler: Sendable {
 		}
 	}
 
+	func startCurrentActivity(
+		for device: UserDevice,
+		at date: Date,
+		database: any Database,
+		logger: Logger
+	) async throws -> Bool {
+		guard schoolCalendar.isSchoolDay(date),
+		      let transition = SchoolDayTransition.current(at: date, calendar: schoolCalendar.calendar),
+		      transition != .finished,
+		      let dayIndex = schoolCalendar.dayIndex(for: date),
+		      let token = device.liveActivityPushToStartToken,
+		      let user = try await User.find(device.$user.id, on: database),
+		      try JSONDecoder().decode(AccountSettings.self, from: user.settingsData).liveActivitiesEnabled,
+		      let timetable = try await OwnerTimetable.query(on: database).filter(\.$user.$id == device.$user.id).first()
+		else { return false }
+
+		let deviceID = try device.requireID()
+		let schoolDate = schoolDateKey(date)
+		let existingActivity = try await SchoolDayLiveActivity.query(on: database)
+			.filter(\.$userDevice.$id == deviceID)
+			.filter(\.$schoolDate == schoolDate)
+			.filter(\.$status == .active)
+			.first()
+		guard existingActivity == nil else { return false }
+
+		let subjects = try JSONDecoder().decode([TimetableSubjectDTO].self, from: timetable.subjectsData)
+		let projection = projector.projection(for: transition, on: date, dayIndex: dayIndex, subjects: subjects)
+		let activity = SchoolDayLiveActivity(
+			userDeviceID: deviceID,
+			activityKey: UUID().uuidString,
+			schoolDate: schoolDate,
+			currentTransition: "pending"
+		)
+		try await activity.create(on: database)
+
+		do {
+			guard let claim = try await claim(activity: activity, transition: transition, database: database) else {
+				try await activity.delete(on: database)
+				return false
+			}
+			let attributes = SchoolDayActivityAttributesPayload(
+				activityKey: activity.activityKey,
+				schoolDate: activity.schoolDate
+			)
+			let result = try await apns.sendStart(
+				to: token,
+				isDebug: device.isDebug,
+				attributes: attributes,
+				projection: projection
+			)
+			guard result.succeeded else {
+				try await claim.delete(on: database)
+				try await activity.delete(on: database)
+				if result.permanentlyInvalidToken {
+					device.liveActivityPushToStartToken = nil
+					try await device.save(on: database)
+				}
+				return false
+			}
+
+			activity.currentTransition = transition.rawValue
+			activity.lastAPNSTimestamp = date
+			try await activity.save(on: database)
+			logger.info(
+				"Reconciled school-day Live Activity",
+				metadata: ["activity_key": .string(activity.activityKey), "user_id": .string(device.$user.id.uuidString)]
+			)
+			return true
+		} catch {
+			try? await activity.delete(on: database)
+			throw error
+		}
+	}
+
 	private func startActivities(at date: Date, dayIndex: Int, database: any Database, logger: Logger) async {
 		do {
 			let devices = try await UserDevice.query(on: database)

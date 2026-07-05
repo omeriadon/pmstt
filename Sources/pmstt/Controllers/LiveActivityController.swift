@@ -10,6 +10,7 @@ struct LiveActivityController: RouteCollection {
 		protected.put("devices", "current", "live-activity-token", use: registerPushToStartToken)
 		protected.delete("devices", "current", "live-activity-token", use: removePushToStartToken)
 		protected.put("live-activities", ":activityKey", "update-token", use: registerUpdateToken)
+		protected.post("live-activities", "current", "reconcile", use: reconcileCurrentActivity)
 	}
 
 	func registerPushToStartToken(req: Request) async throws -> HTTPStatus {
@@ -66,6 +67,24 @@ struct LiveActivityController: RouteCollection {
 		try await device.save(on: req.db)
 		try await activity.save(on: req.db)
 		return .noContent
+	}
+
+	func reconcileCurrentActivity(req: Request) async throws -> ReconcileLiveActivityResponse {
+		let payload = try req.auth.require(UserPayload.self)
+		let body = try req.content.decode(ReconcileLiveActivityRequest.self)
+		try validateInstallationID(body.installationID)
+
+		guard let device = try await device(userID: payload.sub, installationID: body.installationID, database: req.db) else {
+			throw AppError(.notFound, code: .notFound, reason: "Device not found.")
+		}
+
+		let started = try await SchoolDayActivityScheduler().startCurrentActivity(
+			for: device,
+			at: Date(),
+			database: req.db,
+			logger: req.logger
+		)
+		return ReconcileLiveActivityResponse(started: started)
 	}
 
 	private func device(userID: UUID, installationID: String, database: any Database) async throws -> UserDevice? {

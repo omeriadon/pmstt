@@ -15,3 +15,11 @@ struct LiveActivityUpdateTokenRequest: Content {
 	let token: String
 	let isDebug: Bool
 }
+
+struct ReconcileLiveActivityRequest: Content {
+	let installationID: String
+}
+
+struct ReconcileLiveActivityResponse: Content {
+	let started: Bool
+}

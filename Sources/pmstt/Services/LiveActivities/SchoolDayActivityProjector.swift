@@ -32,6 +32,13 @@ enum SchoolDayTransition: String, CaseIterable, Sendable {
 		let minute = calendar.component(.minute, from: date)
 		return allCases.first { $0.time == (hour, minute) }
 	}
+
+	static func current(at date: Date, calendar: Calendar) -> Self? {
+		let currentMinutes = calendar.component(.hour, from: date) * 60 + calendar.component(.minute, from: date)
+		return allCases.last { transition in
+			transition.time.hour * 60 + transition.time.minute <= currentMinutes
+		}
+	}
 }
 
 struct SchoolDayActivityProjection: Sendable {
