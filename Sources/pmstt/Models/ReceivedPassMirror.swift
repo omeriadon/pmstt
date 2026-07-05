@@ -43,6 +43,9 @@ final class ReceivedPassMirror: Model, Content, @unchecked Sendable {
 	@Field(key: "pass_updated_at")
 	var passUpdatedAt: Date
 
+	@Field(key: "content_revision")
+	var contentRevision: Int
+
 	@Timestamp(key: "updated_at", on: .update)
 	var updatedAt: Date?
 
@@ -61,7 +64,8 @@ final class ReceivedPassMirror: Model, Content, @unchecked Sendable {
 		isShareable: Bool = false,
 		walletRevision: Int,
 		receivedAt: Date,
-		passUpdatedAt: Date
+		passUpdatedAt: Date,
+		contentRevision: Int
 	) {
 		self.id = id
 		$user.id = userID
@@ -76,5 +80,6 @@ final class ReceivedPassMirror: Model, Content, @unchecked Sendable {
 		self.walletRevision = walletRevision
 		self.receivedAt = receivedAt
 		self.passUpdatedAt = passUpdatedAt
+		self.contentRevision = contentRevision
 	}
 }

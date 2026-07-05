@@ -26,35 +26,26 @@ struct ReceivedTimetableController: RouteCollection {
 		try validate(body)
 
 		try await req.db.transaction { database in
-			let submittedSerialNumbers = Set(body.timetables.lazy.filter { !$0.isDeleted }.map(\.id))
-			let existingRecords = try await ReceivedPassMirror.query(on: database)
-				.filter(\.$user.$id == payload.sub)
-				.all()
-
-			for record in existingRecords where !submittedSerialNumbers.contains(record.passSerialNumber) {
-				try await record.delete(on: database)
-			}
-
 			for timetable in body.timetables {
-				guard !timetable.isDeleted else {
-					continue
-				}
-
 				if let existing = try await ReceivedPassMirror.query(on: database)
 					.filter(\.$user.$id == payload.sub)
 					.filter(\.$passSerialNumber == timetable.id)
 					.first()
 				{
+					guard timetable.contentRevision > existing.contentRevision ||
+						(timetable.contentRevision == existing.contentRevision && timetable.passUpdatedAt > existing.passUpdatedAt)
+					else { continue }
 					existing.issuerAccountID = timetable.issuerAccountID
 					existing.sourceKind = timetable.sourceKind
 					existing.signedDisplayName = timetable.signedDisplayName
 					existing.authorDisplayName = timetable.authorDisplayName
 					existing.subjectsData = try JSONEncoder().encode(timetable.subjects)
-					existing.isDeleted = false
+					existing.isDeleted = timetable.isDeleted
 					existing.isShareable = timetable.isShareable
 					existing.walletRevision = body.walletRevision
 					existing.receivedAt = timetable.receivedAt
 					existing.passUpdatedAt = timetable.passUpdatedAt
+					existing.contentRevision = timetable.contentRevision
 
 					try await existing.save(on: database)
 				} else {
@@ -66,11 +57,12 @@ struct ReceivedTimetableController: RouteCollection {
 						signedDisplayName: timetable.signedDisplayName,
 						authorDisplayName: timetable.authorDisplayName,
 						subjectsData: JSONEncoder().encode(timetable.subjects),
-						isDeleted: false,
+						isDeleted: timetable.isDeleted,
 						isShareable: timetable.isShareable,
 						walletRevision: body.walletRevision,
 						receivedAt: timetable.receivedAt,
-						passUpdatedAt: timetable.passUpdatedAt
+						passUpdatedAt: timetable.passUpdatedAt,
+						contentRevision: timetable.contentRevision
 					)
 
 					try await record.save(on: database)
@@ -90,10 +82,15 @@ struct ReceivedTimetableController: RouteCollection {
 		let payload = try req.auth.require(UserPayload.self)
 		let serialNumber = try req.parameters.require("serialNumber")
 
-		try await ReceivedPassMirror.query(on: req.db)
+		if let record = try await ReceivedPassMirror.query(on: req.db)
 			.filter(\.$user.$id == payload.sub)
 			.filter(\.$passSerialNumber == serialNumber)
-			.delete()
+			.first() {
+			record.isDeleted = true
+			record.contentRevision += 1
+			record.passUpdatedAt = Date()
+			try await record.save(on: req.db)
+		}
 
 		return .noContent
 	}
@@ -119,6 +116,7 @@ struct ReceivedTimetableController: RouteCollection {
 			subjects: subjects,
 			receivedAt: record.receivedAt,
 			passUpdatedAt: record.passUpdatedAt,
+			contentRevision: record.contentRevision,
 			isDeleted: record.isDeleted,
 			isShareable: record.isShareable,
 			walletRevision: record.walletRevision

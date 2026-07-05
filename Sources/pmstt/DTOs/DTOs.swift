@@ -262,6 +262,7 @@ struct ReceivedPassMirrorDTO: Content {
 	let subjects: [TimetableSubjectDTO]
 	let receivedAt: Date
 	let passUpdatedAt: Date
+	let contentRevision: Int
 	let isDeleted: Bool
 	let isShareable: Bool
 	let walletRevision: Int
