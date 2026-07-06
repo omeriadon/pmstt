@@ -48,6 +48,7 @@ public func configure(_ app: Application) async throws {
 
 	app.migrations.add(CreateUser())
 	app.migrations.add(CreateUserToken())
+	app.migrations.add(AddUserTokenClientIdentity())
 	app.migrations.add(CreateOwnerTimetable())
 	app.migrations.add(CreateAuthoredTimetable())
 	app.migrations.add(CreatePassRecord())

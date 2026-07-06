@@ -13,6 +13,7 @@ struct AuthController: RouteCollection {
 
 		let protected = auth.grouped(UserPayload.authenticator(), UserPayload.guardMiddleware())
 		protected.delete("logout", use: logout)
+		protected.post("watch-session", use: createWatchSession)
 	}
 
 	// MARK: - Handlers
@@ -149,7 +150,25 @@ struct AuthController: RouteCollection {
 		// Rotate token: delete old, create new
 		try await userToken.delete(on: req.db)
 
-		return try await generateTokens(for: userToken.user, on: req)
+		return try await generateTokens(for: userToken.user, platform: userToken.clientPlatform, installationID: userToken.installationID, on: req)
+	}
+
+	func createWatchSession(req: Request) async throws -> TokenResponse {
+		let payload = try req.auth.require(UserPayload.self)
+		let body = try req.content.decode(WatchSessionRequest.self)
+		let installationID = body.installationID.trimmingCharacters(in: .whitespacesAndNewlines)
+		guard !installationID.isEmpty, installationID.count <= 200 else {
+			throw AppError(.badRequest, code: .invalidRequest, reason: "The Watch installation identifier is invalid.", field: "installationID")
+		}
+		guard let user = try await User.find(payload.sub, on: req.db) else {
+			throw AppError(.notFound, code: .accountNotFound, reason: "Your account could not be found.")
+		}
+		try await UserToken.query(on: req.db)
+			.filter(\.$user.$id == payload.sub)
+			.filter(\.$clientPlatform == "watchOS")
+			.filter(\.$installationID == installationID)
+			.delete()
+		return try await generateTokens(for: user, platform: "watchOS", installationID: installationID, on: req)
 	}
 
 	func logout(req: Request) async throws -> HTTPStatus {
@@ -177,7 +196,7 @@ struct AuthController: RouteCollection {
 
 	// MARK: - Helpers
 
-	private func generateTokens(for user: User, on req: Request) async throws -> TokenResponse {
+	private func generateTokens(for user: User, platform: String? = nil, installationID: String? = nil, on req: Request) async throws -> TokenResponse {
 		let userID = try user.requireID()
 
 		// Generate access token (stateless JWT expiring in 15 minutes)
@@ -196,7 +215,9 @@ struct AuthController: RouteCollection {
 		let userToken = UserToken(
 			tokenHash: tokenHash,
 			userID: userID,
-			expiresAt: expiresAt
+			expiresAt: expiresAt,
+			clientPlatform: platform,
+			installationID: installationID
 		)
 		try await userToken.save(on: req.db)
 

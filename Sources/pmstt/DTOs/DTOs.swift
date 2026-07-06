@@ -37,6 +37,10 @@ struct TokenResponse: Content {
 	let user: UserAccountResponse
 }
 
+struct WatchSessionRequest: Content {
+	let installationID: String
+}
+
 struct UserAccountResponse: Content {
 	let id: UUID
 	let email: String?
