@@ -25,48 +25,58 @@ struct ReceivedTimetableController: RouteCollection {
 		let body = try req.content.decode(ReceivedProjectionUpdateRequest.self)
 		try validate(body)
 
-		try await req.db.transaction { database in
-			for timetable in body.timetables {
-				if let existing = try await ReceivedPassMirror.query(on: database)
-					.filter(\.$user.$id == payload.sub)
-					.filter(\.$passSerialNumber == timetable.id)
-					.first()
-				{
-					guard timetable.contentRevision > existing.contentRevision ||
-						(timetable.contentRevision == existing.contentRevision && timetable.passUpdatedAt > existing.passUpdatedAt)
-					else { continue }
-					existing.issuerAccountID = timetable.issuerAccountID
-					existing.sourceKind = timetable.sourceKind
-					existing.signedDisplayName = timetable.signedDisplayName
-					existing.authorDisplayName = timetable.authorDisplayName
-					existing.subjectsData = try JSONEncoder().encode(timetable.subjects)
-					existing.isDeleted = timetable.isDeleted
-					existing.isShareable = timetable.isShareable
-					existing.walletRevision = body.walletRevision
-					existing.receivedAt = timetable.receivedAt
-					existing.passUpdatedAt = timetable.passUpdatedAt
-					existing.contentRevision = timetable.contentRevision
+		let existingRecords = try await ReceivedPassMirror.query(on: req.db)
+			.filter(\.$user.$id == payload.sub)
+			.all()
+		var existingBySerialNumber = Dictionary(uniqueKeysWithValues: existingRecords.map { ($0.passSerialNumber, $0) })
+		let submittedIDs = Set(body.timetables.map(\.id))
 
-					try await existing.save(on: database)
-				} else {
-					let record = try ReceivedPassMirror(
-						userID: payload.sub,
-						passSerialNumber: timetable.id,
-						issuerAccountID: timetable.issuerAccountID,
-						sourceKind: timetable.sourceKind,
-						signedDisplayName: timetable.signedDisplayName,
-						authorDisplayName: timetable.authorDisplayName,
-						subjectsData: JSONEncoder().encode(timetable.subjects),
-						isDeleted: timetable.isDeleted,
-						isShareable: timetable.isShareable,
-						walletRevision: body.walletRevision,
-						receivedAt: timetable.receivedAt,
-						passUpdatedAt: timetable.passUpdatedAt,
-						contentRevision: timetable.contentRevision
-					)
+		for timetable in body.timetables {
+			if let existing = existingBySerialNumber.removeValue(forKey: timetable.id) {
+				guard timetable.contentRevision > existing.contentRevision ||
+					(timetable.contentRevision == existing.contentRevision && timetable.passUpdatedAt > existing.passUpdatedAt)
+				else { continue }
+				existing.issuerAccountID = timetable.issuerAccountID
+				existing.sourceKind = timetable.sourceKind
+				existing.signedDisplayName = timetable.signedDisplayName
+				existing.authorDisplayName = timetable.authorDisplayName
+				existing.subjectsData = try JSONEncoder().encode(timetable.subjects)
+				existing.isDeleted = timetable.isDeleted
+				existing.isShareable = timetable.isShareable
+				existing.walletRevision = body.walletRevision
+				existing.receivedAt = timetable.receivedAt
+				existing.passUpdatedAt = timetable.passUpdatedAt
+				existing.contentRevision = timetable.contentRevision
 
-					try await record.save(on: database)
-				}
+				try await existing.save(on: req.db)
+			} else {
+				let record = try ReceivedPassMirror(
+					userID: payload.sub,
+					passSerialNumber: timetable.id,
+					issuerAccountID: timetable.issuerAccountID,
+					sourceKind: timetable.sourceKind,
+					signedDisplayName: timetable.signedDisplayName,
+					authorDisplayName: timetable.authorDisplayName,
+					subjectsData: JSONEncoder().encode(timetable.subjects),
+					isDeleted: timetable.isDeleted,
+					isShareable: timetable.isShareable,
+					walletRevision: body.walletRevision,
+					receivedAt: timetable.receivedAt,
+					passUpdatedAt: timetable.passUpdatedAt,
+					contentRevision: timetable.contentRevision
+				)
+
+				try await record.save(on: req.db)
+			}
+		}
+
+		for stale in existingBySerialNumber.values where !submittedIDs.contains(stale.passSerialNumber) {
+			if !stale.isDeleted {
+				stale.isDeleted = true
+				stale.walletRevision = body.walletRevision
+				stale.contentRevision += 1
+				stale.passUpdatedAt = Date()
+				try await stale.save(on: req.db)
 			}
 		}
 
