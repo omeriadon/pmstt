@@ -11,8 +11,8 @@ struct SchoolCalendar {
 	/// WA public-school student term dates. Update this configuration before each school year.
 	static let configured = SchoolCalendar(
 		termRanges: [
-			// 7 Jul 2026 holidays excluded for development purposes
-			.init(start: .ymd(2026, 7, 20), end: .ymd(2026, 9, 25)),
+			// Term 3: started early (7 Jul) for development testing
+			.init(start: .ymd(2026, 7, 7), end: .ymd(2026, 9, 25)),
 			.init(start: .ymd(2026, 10, 12), end: .ymd(2026, 12, 17)),
 		],
 		excludedDates: [
