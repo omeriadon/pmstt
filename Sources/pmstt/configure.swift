@@ -65,6 +65,7 @@ public func configure(_ app: Application) async throws {
 	app.migrations.add(AddUserDeviceDebugFlag())
 	app.migrations.add(CreateSchoolDayLiveActivity())
 	app.migrations.add(CreateSchoolDayLiveActivityTransition())
+	app.migrations.add(AddContentRevisionToReceivedPassMirror())
 	app.lifecycle.use(SchoolNotificationSchedulerLifecycle())
 	app.lifecycle.use(SchoolDayActivitySchedulerLifecycle())
 

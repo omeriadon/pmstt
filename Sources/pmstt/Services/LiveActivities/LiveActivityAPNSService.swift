@@ -78,7 +78,9 @@ struct LiveActivityAPNSService {
 		request.headers.add(name: "apns-priority", value: String(priority))
 		request.headers.add(name: "apns-topic", value: "\(config.bundleId).push-type.liveactivity")
 		request.headers.add(name: "authorization", value: "bearer \(authorization)")
-		request.body = try .bytes(ByteBuffer(data: JSONEncoder().encode(payload)))
+		let encoder = JSONEncoder()
+		encoder.dateEncodingStrategy = .secondsSince1970
+		request.body = try .bytes(ByteBuffer(data: encoder.encode(payload)))
 		return try await Result(status: APNSClient().send(request: request))
 	}
 

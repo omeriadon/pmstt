@@ -75,10 +75,10 @@ struct SchoolDayActivityProjector {
 					endDate: self.date(on: date, hour: 8, minute: 50)
 				)
 			case .period1: content = lesson(period: 1, date: date, dayIndex: dayIndex, subjects: subjects, next: nextSubjectText(period: 2, dayIndex: dayIndex, subjects: subjects), end: (9, 48))
-			case .period2: content = lesson(period: 2, date: date, dayIndex: dayIndex, subjects: subjects, next: "Next: Recess", end: (10, 46))
+			case .period2: content = lesson(period: 2, date: date, dayIndex: dayIndex, subjects: subjects, next: "Recess", end: (10, 46))
 			case .recess: content = breakState(.recess, date: date, nextPeriod: 3, dayIndex: dayIndex, subjects: subjects, end: (11, 8))
 			case .period3: content = lesson(period: 3, date: date, dayIndex: dayIndex, subjects: subjects, next: nextSubjectText(period: 4, dayIndex: dayIndex, subjects: subjects), end: (12, 6))
-			case .period4: content = lesson(period: 4, date: date, dayIndex: dayIndex, subjects: subjects, next: "Next: Lunch", end: (13, 4))
+			case .period4: content = lesson(period: 4, date: date, dayIndex: dayIndex, subjects: subjects, next: "Lunch", end: (13, 4))
 			case .lunch: content = breakState(.lunch, date: date, nextPeriod: 5, dayIndex: dayIndex, subjects: subjects, end: (13, 34))
 			case .period5: content = lesson(period: 5, date: date, dayIndex: dayIndex, subjects: subjects, next: nextSubjectText(period: 6, dayIndex: dayIndex, subjects: subjects), end: (14, 32))
 			case .period6: content = lesson(period: 6, date: date, dayIndex: dayIndex, subjects: subjects, next: "Last Period", end: (15, 30))
@@ -120,7 +120,7 @@ struct SchoolDayActivityProjector {
 	}
 
 	private func nextSubjectText(period: Int, dayIndex: Int, subjects: [TimetableSubjectDTO]) -> String {
-		"Next: \(subject(period: period, dayIndex: dayIndex, subjects: subjects)?.id ?? "Free Period")"
+		subject(period: period, dayIndex: dayIndex, subjects: subjects)?.id ?? "Free Period"
 	}
 
 	private func subject(period: Int, dayIndex: Int, subjects: [TimetableSubjectDTO]) -> TimetableSubjectDTO? {
