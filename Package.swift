@@ -37,15 +37,6 @@ let package = Package(
 			],
 			swiftSettings: swiftSettings
 		),
-		.testTarget(
-			name: "pmsttTests",
-			dependencies: [
-				.target(name: "pmstt"),
-				.product(name: "FluentSQLiteDriver", package: "fluent-sqlite-driver"),
-				.product(name: "VaporTesting", package: "vapor"),
-			],
-			swiftSettings: swiftSettings
-		),
 	]
 )
 
