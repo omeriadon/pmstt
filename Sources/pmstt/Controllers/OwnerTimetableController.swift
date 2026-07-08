@@ -51,7 +51,9 @@ struct OwnerTimetableController: RouteCollection {
 
 	func updateOwnerTimetable(req: Request) async throws -> OwnerTimetableResponse {
 		let payload = try req.auth.require(UserPayload.self)
+		req.logger.info("Owner timetable update started", metadata: ["user_id": .string(payload.sub.uuidString)])
 		let body = try req.content.decode(OwnerTimetableUpdateRequest.self)
+		req.logger.info("Owner timetable update decoded", metadata: ["subject_count": .stringConvertible(body.subjects.count)])
 		try validate(body.subjects)
 		let subjectsData = try JSONEncoder().encode(body.subjects)
 
@@ -60,6 +62,7 @@ struct OwnerTimetableController: RouteCollection {
 			.filter(\.$user.$id == payload.sub)
 			.first()
 		{
+			req.logger.info("Owner timetable update found existing row", metadata: ["revision": .stringConvertible(existing.revision)])
 			if let expectedRevision = body.expectedRevision,
 			   expectedRevision != existing.revision
 			{
@@ -74,8 +77,10 @@ struct OwnerTimetableController: RouteCollection {
 			existing.isSearchable = body.isSearchable ?? existing.isSearchable
 			existing.revision += 1
 			try await existing.save(on: req.db)
+			req.logger.info("Owner timetable update saved existing row", metadata: ["revision": .stringConvertible(existing.revision)])
 			timetable = existing
 		} else {
+			req.logger.info("Owner timetable update creating row")
 			if let expectedRevision = body.expectedRevision, expectedRevision != 0 {
 				throw AppError(
 					.conflict,
@@ -91,6 +96,7 @@ struct OwnerTimetableController: RouteCollection {
 				isSearchable: body.isSearchable ?? true
 			)
 			try await timetable.save(on: req.db)
+			req.logger.info("Owner timetable update saved new row")
 		}
 
 		return try response(for: timetable)
