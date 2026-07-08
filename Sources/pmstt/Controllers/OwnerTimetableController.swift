@@ -267,7 +267,7 @@ struct OwnerTimetableController: RouteCollection {
 
 			guard !trimmedID.isEmpty,
 				  trimmedID.count <= 100,
-				  subject.symbol.count <= 20
+				  subject.symbol.count <= 1
 			else {
 				throw invalidTimetable("Subject names and symbols must be valid.")
 			}
