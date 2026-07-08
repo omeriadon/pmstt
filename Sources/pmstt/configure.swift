@@ -5,6 +5,7 @@ import JWT
 import Vapor
 
 public func configure(_ app: Application) async throws {
+	app.routes.defaultMaxBodySize = "5mb"
 	app.middleware.use(RequestIDMiddleware())
 	app.middleware.use(StructuredErrorMiddleware(environment: app.environment))
 
