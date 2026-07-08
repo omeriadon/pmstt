@@ -265,9 +265,8 @@ struct OwnerTimetableController: RouteCollection {
 		for subject in subjects {
 			let trimmedID = subject.id.trimmingCharacters(in: .whitespacesAndNewlines)
 
-			guard !trimmedID.isEmpty,
-				  trimmedID.count <= 100,
-				  subject.symbol.count <= 1
+			guard (1..<100).contains(trimmedID.count),
+				  (1..<100).contains(subject.symbol.count)
 			else {
 				throw invalidTimetable("Subject names and symbols must be valid.")
 			}
