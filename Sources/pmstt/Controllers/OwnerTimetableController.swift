@@ -265,8 +265,8 @@ struct OwnerTimetableController: RouteCollection {
 		for subject in subjects {
 			let trimmedID = subject.id.trimmingCharacters(in: .whitespacesAndNewlines)
 
-			guard (1..<100).contains(trimmedID.count),
-				  (1..<100).contains(subject.symbol.count)
+			guard (1 ..< 100).contains(trimmedID.count),
+			      (1 ..< 100).contains(subject.symbol.count)
 			else {
 				throw invalidTimetable("Subject names and symbols must be valid.")
 			}
@@ -288,7 +288,7 @@ struct OwnerTimetableController: RouteCollection {
 
 			for slot in subject.slots {
 				guard (0 ... 4).contains(slot.day),
-					  (0 ... 7).contains(slot.session)
+				      (0 ... 7).contains(slot.session)
 				else {
 					throw invalidTimetable("Timetable slots are outside the supported school week.")
 				}
