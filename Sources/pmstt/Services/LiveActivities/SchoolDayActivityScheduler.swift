@@ -165,9 +165,14 @@ struct SchoolDayActivityScheduler {
 			for activity in activities {
 				do {
 					let device = activity.userDevice
+					guard let user = try await User.find(device.$user.id, on: database) else { continue }
+					let settings = try JSONDecoder().decode(AccountSettings.self, from: user.settingsData)
+					guard settings.liveActivitiesEnabled else {
+						activity.status = .ended
+						try await activity.save(on: database)
+						continue
+					}
 					guard let token = activity.updateToken,
-					      let user = try await User.find(device.$user.id, on: database),
-					      try JSONDecoder().decode(AccountSettings.self, from: user.settingsData).liveActivitiesEnabled,
 					      let timetable = try await OwnerTimetable.query(on: database).filter(\.$user.$id == device.$user.id).first()
 					else { continue }
 
@@ -182,6 +187,7 @@ struct SchoolDayActivityScheduler {
 						try await claim.delete(on: database)
 						if result.permanentlyInvalidToken {
 							activity.updateToken = nil
+							activity.status = .ended
 							try await activity.save(on: database)
 						}
 						continue

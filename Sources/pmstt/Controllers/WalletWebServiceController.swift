@@ -28,8 +28,6 @@ struct WalletWebServiceController: RouteCollection {
 		_ = try await authenticatedRecord(req: req, serial: serial)
 		guard passType == expectedPassType else { throw Abort(.notFound) }
 		try await PassRegistration.query(on: req.db).filter(\.$deviceLibraryIdentifier == device).filter(\.$serialNumber == serial).delete()
-		if let record = try await PassRecord.query(on: req.db).filter(\.$serialNumber == serial).first(), record.isDeleted,
-		   try await PassRegistration.query(on: req.db).filter(\.$serialNumber == serial).count() == 0 { try await record.delete(on: req.db) }
 		return .ok
 	}
 

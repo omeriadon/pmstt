@@ -93,7 +93,7 @@ struct SchoolDayActivityProjector {
 		)
 	}
 
-	private func lesson(period: Int, date baseDate: Date, dayIndex: Int, subjects: [TimetableSubjectDTO], next: String, end: (Int, Int)) -> SchoolDayActivityContentState {
+	private func lesson(period: Int, date baseDate: Date, dayIndex: Int, subjects: [TimetableSubjectDTO], next: String?, end: (Int, Int)) -> SchoolDayActivityContentState {
 		let current = subject(period: period, dayIndex: dayIndex, subjects: subjects)
 		return .init(
 			phase: current == nil ? .freePeriod : .lesson,
