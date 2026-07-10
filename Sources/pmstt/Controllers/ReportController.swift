@@ -10,6 +10,7 @@ struct ReportController: RouteCollection {
 		)
 
 		protected.post("user", use: reportUser)
+		protected.post("feedback", use: reportFeedback)
 	}
 
 	func reportUser(req: Request) async throws -> Response {
@@ -55,5 +56,15 @@ struct ReportController: RouteCollection {
 			reportedUser: reportedUser,
 			req: req
 		)
+	}
+
+	func reportFeedback(req: Request) async throws -> Response {
+		let payload = try req.auth.require(UserPayload.self)
+		let body = try req.content.decode(FeedbackRequest.self)
+		guard (1 ... 40).contains(body.category.count), (1 ... 10000).contains(body.message.count) else {
+			throw AppError(.badRequest, code: .invalidRequest, reason: "Feedback is empty or too long.", field: "message")
+		}
+		guard let reporter = try await User.find(payload.sub, on: req.db) else { throw Abort(.unauthorized) }
+		return try await sendFeedbackEmail(body: body, reporterUser: reporter, req: req)
 	}
 }

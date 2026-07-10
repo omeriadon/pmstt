@@ -292,6 +292,11 @@ struct ReportUserRequest: Content {
 	let reportedAccountID: String
 }
 
+struct FeedbackRequest: Content {
+	let category: String
+	let message: String
+}
+
 struct RegisterUserDeviceRequest: Content {
 	let installationID: String
 	let platform: String
