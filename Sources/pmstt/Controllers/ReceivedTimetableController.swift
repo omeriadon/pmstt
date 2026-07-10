@@ -8,6 +8,7 @@ struct ReceivedTimetableController: RouteCollection {
 
 		protected.get(use: getReceivedTimetables)
 		protected.put(use: replaceReceivedTimetables)
+		protected.put(":serialNumber", use: replaceSingleReceivedTimetable)
 		protected.delete(":serialNumber", use: deleteReceivedTimetable)
 	}
 
@@ -20,7 +21,20 @@ struct ReceivedTimetableController: RouteCollection {
 		return try records.map(response)
 	}
 
+	func replaceSingleReceivedTimetable(req: Request) async throws -> [ReceivedPassMirrorDTO] {
+		let serialNumber = try req.parameters.require("serialNumber")
+		let body = try req.content.decode(ReceivedProjectionUpdateRequest.self)
+		guard body.timetables.count == 1, body.timetables[0].id == serialNumber else {
+			throw invalidProjection("The received timetable path and payload do not match.")
+		}
+		return try await replaceReceivedTimetables(req: req, markMissingAsDeleted: false)
+	}
+
 	func replaceReceivedTimetables(req: Request) async throws -> [ReceivedPassMirrorDTO] {
+		try await replaceReceivedTimetables(req: req, markMissingAsDeleted: true)
+	}
+
+	private func replaceReceivedTimetables(req: Request, markMissingAsDeleted: Bool) async throws -> [ReceivedPassMirrorDTO] {
 		let payload = try req.auth.require(UserPayload.self)
 		let body = try req.content.decode(ReceivedProjectionUpdateRequest.self)
 		try validate(body)
@@ -70,7 +84,7 @@ struct ReceivedTimetableController: RouteCollection {
 			}
 		}
 
-		for stale in existingBySerialNumber.values where !submittedIDs.contains(stale.passSerialNumber) {
+		for stale in existingBySerialNumber.values where markMissingAsDeleted && !submittedIDs.contains(stale.passSerialNumber) {
 			if !stale.isDeleted {
 				stale.isDeleted = true
 				stale.walletRevision = body.walletRevision
