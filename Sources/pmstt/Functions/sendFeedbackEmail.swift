@@ -4,11 +4,11 @@ func sendFeedbackEmail(body: FeedbackRequest, reporterUser: User, req: Request) 
 	let reporterID = reporterUser.id?.uuidString ?? "unknown"
 	let html = """
 	<h1>Timetable App Feedback</h1>
-	<p><strong>Category:</strong> (escapeFeedbackHTML(body.category))</p>
-	<p><strong>Reporter ID:</strong> (escapeFeedbackHTML(reporterID))</p>
+	<p><strong>Category:</strong> \(escapeFeedbackHTML(body.category))</p>
+	<p><strong>Reporter ID:</strong> \(escapeFeedbackHTML(reporterID))</p>
 	<p><strong>Message:</strong></p>
-	<p>(escapeFeedbackHTML(body.message).replacingOccurrences(of: "\n", with: "<br>"))</p>
-	<p><strong>Generated:</strong> (Date().description)</p>
+	<p>\(escapeFeedbackHTML(body.message).replacingOccurrences(of: "\n", with: "<br>"))</p>
+	<p><strong>Generated:</strong> \(Date().description)</p>
 	"""
 	let email = ResendEmailRequest(
 		from: "onboarding@resend.dev",
