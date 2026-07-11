@@ -10,7 +10,7 @@ struct AuthRateLimitMiddleware: AsyncMiddleware {
 		self.window = window
 	}
 
-	func respond(to request: Request, chainingTo next: any Responder) async throws -> Response {
+	func respond(to request: Request, chainingTo next: any AsyncResponder) async throws -> Response {
 		let key = request.remoteAddress?.ipAddress ?? "unknown"
 		guard await AuthRateLimiter.shared.allow(key: key, limit: limit, window: window) else {
 			throw AppError(.tooManyRequests, code: .rateLimited, reason: "Too many authentication attempts. Try again shortly.")
