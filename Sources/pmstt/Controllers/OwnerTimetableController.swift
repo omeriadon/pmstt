@@ -36,6 +36,7 @@ struct OwnerTimetableController: RouteCollection {
 			try await timetable.save(on: req.db)
 		}
 
+		try await updateWalletPass(for: payload.sub, revision: timetable.revision, req: req)
 		return try response(for: timetable)
 	}
 
@@ -221,6 +222,8 @@ struct OwnerTimetableController: RouteCollection {
 			)
 		}
 
+		try await updateWalletPass(for: payload.sub, revision: timetable.revision, req: req)
+
 		logInfo(
 			req,
 			"Owner timetable update returning response",
@@ -231,6 +234,21 @@ struct OwnerTimetableController: RouteCollection {
 		)
 
 		return try response(for: timetable)
+	}
+
+	private func updateWalletPass(for userID: UUID, revision: Int, req: Request) async throws {
+		guard let user = try await User.find(userID, on: req.db),
+		      let record = try await PassRecord.query(on: req.db)
+		      .filter(\.$serialNumber == user.selfPassSerialNumber)
+		      .first()
+		else {
+			return
+		}
+
+		record.revision = revision
+		record.isDeleted = false
+		try await record.save(on: req.db)
+		try? await WalletPushService.sendUpdate(for: record.serialNumber, req: req)
 	}
 
 	private func response(for timetable: OwnerTimetable) throws -> OwnerTimetableResponse {
