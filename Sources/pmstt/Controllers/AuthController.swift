@@ -5,7 +5,7 @@ import Vapor
 
 struct AuthController: RouteCollection {
 	func boot(routes: any RoutesBuilder) throws {
-		let auth = routes.grouped("v1", "auth")
+		let auth = routes.grouped("v1", "auth").grouped(AuthRateLimitMiddleware())
 		auth.post("register", use: register)
 		auth.post("login", use: login)
 		auth.post("apple", use: signInWithApple)
