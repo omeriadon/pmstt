@@ -5,8 +5,9 @@ struct ReportController: RouteCollection {
 	func boot(routes: any RoutesBuilder) throws {
 		let report = routes.grouped("v1", "report")
 		let protected = report.grouped(
-			UserPayload.authenticator(),
-			UserPayload.guardMiddleware()
+			SessionAuthenticator(),
+			UserPayload.guardMiddleware(),
+			CapabilityMiddleware()
 		)
 
 		protected.post("user", use: reportUser)

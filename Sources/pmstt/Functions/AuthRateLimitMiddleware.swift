@@ -19,10 +19,14 @@ struct AuthRateLimitMiddleware: AsyncMiddleware {
 	}
 }
 
-private actor AuthRateLimiter {
+actor AuthRateLimiter {
 	static let shared = AuthRateLimiter()
 
 	private var attempts: [String: [Date]] = [:]
+
+	func reset() {
+		attempts.removeAll()
+	}
 
 	func allow(key: String, limit: Int, window: TimeInterval, now: Date = .now) -> Bool {
 		let cutoff = now.addingTimeInterval(-window)

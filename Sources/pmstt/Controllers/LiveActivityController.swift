@@ -5,7 +5,7 @@ struct LiveActivityController: RouteCollection {
 	func boot(routes: any RoutesBuilder) throws {
 		let protected = routes
 			.grouped("v1")
-			.grouped(UserPayload.authenticator(), UserPayload.guardMiddleware())
+			.grouped(SessionAuthenticator(), UserPayload.guardMiddleware(), CapabilityMiddleware())
 
 		protected.put("devices", "current", "live-activity-token", use: registerPushToStartToken)
 		protected.delete("devices", "current", "live-activity-token", use: removePushToStartToken)

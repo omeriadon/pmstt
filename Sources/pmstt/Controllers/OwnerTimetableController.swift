@@ -4,7 +4,7 @@ import Vapor
 struct OwnerTimetableController: RouteCollection {
 	func boot(routes: any RoutesBuilder) throws {
 		let timetable = routes.grouped("v1", "timetables", "owner")
-		let protected = timetable.grouped(UserPayload.authenticator(), UserPayload.guardMiddleware())
+		let protected = timetable.grouped(SessionAuthenticator(), UserPayload.guardMiddleware(), CapabilityMiddleware())
 
 		protected.get(use: getOwnerTimetable)
 		protected.put(use: updateOwnerTimetable)

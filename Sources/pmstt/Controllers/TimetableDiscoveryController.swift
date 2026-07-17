@@ -5,7 +5,7 @@ import Vapor
 struct TimetableDiscoveryController: RouteCollection {
 	func boot(routes: any RoutesBuilder) throws {
 		let routes = routes.grouped("v1", "timetables")
-			.grouped(UserPayload.authenticator(), UserPayload.guardMiddleware())
+			.grouped(SessionAuthenticator(), UserPayload.guardMiddleware(), CapabilityMiddleware())
 		routes.get("search", use: search)
 		routes.get(":timetableID", use: detail)
 		routes.get(":timetableID", "pass", use: pass)

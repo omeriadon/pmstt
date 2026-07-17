@@ -22,17 +22,34 @@ final class UserToken: Model, Content, @unchecked Sendable {
 	@OptionalField(key: "installation_id")
 	var installationID: String?
 
+	@OptionalField(key: "parent_session_id")
+	var parentSessionID: UUID?
+
+	@OptionalField(key: "refresh_jti")
+	var refreshJTI: UUID?
+
+	@OptionalField(key: "revoked_at")
+	var revokedAt: Date?
+
+	@OptionalField(key: "active_watch_key")
+	var activeWatchKey: String?
+
 	@Timestamp(key: "created_at", on: .create)
 	var createdAt: Date?
 
 	init() {}
 
-	init(id: UUID? = nil, tokenHash: String, userID: User.IDValue, expiresAt: Date, clientPlatform: String? = nil, installationID: String? = nil) {
+	init(id: UUID? = nil, tokenHash: String, userID: User.IDValue, expiresAt: Date, clientPlatform: String? = nil, installationID: String? = nil, parentSessionID: UUID? = nil, refreshJTI: UUID? = nil, activeWatchKey: String? = nil) {
 		self.id = id
 		self.tokenHash = tokenHash
 		$user.id = userID
 		self.expiresAt = expiresAt
 		self.clientPlatform = clientPlatform
 		self.installationID = installationID
+		self.parentSessionID = parentSessionID
+		self.refreshJTI = refreshJTI
+		self.activeWatchKey = activeWatchKey
 	}
+
+	var platformValue: ClientPlatform { ClientPlatform(rawValue: clientPlatform ?? "") ?? .legacy }
 }

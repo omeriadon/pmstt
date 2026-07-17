@@ -76,10 +76,11 @@ func pmsttMigrationList() -> [any Migration] {
 		AddReceivedPassShareability(),
 		AddAppleAccountState(),
 		CreateSchoolNotificationDelivery(),
+		AddContentRevisionToReceivedPassMirror(),
 		AddTimetableClassroomAndTeacher(),
 		AddUserDeviceDebugFlag(),
 		CreateSchoolDayLiveActivity(),
 		CreateSchoolDayLiveActivityTransition(),
-		AddContentRevisionToReceivedPassMirror(),
+		AddUserTokenAuthority(),
 	]
 }

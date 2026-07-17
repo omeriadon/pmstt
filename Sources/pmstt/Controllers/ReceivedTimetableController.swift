@@ -4,7 +4,7 @@ import Vapor
 struct ReceivedTimetableController: RouteCollection {
 	func boot(routes: any RoutesBuilder) throws {
 		let received = routes.grouped("v1", "timetables", "received")
-		let protected = received.grouped(UserPayload.authenticator(), UserPayload.guardMiddleware())
+		let protected = received.grouped(SessionAuthenticator(), UserPayload.guardMiddleware(), CapabilityMiddleware())
 
 		protected.get(use: getReceivedTimetables)
 		protected.put(use: replaceReceivedTimetables)

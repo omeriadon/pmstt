@@ -4,7 +4,7 @@ import Vapor
 struct AccountController: RouteCollection {
 	func boot(routes: any RoutesBuilder) throws {
 		let account = routes.grouped("v1", "account")
-		let protected = account.grouped(UserPayload.authenticator(), UserPayload.guardMiddleware())
+		let protected = account.grouped(SessionAuthenticator(), UserPayload.guardMiddleware(), CapabilityMiddleware())
 
 		protected.get(use: getAccount)
 		protected.put(use: updateAccount)

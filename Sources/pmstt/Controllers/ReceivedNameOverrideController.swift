@@ -4,7 +4,7 @@ import Vapor
 struct ReceivedNameOverrideController: RouteCollection {
 	func boot(routes: any RoutesBuilder) throws {
 		let overrides = routes.grouped("v1", "received-name-overrides")
-		let protected = overrides.grouped(UserPayload.authenticator(), UserPayload.guardMiddleware())
+		let protected = overrides.grouped(SessionAuthenticator(), UserPayload.guardMiddleware(), CapabilityMiddleware())
 
 		protected.get(use: getOverrides)
 		protected.put(":serialNumber", use: updateOverride)

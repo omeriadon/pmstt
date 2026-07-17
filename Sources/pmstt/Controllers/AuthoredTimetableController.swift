@@ -4,7 +4,7 @@ import Vapor
 struct AuthoredTimetableController: RouteCollection {
 	func boot(routes: any RoutesBuilder) throws {
 		let routes = routes.grouped("v1", "timetables", "authored")
-			.grouped(UserPayload.authenticator(), UserPayload.guardMiddleware())
+			.grouped(SessionAuthenticator(), UserPayload.guardMiddleware(), CapabilityMiddleware())
 		routes.get(use: list)
 		routes.post(use: create)
 		routes.put(":timetableID", use: update)

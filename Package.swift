@@ -13,6 +13,7 @@ let package = Package(
 		.package(url: "https://github.com/vapor/fluent-sqlite-driver.git", from: "4.8.0"),
 		.package(url: "https://github.com/apple/swift-nio.git", from: "2.65.0"),
 		.package(url: "https://github.com/vapor/jwt.git", from: "5.0.0"),
+		.package(url: "https://github.com/vapor/sql-kit.git", from: "3.36.0"),
 		.package(url: "https://github.com/omeriadon/ZIPFoundation.git", branch: "development"),
 		.package(url: "https://github.com/seanoshea/FuzzyMatchingSwift.git", exact: "0.11.1"),
 	],
@@ -27,6 +28,7 @@ let package = Package(
 				.product(name: "NIOCore", package: "swift-nio"),
 				.product(name: "NIOPosix", package: "swift-nio"),
 				.product(name: "JWT", package: "jwt"),
+				.product(name: "SQLKit", package: "sql-kit"),
 				.product(name: "ZIPFoundation", package: "ZIPFoundation"),
 				.product(name: "FuzzyMatchingSwift", package: "FuzzyMatchingSwift"),
 			],
@@ -44,6 +46,7 @@ let package = Package(
 				.product(name: "Fluent", package: "fluent"),
 				.product(name: "FluentSQLiteDriver", package: "fluent-sqlite-driver"),
 				.product(name: "Vapor", package: "vapor"),
+				.product(name: "XCTVapor", package: "vapor"),
 			]
 		),
 	]

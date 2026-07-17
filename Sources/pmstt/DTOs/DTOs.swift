@@ -11,15 +11,24 @@ extension KeyedDecodingContainer {
 	}
 }
 
+struct ClientIdentity: Codable, Sendable {
+	let platform: ClientPlatform.RawValue
+	let installationID: String
+}
+
 struct RegisterRequest: Content {
 	let email: String
 	let password: String
 	let displayName: String?
+	let platform: ClientPlatform.RawValue
+	let installationID: String
 }
 
 struct LoginRequest: Content {
 	let email: String
 	let password: String
+	let platform: ClientPlatform.RawValue
+	let installationID: String
 }
 
 struct RefreshRequest: Content {
@@ -29,6 +38,8 @@ struct RefreshRequest: Content {
 struct AppleSignInRequest: Content {
 	let identityToken: String
 	let displayName: String?
+	let platform: ClientPlatform.RawValue
+	let installationID: String
 }
 
 struct TokenResponse: Content {

@@ -5,7 +5,7 @@ struct NotificationController: RouteCollection {
 	func boot(routes: any RoutesBuilder) throws {
 		let protected = routes
 			.grouped("v1")
-			.grouped(UserPayload.authenticator(), UserPayload.guardMiddleware())
+			.grouped(SessionAuthenticator(), UserPayload.guardMiddleware(), CapabilityMiddleware())
 
 		protected.put("devices", "current", use: registerDevice)
 		protected.delete("devices", "current", use: removeDevice)

@@ -4,7 +4,7 @@ import Vapor
 struct PassController: RouteCollection {
 	func boot(routes: any RoutesBuilder) throws {
 		let passes = routes.grouped("v1", "passes")
-		let protected = passes.grouped(UserPayload.authenticator(), UserPayload.guardMiddleware())
+		let protected = passes.grouped(SessionAuthenticator(), UserPayload.guardMiddleware(), CapabilityMiddleware())
 
 		protected.get("owner", use: getOwnerPass)
 		protected.get("received", ":serialNumber", use: getReceivedPass)

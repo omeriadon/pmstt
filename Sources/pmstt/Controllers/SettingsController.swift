@@ -4,7 +4,7 @@ import Vapor
 struct SettingsController: RouteCollection {
 	func boot(routes: any RoutesBuilder) throws {
 		let settings = routes.grouped("v1", "settings")
-		let protected = settings.grouped(UserPayload.authenticator(), UserPayload.guardMiddleware())
+		let protected = settings.grouped(SessionAuthenticator(), UserPayload.guardMiddleware(), CapabilityMiddleware())
 
 		protected.get(use: getSettings)
 		protected.put(use: updateSettings)
