@@ -15,7 +15,6 @@ struct CreateReceivedPassMirror: AsyncMigration {
 			.field("wallet_revision", .int, .required)
 			.field("received_at", .datetime, .required)
 			.field("pass_updated_at", .datetime, .required)
-			.field("content_revision", .int, .required)
 			.field("updated_at", .datetime)
 			.unique(on: "user_id", "pass_serial_number")
 			.create()

@@ -47,29 +47,39 @@ public func configure(_ app: Application) async throws {
 		app.logger.info("Configured PostgreSQL database", metadata: ["database": .string(databaseName)])
 	}
 
-	app.migrations.add(CreateUser())
-	app.migrations.add(CreateUserToken())
-	app.migrations.add(AddUserTokenClientIdentity())
-	app.migrations.add(CreateOwnerTimetable())
-	app.migrations.add(CreateAuthoredTimetable())
-	app.migrations.add(CreatePassRecord())
-	app.migrations.add(CreatePassRegistration())
-	app.migrations.add(CreateReceivedPassMirror())
-	app.migrations.add(CreateReceivedNameOverride())
-	app.migrations.add(CreateUserDevice())
-	app.migrations.add(AddTimetableSearchability())
-	app.migrations.add(RemoveAuthoredTimetableSoftDelete())
-	app.migrations.add(AddReceivedPassShareability())
-	app.migrations.add(AddAppleAccountState())
-	app.migrations.add(CreateSchoolNotificationDelivery())
-	app.migrations.add(AddTimetableClassroomAndTeacher())
-	app.migrations.add(AddUserDeviceDebugFlag())
-	app.migrations.add(CreateSchoolDayLiveActivity())
-	app.migrations.add(CreateSchoolDayLiveActivityTransition())
-	app.migrations.add(AddContentRevisionToReceivedPassMirror())
+	registerMigrations(on: app)
 	app.lifecycle.use(SchoolNotificationSchedulerLifecycle())
 	app.lifecycle.use(SchoolDayActivitySchedulerLifecycle())
 
 	try routes(app)
 	app.logger.info("pmstt configuration complete")
+}
+
+func registerMigrations(on app: Application) {
+	app.migrations.add(pmsttMigrationList())
+}
+
+func pmsttMigrationList() -> [any Migration] {
+	[
+		CreateUser(),
+		CreateUserToken(),
+		AddUserTokenClientIdentity(),
+		CreateOwnerTimetable(),
+		CreateAuthoredTimetable(),
+		CreatePassRecord(),
+		CreatePassRegistration(),
+		CreateReceivedPassMirror(),
+		CreateReceivedNameOverride(),
+		CreateUserDevice(),
+		AddTimetableSearchability(),
+		RemoveAuthoredTimetableSoftDelete(),
+		AddReceivedPassShareability(),
+		AddAppleAccountState(),
+		CreateSchoolNotificationDelivery(),
+		AddTimetableClassroomAndTeacher(),
+		AddUserDeviceDebugFlag(),
+		CreateSchoolDayLiveActivity(),
+		CreateSchoolDayLiveActivityTransition(),
+		AddContentRevisionToReceivedPassMirror(),
+	]
 }
