@@ -157,23 +157,10 @@ enum ResolvedTimetable {
 enum TimetableResolver {
 	static func resolve(req: Request, userID: UUID) async throws -> ResolvedTimetable {
 		guard let idString = req.parameters.get("timetableID"), let id = UUID(uuidString: idString) else { throw Abort(.notFound) }
-		if let owner = try await OwnerTimetable.query(on: req.db).filter(\.$id == id).with(\.$user).first() {
-			try await authorize(owner.isSearchable, authorID: owner.user.requireID(), serial: owner.user.selfPassSerialNumber, issuer: owner.user.requireID().uuidString, kind: .accountOwner, viewerID: userID, req: req)
-			return .owner(owner)
+		switch try await AuthoritativeTimetableResolver.resolveForViewer(id: id, userID: userID, on: req.db) {
+		case .available(let source):
+			switch source { case .owner(let owner): return .owner(owner); case .authored(let authored): return .authored(authored) }
+		case .privateSource, .missing, .ambiguous: throw Abort(.notFound)
 		}
-		if let authored = try await AuthoredTimetable.query(on: req.db).filter(\.$id == id).with(\.$author).first() {
-			try await authorize(authored.isSearchable, authorID: authored.author.requireID(), serial: authored.passSerialNumber, issuer: authored.author.requireID().uuidString, kind: .authoredForThirdParty, viewerID: userID, req: req)
-			return .authored(authored)
-		}
-		throw Abort(.notFound)
-	}
-
-	private static func authorize(_ searchable: Bool, authorID: UUID, serial: String, issuer: String, kind: SourceKind, viewerID: UUID, req: Request) async throws {
-		guard !searchable, viewerID != authorID else { return }
-		let received = try await ReceivedPassMirror.query(on: req.db)
-			.filter(\.$user.$id == viewerID).filter(\.$passSerialNumber == serial)
-			.filter(\.$issuerAccountID == issuer).filter(\.$sourceKind == kind)
-			.filter(\.$isDeleted == false).first()
-		guard received != nil else { throw Abort(.notFound) }
 	}
 }

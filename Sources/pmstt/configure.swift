@@ -82,5 +82,7 @@ func pmsttMigrationList() -> [any Migration] {
 		CreateSchoolDayLiveActivity(),
 		CreateSchoolDayLiveActivityTransition(),
 		AddUserTokenAuthority(),
+		CreateReceivedTimetableImport(),
+		BackfillReceivedTimetableImports(),
 	]
 }
