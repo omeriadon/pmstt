@@ -49,25 +49,13 @@ struct AuthoredTimetableController: RouteCollection {
 		timetable.isSearchable = body.isSearchable
 		timetable.revision += 1
 		try await timetable.save(on: req.db)
-		if let record = try await PassRecord.query(on: req.db).filter(\.$serialNumber == timetable.passSerialNumber).first() {
-			record.revision = timetable.revision
-			try await record.save(on: req.db)
-			try? await WalletPushService.sendUpdate(for: timetable.passSerialNumber, req: req)
-		}
 		return try await ResolvedTimetable.authored(timetable).detail(on: req.db, viewerID: payload.sub)
 	}
 
 	func delete(req: Request) async throws -> HTTPStatus {
 		let payload = try req.auth.require(UserPayload.self)
 		guard let id = req.parameters.get("timetableID", as: UUID.self), let timetable = try await AuthoredTimetable.query(on: req.db).filter(\.$id == id).filter(\.$author.$id == payload.sub).first() else { throw Abort(.notFound) }
-		let serial = timetable.passSerialNumber
 		try await timetable.delete(on: req.db)
-		if let record = try await PassRecord.query(on: req.db).filter(\.$serialNumber == serial).first() {
-			record.isDeleted = true
-			record.revision += 1
-			try await record.save(on: req.db)
-			try? await WalletPushService.sendUpdate(for: serial, req: req)
-		}
 		return .noContent
 	}
 }

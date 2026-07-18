@@ -127,7 +127,6 @@ struct CapabilityMiddleware: AsyncMiddleware {
 					case "received": return .mutateReceivedTimetable
 					default: return .read
 				}
-			case "received-name-overrides": return .mutateReceivedNameOverride
 			case "devices": return path.contains("live-activity-token") ? .mutateLiveActivities : .mutateNotifications
 			case "notifications": return .mutateNotifications
 			case "live-activities": return .mutateLiveActivities

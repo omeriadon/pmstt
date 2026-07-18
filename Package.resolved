@@ -1,5 +1,5 @@
 {
-  "originHash" : "e70cea60f77c42d42ce9b8b9e8e0b7b7f61baef68ebce4f59be02d365961fa31",
+  "originHash" : "eaa268f734049720626877ce659759ec919675efe6d74b95901244dbf1344b28",
   "pins" : [
     {
       "identity" : "async-http-client",
@@ -368,15 +368,6 @@
       "state" : {
         "revision" : "90bbbdab3ede12c803cfbe91646f291c092517a3",
         "version" : "2.16.2"
-      }
-    },
-    {
-      "identity" : "zipfoundation",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/omeriadon/ZIPFoundation.git",
-      "state" : {
-        "branch" : "development",
-        "revision" : "2eaef551ae0385b1a06ae58320185255589001f4"
       }
     }
   ],

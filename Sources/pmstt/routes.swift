@@ -13,17 +13,13 @@ func routes(_ app: Application) throws {
 	try app.register(collection: AppleNotificationController())
 	try app.register(collection: AccountController())
 	try app.register(collection: OwnerTimetableController())
-	try app.register(collection: ReceivedTimetableController())
-	try app.register(collection: ReceivedNameOverrideController())
 	try app.register(collection: SettingsController())
-	try app.register(collection: PassController())
 	try app.register(collection: NotificationController())
 	try app.register(collection: LiveActivityController())
 	try app.register(collection: ReportController())
 	try app.register(collection: AuthoredTimetableController())
 	try app.register(collection: TimetableDiscoveryController())
 	try app.register(collection: SharedTimetableController())
-	try app.register(collection: WalletWebServiceController())
 }
 
 struct HealthResponse: Content {

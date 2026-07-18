@@ -8,7 +8,6 @@ struct TimetableDiscoveryController: RouteCollection {
 			.grouped(SessionAuthenticator(), UserPayload.guardMiddleware(), CapabilityMiddleware())
 		routes.get("search", use: search)
 		routes.get(":timetableID", use: detail)
-		routes.get(":timetableID", "pass", use: pass)
 	}
 
 	func search(req: Request) async throws -> [TimetableSearchResult] {
@@ -90,12 +89,6 @@ struct TimetableDiscoveryController: RouteCollection {
 		return try await resolved.detail(on: req.db, viewerID: payload.sub)
 	}
 
-	func pass(req: Request) async throws -> Response {
-		let payload = try req.auth.require(UserPayload.self)
-		let resolved = try await TimetableResolver.resolve(req: req, userID: payload.sub)
-		return try await PassFactory.response(for: resolved, req: req)
-	}
-
 	private func bestConfidence(query: String, title: String, author: String) -> Double? {
 		[title.confidenceScore(query), author.confidenceScore(query)].compactMap(\.self).min()
 	}
@@ -137,16 +130,16 @@ enum ResolvedTimetable {
 		switch self { case let .owner(value): value.updatedAt; case let .authored(value): value.updatedAt }
 	}
 
-	var serialNumber: String {
-		get throws { switch self { case let .owner(value): return value.user.selfPassSerialNumber; case let .authored(value): return value.passSerialNumber } }
-	}
-
 	func detail(on database: any Database, viewerID: UUID) async throws -> TimetableDetailResponse {
 		let subjects = try JSONDecoder().decode([TimetableSubjectDTO].self, from: subjectsData)
-		let serial = try serialNumber
-		let installs = try await PassRegistration.query(on: database).filter(\.$serialNumber == serial).count()
 		let authorID = try author.requireID()
-		return try .init(id: id, title: title, authorAccountID: authorID, authorDisplayName: author.displayName, sourceKind: sourceKind, subjects: subjects, subjectCount: subjects.count, weeklyLessonCount: subjects.reduce(0) { $0 + $1.slots.count }, updatedAt: updatedAt, activeInstallCount: installs, isSearchable: isSearchable, canEdit: viewerID == authorID)
+		let timetableID = try id
+		let saves = try await ReceivedTimetableImport.query(on: database)
+			.filter(\.$timetableID == timetableID)
+			.filter(\.$sourceKind == sourceKind)
+			.filter(\.$revokedAt == nil)
+			.count()
+		return .init(id: timetableID, title: title, authorAccountID: authorID, authorDisplayName: author.displayName, sourceKind: sourceKind, subjects: subjects, subjectCount: subjects.count, weeklyLessonCount: subjects.reduce(0) { $0 + $1.slots.count }, updatedAt: updatedAt, savedByCount: saves, isSearchable: isSearchable, canEdit: viewerID == authorID)
 	}
 
 	private func modelID() throws -> UUID {

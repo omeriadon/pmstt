@@ -223,6 +223,7 @@ struct OwnerTimetableVisibilityUpdateRequest: Content {
 }
 
 struct OwnerTimetableResponse: Content {
+	let id: UUID?
 	let subjects: [TimetableSubjectDTO]
 	let revision: Int
 	let updatedAt: Date?
@@ -248,7 +249,7 @@ struct TimetableDetailResponse: Content {
 	let subjectCount: Int
 	let weeklyLessonCount: Int
 	let updatedAt: Date?
-	let activeInstallCount: Int
+	let savedByCount: Int
 	let isSearchable: Bool
 	let canEdit: Bool
 }
@@ -260,44 +261,6 @@ struct AuthoredTimetableUpdateRequest: Content {
 }
 
 typealias AuthoredTimetableCreateRequest = AuthoredTimetableUpdateRequest
-
-struct WalletRegistrationRequest: Content {
-	let pushToken: String
-}
-
-struct WalletSerialNumbersResponse: Content {
-	let serialNumbers: [String]
-	let lastUpdated: String
-}
-
-struct ReceivedPassMirrorDTO: Content {
-	let id: String
-	let issuerAccountID: String
-	let sourceKind: SourceKind
-	let signedDisplayName: String
-	let authorDisplayName: String?
-	let subjects: [TimetableSubjectDTO]
-	let receivedAt: Date
-	let passUpdatedAt: Date
-	let contentRevision: Int
-	let isDeleted: Bool
-	let isShareable: Bool
-	let walletRevision: Int
-}
-
-struct ReceivedProjectionUpdateRequest: Content {
-	let timetables: [ReceivedPassMirrorDTO]
-	let walletRevision: Int
-}
-
-struct ReceivedNameOverrideResponse: Content {
-	let serialNumber: String
-	let displayName: String
-}
-
-struct UpdateReceivedNameOverrideRequest: Content {
-	let displayName: String
-}
 
 struct ReportUserRequest: Content {
 	let reportedAccountID: String
