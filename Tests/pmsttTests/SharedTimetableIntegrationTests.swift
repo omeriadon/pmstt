@@ -23,6 +23,39 @@ final class SharedTimetableIntegrationTests: XCTestCase, @unchecked Sendable {
 		XCTAssertEqual(malformed.status, .notFound)
 	}
 
+	func testShareAliasClaimPreviewImportAndDelete() async throws {
+		let (app, owner, timetable) = try await makeFixture(platform: .iOS)
+		let claim = try await request(app, .PUT, "/v1/timetables/owner/share-alias", token: owner.accessToken, body: TimetableShareAliasUpdateRequest(alias: "Adon-Home"))
+		XCTAssertEqual(claim.status, .ok)
+		XCTAssertEqual(try claim.content.decode(TimetableShareAliasResponse.self).alias, "adon-home")
+		let preview = try await request(app, .GET, "/sharedtimetable/adon-home")
+		XCTAssertEqual(preview.status, .ok)
+		let importer = try await register(app, platform: .iOS)
+		let imported = try await request(app, .POST, "/v1/timetables/received/import", token: importer.accessToken, body: ReceivedTimetableImportRequest(timetableLocator: "ADON-HOME"))
+		XCTAssertEqual(imported.status, .created)
+		XCTAssertEqual(try imported.content.decode(ReceivedTimetableImportResponse.self).id, timetable.id)
+		let importerOwner = try OwnerTimetable(userID: importer.user.id, subjectsData: JSONEncoder().encode([TimetableSubjectDTO]()), revision: 1)
+		try await importerOwner.save(on: app.db(.sqlite))
+		let taken = try await request(app, .PUT, "/v1/timetables/owner/share-alias", token: importer.accessToken, body: TimetableShareAliasUpdateRequest(alias: "adon-home"))
+		XCTAssertEqual(taken.status, .conflict)
+		let removed = try await request(app, .DELETE, "/v1/timetables/owner/share-alias", token: owner.accessToken)
+		XCTAssertEqual(removed.status, .noContent)
+		let oldPreview = try await request(app, .GET, "/sharedtimetable/adon-home")
+		XCTAssertEqual(oldPreview.status, .notFound)
+	}
+
+	func testShareAliasValidatorBoundariesAndReservedNames() {
+		XCTAssertEqual(TimetableShareAliasValidator.validate("ab")?.reason, .tooShort)
+		XCTAssertEqual(TimetableShareAliasValidator.validate(String(repeating: "a", count: 31))?.reason, .tooLong)
+		XCTAssertEqual(TimetableShareAliasValidator.validate("-abc")?.reason, .leadingSeparator)
+		XCTAssertEqual(TimetableShareAliasValidator.validate("abc-")?.reason, .trailingSeparator)
+		XCTAssertEqual(TimetableShareAliasValidator.validate("a--b")?.reason, .consecutiveSeparators)
+		XCTAssertEqual(TimetableShareAliasValidator.validate("health")?.reason, .reserved)
+		XCTAssertEqual(TimetableShareAliasValidator.validate(UUID().uuidString)?.reason, .uuidShaped)
+		XCTAssertEqual(TimetableShareAliasValidator.validate("ab c")?.reason, .invalidCharacter)
+		XCTAssertNil(TimetableShareAliasValidator.validate("Ado_n-7"))
+	}
+
 	func testImportIsStrictSelfPrivateAndNonAuthoritative() async throws {
 		let (app, owner, timetable) = try await makeFixture(platform: .iOS)
 		let selfImport = try await request(app, .POST, "/v1/timetables/received/import", token: owner.accessToken, body: ReceivedTimetableImportRequest(timetableID: XCTUnwrap(timetable.id)))
@@ -112,7 +145,8 @@ final class SharedTimetableIntegrationTests: XCTestCase, @unchecked Sendable {
 		let author = try await register(app, platform: .iOS)
 		let source = try await makePublicSource(app: app, authorID: author.user.id)
 		_ = try await request(app, .POST, "/v1/timetables/received/import", token: importer.accessToken, body: ReceivedTimetableImportRequest(timetableID: XCTUnwrap(source.id)))
-		let relationship = try try await XCTUnwrap(ReceivedTimetableImport.query(on: app.db(.sqlite)).first())
+		let relationshipValue = try await ReceivedTimetableImport.query(on: app.db(.sqlite)).first()
+		let relationship = try XCTUnwrap(relationshipValue)
 		let firstDelete = try await request(app, .DELETE, "/v1/timetables/received/authoritative/\(relationship.id!.uuidString)", token: importer.accessToken)
 		let secondDelete = try await request(app, .DELETE, "/v1/timetables/received/authoritative/\(relationship.id!.uuidString)", token: importer.accessToken)
 		XCTAssertEqual(firstDelete.status, .noContent)
@@ -131,8 +165,10 @@ final class SharedTimetableIntegrationTests: XCTestCase, @unchecked Sendable {
 		let authoredImport = try ReceivedTimetableImport(userID: importer.user.id, timetableID: XCTUnwrap(timetable.id), sourceKind: .authoredForThirdParty)
 		try await ownerImport.save(on: app.db(.sqlite)); try await authoredImport.save(on: app.db(.sqlite))
 		_ = try await request(app, .DELETE, "/v1/timetables/received/authoritative/\(ownerImport.id!.uuidString)", token: importer.accessToken)
-		let ownerAfter = try try await XCTUnwrap(try ReceivedTimetableImport.find(XCTUnwrap(ownerImport.id), on: app.db(.sqlite)))
-		let authoredAfter = try try await XCTUnwrap(ReceivedTimetableImport.find(XCTUnwrap(authoredImport.id), on: app.db(.sqlite)))
+		let ownerAfterValue = try await ReceivedTimetableImport.find(XCTUnwrap(ownerImport.id), on: app.db(.sqlite))
+		let authoredAfterValue = try await ReceivedTimetableImport.find(XCTUnwrap(authoredImport.id), on: app.db(.sqlite))
+		let ownerAfter = try XCTUnwrap(ownerAfterValue)
+		let authoredAfter = try XCTUnwrap(authoredAfterValue)
 		XCTAssertNotNil(ownerAfter.revokedAt)
 		XCTAssertNil(authoredAfter.revokedAt)
 	}
@@ -212,7 +248,8 @@ final class SharedTimetableIntegrationTests: XCTestCase, @unchecked Sendable {
 		try await BackfillReceivedTimetableImports().prepare(on: app.db(.sqlite))
 		let importCount = try await ReceivedTimetableImport.query(on: app.db(.sqlite)).count()
 		XCTAssertEqual(importCount, 1)
-		let after = try try await XCTUnwrap(try ReceivedPassMirror.find(XCTUnwrap(mirror.id), on: app.db(.sqlite)))
+		let afterValue = try await ReceivedPassMirror.find(XCTUnwrap(mirror.id), on: app.db(.sqlite))
+		let after = try XCTUnwrap(afterValue)
 		XCTAssertEqual(after.signedDisplayName, beforeDisplayName)
 		XCTAssertEqual(after.subjectsData, beforeSubjects)
 		XCTAssertEqual(after.walletRevision, beforeWalletRevision)

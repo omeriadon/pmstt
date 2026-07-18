@@ -5,9 +5,13 @@ import Vapor
 
 struct SharedTimetableController: RouteCollection {
 	func boot(routes: any RoutesBuilder) throws {
-		routes.get("sharedtimetable", ":timetableID", use: publicPreview)
+		routes.get("sharedtimetable", ":locator", use: publicPreview)
 		let protected = routes.grouped(SessionAuthenticator(), UserPayload.guardMiddleware(), CapabilityMiddleware())
-		protected.get("v1", "shared-timetables", ":timetableID", use: authenticatedPreview)
+		protected.get("v1", "shared-timetables", ":locator", use: authenticatedPreview)
+		protected.get("v1", "timetables", "owner", "share-alias", use: getAlias)
+		protected.get("v1", "timetables", "owner", "share-alias", "availability", use: aliasAvailability)
+		protected.put("v1", "timetables", "owner", "share-alias", use: putAlias)
+		protected.delete("v1", "timetables", "owner", "share-alias", use: deleteAlias)
 		protected.get("v1", "timetables", "received", "authoritative", use: list)
 		protected.post("v1", "timetables", "received", "import", use: importTimetable)
 		protected.delete("v1", "timetables", "received", "authoritative", ":importID", use: deleteImport)
@@ -18,7 +22,7 @@ struct SharedTimetableController: RouteCollection {
 		guard await SharedTimetableRateLimiter.shared.allow(key: "public:\(key)", limit: 120, window: 60) else {
 			throw AppError(.tooManyRequests, code: .rateLimited, reason: "Too many timetable preview requests.")
 		}
-		let source = try await AuthoritativeTimetableResolver.resolvePublic(id: requireUUID(req), on: req.db)
+		let source = try await AuthoritativeTimetableResolver.resolvePublic(locator: requireLocator(req), on: req.db)
 		let response = Response(status: .ok)
 		try response.content.encode(source.preview())
 		response.headers.cacheControl = .init(isPublic: true, maxAge: 30)
@@ -27,7 +31,7 @@ struct SharedTimetableController: RouteCollection {
 
 	func authenticatedPreview(req: Request) async throws -> SharedTimetablePreview {
 		let payload = try req.auth.require(UserPayload.self)
-		guard case let .available(source) = try await AuthoritativeTimetableResolver.resolveForViewer(id: requireUUID(req), userID: payload.sub, on: req.db) else { throw Abort(.notFound) }
+		guard case let .available(source) = try await AuthoritativeTimetableResolver.resolveForViewer(locator: requireLocator(req), userID: payload.sub, on: req.db) else { throw Abort(.notFound) }
 		return try source.preview()
 	}
 
@@ -45,31 +49,33 @@ struct SharedTimetableController: RouteCollection {
 
 		let body: ReceivedTimetableImportRequest
 		do { body = try req.content.decode(ReceivedTimetableImportRequest.self) }
-		catch { throw AppError(.badRequest, code: .invalidRequest, reason: "The import body must contain exactly one timetableID.", field: "timetableID") }
+		catch { throw AppError(.badRequest, code: .invalidRequest, reason: "The import body must contain exactly one timetable locator.", field: "timetableLocator") }
 
 		let result: (AuthoritativeTimetableSource, ReceivedTimetableImport, Bool)
 		do {
 			result = try await req.db.transaction { database in
-				let source = try await AuthoritativeTimetableResolver.resolveForImport(id: body.timetableID, userID: payload.sub, on: database)
+				let source = try await AuthoritativeTimetableResolver.resolveForImport(locator: body.locator, userID: payload.sub, on: database)
+				let timetableID = try source.id
 				if let existing = try await ReceivedTimetableImport.query(on: database)
-					.filter(\.$user.$id == payload.sub).filter(\.$timetableID == body.timetableID).filter(\.$sourceKind == source.sourceKind).first()
+					.filter(\.$user.$id == payload.sub).filter(\.$timetableID == timetableID).filter(\.$sourceKind == source.sourceKind).first()
 				{
 					if existing.revokedAt != nil {
 						existing.revokedAt = nil; try await existing.save(on: database)
 					}
 					return (source, existing, false)
 				}
-				let relationship = ReceivedTimetableImport(userID: payload.sub, timetableID: body.timetableID, sourceKind: source.sourceKind)
+				let relationship = ReceivedTimetableImport(userID: payload.sub, timetableID: timetableID, sourceKind: source.sourceKind)
 				try await relationship.save(on: database)
 				return (source, relationship, true)
 			}
 		} catch where isUniqueConstraintViolation(error) {
 			// The database unique key is the race arbiter. Recovery must use the
 			// complete relationship identity, including sourceKind.
-			let source = try await AuthoritativeTimetableResolver.resolveForImport(id: body.timetableID, userID: payload.sub, on: req.db)
+			let source = try await AuthoritativeTimetableResolver.resolveForImport(locator: body.locator, userID: payload.sub, on: req.db)
+			let timetableID = try source.id
 			guard let relationship = try await ReceivedTimetableImport.query(on: req.db)
 				.filter(\.$user.$id == payload.sub)
-				.filter(\.$timetableID == body.timetableID)
+				.filter(\.$timetableID == timetableID)
 				.filter(\.$sourceKind == source.sourceKind)
 				.first()
 			else { throw Abort(.conflict) }
@@ -129,9 +135,62 @@ struct SharedTimetableController: RouteCollection {
 		return value
 	}
 
-	private func requireUUID(_ req: Request) throws -> UUID {
-		guard let value = req.parameters.get("timetableID"), let id = UUID(uuidString: value) else { throw Abort(.notFound) }
-		return id
+	private func requireLocator(_ req: Request) throws -> String {
+		guard let value = req.parameters.get("locator"), !value.isEmpty, value.utf8.count <= 64 else { throw Abort(.notFound) }
+		return value
+	}
+
+	func getAlias(req: Request) async throws -> TimetableShareAliasResponse {
+		let payload = try req.auth.require(UserPayload.self)
+		guard let owner = try await OwnerTimetable.query(on: req.db).filter(\.$user.$id == payload.sub).first() else { return .init(alias: nil, timetableID: nil, url: nil) }
+		guard let alias = try await TimetableShareAlias.query(on: req.db).filter(\.$ownerTimetable.$id == owner.requireID()).first() else { return .init(alias: nil, timetableID: owner.id, url: nil) }
+		return .init(alias: alias.alias, timetableID: owner.id, url: Self.shareURL(for: alias.alias))
+	}
+
+	func aliasAvailability(req: Request) async throws -> TimetableShareAliasAvailabilityResponse {
+		let payload = try req.auth.require(UserPayload.self)
+		guard let raw = req.query[String.self, at: "alias"], raw.utf8.count <= 128 else { throw AppError(.badRequest, code: .invalidRequest, reason: "The alias query value is out of bounds.", field: "alias") }
+		let normalized = TimetableShareAliasValidator.canonicalize(raw)
+		if let validation = TimetableShareAliasValidator.validate(normalized) {
+			return .init(normalizedAlias: normalized, isValid: false, isAvailable: false, isOwnedByCurrentUser: false, reason: .init(rawValue: validation.reason.rawValue))
+		}
+		let ownerID = try await OwnerTimetable.query(on: req.db).filter(\.$user.$id == payload.sub).first()?.requireID()
+		let match = try await TimetableShareAlias.query(on: req.db).filter(\.$alias == normalized).with(\.$ownerTimetable).first()
+		let owned = match?.$ownerTimetable.id == ownerID
+		return .init(normalizedAlias: normalized, isValid: true, isAvailable: match == nil || owned, isOwnedByCurrentUser: owned, reason: match == nil || owned ? nil : .taken)
+	}
+
+	func putAlias(req: Request) async throws -> TimetableShareAliasResponse {
+		let payload = try req.auth.require(UserPayload.self)
+		let body = try req.content.decode(TimetableShareAliasUpdateRequest.self)
+		let canonical: String
+		do { canonical = try TimetableShareAliasValidator.validateAndCanonicalize(body.alias) }
+		catch let error as TimetableShareAliasValidationError { throw AppError(.badRequest, code: .invalidRequest, reason: error.reason.rawValue, field: "alias") }
+		guard let owner = try await OwnerTimetable.query(on: req.db).filter(\.$user.$id == payload.sub).first() else { throw AppError(.notFound, code: .accountNotFound, reason: "Create your owner timetable before choosing a custom link.") }
+		let ownerID = try owner.requireID()
+		do {
+			if let existing = try await TimetableShareAlias.query(on: req.db).filter(\.$ownerTimetable.$id == ownerID).first() {
+				if existing.alias != canonical {
+					existing.alias = canonical; try await existing.save(on: req.db)
+				}
+			} else {
+				try await TimetableShareAlias(alias: canonical, ownerTimetableID: ownerID).save(on: req.db)
+			}
+		} catch where isUniqueConstraintViolation(error) {
+			throw AppError(.conflict, code: .aliasTaken, reason: "That link is already taken.", field: "alias")
+		}
+		return .init(alias: canonical, timetableID: ownerID, url: Self.shareURL(for: canonical))
+	}
+
+	func deleteAlias(req: Request) async throws -> HTTPStatus {
+		let payload = try req.auth.require(UserPayload.self)
+		guard let owner = try await OwnerTimetable.query(on: req.db).filter(\.$user.$id == payload.sub).first() else { return .noContent }
+		try await TimetableShareAlias.query(on: req.db).filter(\.$ownerTimetable.$id == owner.requireID()).delete()
+		return .noContent
+	}
+
+	private static func shareURL(for alias: String) -> String {
+		"https://timetable.adonis.pt/sharedtimetable/\(alias)"
 	}
 
 	private func tombstone(for relationship: ReceivedTimetableImport) throws -> AuthoritativeReceivedTimetableDTO {

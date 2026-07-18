@@ -84,5 +84,6 @@ func pmsttMigrationList() -> [any Migration] {
 		AddUserTokenAuthority(),
 		CreateReceivedTimetableImport(),
 		BackfillReceivedTimetableImports(),
+		CreateTimetableShareAlias(),
 	]
 }

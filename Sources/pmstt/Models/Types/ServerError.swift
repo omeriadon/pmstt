@@ -12,6 +12,7 @@ enum ServerErrorCode: String, Codable {
 	case timetableConflict
 	case invalidTimetable
 	case conflict
+	case aliasTaken
 	case rateLimited
 	case internalServerError
 }

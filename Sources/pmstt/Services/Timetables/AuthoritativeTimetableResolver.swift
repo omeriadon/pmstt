@@ -106,6 +106,14 @@ enum AuthoritativeTimetableResolver {
 		return source
 	}
 
+	static func resolvePublic(locator: String, on database: any Database) async throws -> AuthoritativeTimetableSource {
+		if let id = UUID(uuidString: locator) {
+			return try await resolvePublic(id: id, on: database)
+		}
+		let alias = try await resolveAlias(locator: locator, on: database)
+		return try await resolvePublic(id: alias.$ownerTimetable.id, on: database)
+	}
+
 	static func resolveForImport(id: UUID, userID: UUID, on database: any Database) async throws -> AuthoritativeTimetableSource {
 		switch try await resolve(id: id, on: database) {
 			case let .available(source):
@@ -114,6 +122,14 @@ enum AuthoritativeTimetableResolver {
 			case .ambiguous: throw Abort(.conflict)
 			case .privateSource, .missing: throw Abort(.notFound)
 		}
+	}
+
+	static func resolveForImport(locator: String, userID: UUID, on database: any Database) async throws -> AuthoritativeTimetableSource {
+		if let id = UUID(uuidString: locator) {
+			return try await resolveForImport(id: id, userID: userID, on: database)
+		}
+		let alias = try await resolveAlias(locator: locator, on: database)
+		return try await resolveForImport(id: alias.$ownerTimetable.id, userID: userID, on: database)
 	}
 
 	static func resolveForViewer(id: UUID, userID: UUID, on database: any Database) async throws -> AuthoritativeTimetableResolution {
@@ -128,6 +144,24 @@ enum AuthoritativeTimetableResolver {
 				return .privateSource(source)
 			case .missing, .ambiguous: return try await hasImport(userID: userID, id: id, kind: nil, on: database) ? .missing : resolve(id: id, on: database)
 		}
+	}
+
+	static func resolveForViewer(locator: String, userID: UUID, on database: any Database) async throws -> AuthoritativeTimetableResolution {
+		if let id = UUID(uuidString: locator) {
+			return try await resolveForViewer(id: id, userID: userID, on: database)
+		}
+		let alias = try await resolveAlias(locator: locator, on: database)
+		return try await resolveForViewer(id: alias.$ownerTimetable.id, userID: userID, on: database)
+	}
+
+	private static func resolveAlias(locator: String, on database: any Database) async throws -> TimetableShareAlias {
+		let canonical: String
+		do { canonical = try TimetableShareAliasValidator.validateAndCanonicalize(locator) }
+		catch { throw Abort(.notFound) }
+		guard let alias = try await TimetableShareAlias.query(on: database).filter(\.$alias == canonical).first() else {
+			throw Abort(.notFound)
+		}
+		return alias
 	}
 
 	static func hasImport(userID: UUID, id: UUID, kind: SourceKind?, on database: any Database) async throws -> Bool {
