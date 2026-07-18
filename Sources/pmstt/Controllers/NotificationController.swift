@@ -17,9 +17,16 @@ struct NotificationController: RouteCollection {
 		let payload = try req.auth.require(UserPayload.self)
 		let body = try req.content.decode(RegisterUserDeviceRequest.self)
 		try validate(body)
-		let device = try await UserDevice.query(on: req.db)
+		guard body.platform == payload.platform, body.installationID == payload.installationID else {
+			throw Abort(.forbidden)
+		}
+		let existingDevice = try await UserDevice.query(on: req.db)
 			.filter(\.$installationID == body.installationID)
-			.first() ?? UserDevice(userID: payload.sub, installationID: body.installationID, platform: body.platform)
+			.first()
+		if let existingDevice, existingDevice.$user.id != payload.sub {
+			throw Abort(.forbidden)
+		}
+		let device = existingDevice ?? UserDevice(userID: payload.sub, installationID: body.installationID, platform: body.platform)
 
 		device.$user.id = payload.sub
 		device.platform = body.platform
@@ -38,6 +45,9 @@ struct NotificationController: RouteCollection {
 	func removeDevice(req: Request) async throws -> HTTPStatus {
 		let payload = try req.auth.require(UserPayload.self)
 		let body = try req.content.decode(RemoveUserDeviceRequest.self)
+		guard body.platform == payload.platform, body.installationID == payload.installationID else {
+			throw Abort(.forbidden)
+		}
 		guard !body.installationID.isEmpty, body.installationID.count <= 200 else {
 			throw AppError(.badRequest, code: .invalidRequest, reason: "The installation ID is invalid.", field: "installationID")
 		}
@@ -65,6 +75,7 @@ struct NotificationController: RouteCollection {
 			title: "Timetable Notifications",
 			body: "Notifications are configured for this device.",
 			to: payload.sub,
+			installationID: payload.installationID,
 			on: req
 		)
 		return TestNotificationResponse(deliveredDeviceCount: count)
@@ -80,7 +91,7 @@ struct NotificationController: RouteCollection {
 	}
 
 	private func validate(_ body: RegisterUserDeviceRequest) throws {
-		guard ["iOS", "macOS", "watchOS"].contains(body.platform) else {
+		guard ["iOS", "iPadOS", "macOS", "watchOS"].contains(body.platform) else {
 			throw AppError(.badRequest, code: .invalidRequest, reason: "The platform is invalid.", field: "platform")
 		}
 

@@ -1,5 +1,5 @@
-import Foundation
 import Fluent
+import Foundation
 
 struct BackfillReceivedTimetableImports: AsyncMigration {
 	private let batchSize = 250
@@ -14,12 +14,12 @@ struct BackfillReceivedTimetableImports: AsyncMigration {
 				let mirrors = try await ReceivedPassMirror.query(on: database)
 					.filter(\.$isDeleted == false)
 					.sort(\.$id, .ascending)
-					.range(batchOffset..<(batchOffset + batchSize))
+					.range(batchOffset ..< (batchOffset + batchSize))
 					.all()
 				guard !mirrors.isEmpty else { return (0, 0, 0) }
 
 				let issuerIDs = Set(mirrors.compactMap { UUID(uuidString: $0.issuerAccountID) })
-				let serials = Set(mirrors.map { $0.passSerialNumber })
+				let serials = Set(mirrors.map(\.passSerialNumber))
 				let owners = issuerIDs.isEmpty ? [] : try await OwnerTimetable.query(on: database).filter(\.$user.$id ~~ issuerIDs).with(\.$user).all()
 				let authored = serials.isEmpty ? [] : try await AuthoredTimetable.query(on: database).filter(\.$passSerialNumber ~~ serials).all()
 				let ownerByIdentity: [String: UUID] = Dictionary(uniqueKeysWithValues: owners.compactMap { owner in
@@ -35,11 +35,11 @@ struct BackfillReceivedTimetableImports: AsyncMigration {
 				for mirror in mirrors {
 					let sourceID: UUID?
 					switch mirror.sourceKind {
-					case .accountOwner:
-						let issuer = UUID(uuidString: mirror.issuerAccountID)?.uuidString ?? ""
-						sourceID = ownerByIdentity["\(issuer):\(mirror.passSerialNumber)"]
-					case .authoredForThirdParty:
-						sourceID = authoredBySerial[mirror.passSerialNumber]
+						case .accountOwner:
+							let issuer = UUID(uuidString: mirror.issuerAccountID)?.uuidString ?? ""
+							sourceID = ownerByIdentity["\(issuer):\(mirror.passSerialNumber)"]
+						case .authoredForThirdParty:
+							sourceID = authoredBySerial[mirror.passSerialNumber]
 					}
 					guard let sourceID else { skipped += 1; continue }
 					let key = "\(mirror.$user.id.uuidString):\(sourceID.uuidString):\(mirror.sourceKind.rawValue)"
@@ -59,5 +59,5 @@ struct BackfillReceivedTimetableImports: AsyncMigration {
 		print("BackfillReceivedTimetableImports inserted=\(totalInserted) skipped=\(totalSkipped)")
 	}
 
-	func revert(on database: any Database) async throws {}
+	func revert(on _: any Database) async throws {}
 }

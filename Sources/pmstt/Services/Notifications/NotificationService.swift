@@ -10,8 +10,24 @@ struct NotificationService {
 		try await send(title: title, body: body, to: userID, on: req.db, logger: req.logger)
 	}
 
+	func send(title: String, body: String, to userID: UUID, installationID: String, on req: Request) async throws -> Int {
+		try await send(title: title, body: body, to: userID, installationID: installationID, on: req.db, logger: req.logger)
+	}
+
 	func send(title: String, body: String, to userID: UUID, on database: any Database, logger: Logger) async throws -> Int {
 		let devices = try await UserDevice.query(on: database).filter(\.$user.$id == userID).all()
+		return try await send(title: title, body: body, to: userID, devices: devices, on: database, logger: logger)
+	}
+
+	func send(title: String, body: String, to userID: UUID, installationID: String, on database: any Database, logger: Logger) async throws -> Int {
+		let devices = try await UserDevice.query(on: database)
+			.filter(\.$user.$id == userID)
+			.filter(\.$installationID == installationID)
+			.all()
+		return try await send(title: title, body: body, to: userID, devices: devices, on: database, logger: logger)
+	}
+
+	private func send(title: String, body: String, to userID: UUID, devices: [UserDevice], on database: any Database, logger: Logger) async throws -> Int {
 		guard !devices.isEmpty else { return 0 }
 		let config = try configuration()
 		let authorization = try await makeJWT(config: config)

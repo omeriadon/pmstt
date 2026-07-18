@@ -318,6 +318,7 @@ struct RegisterUserDeviceRequest: Content {
 
 struct RemoveUserDeviceRequest: Content {
 	let installationID: String
+	let platform: String
 }
 
 struct UserDeviceResponse: Content {

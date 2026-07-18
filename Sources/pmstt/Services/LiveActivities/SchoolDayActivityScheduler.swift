@@ -195,7 +195,9 @@ struct SchoolDayActivityScheduler {
 
 					activity.currentTransition = transition.rawValue
 					activity.lastAPNSTimestamp = date
-					if transition == .finished { activity.status = .ended }
+					if transition == .finished {
+						activity.status = .ended
+					}
 					try await activity.save(on: database)
 				} catch {
 					logger.report(error: error, metadata: ["live_activity_id": .string(activity.id?.uuidString ?? "unknown"), "transition": .string(transition.rawValue)])

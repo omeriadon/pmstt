@@ -98,7 +98,9 @@ struct SchoolNotificationScheduler {
 				.filter(\.$schoolDate == schoolDate)
 				.filter(\.$event == event)
 				.first() != nil
-			if alreadyClaimed { return false }
+			if alreadyClaimed {
+				return false
+			}
 			throw error
 		}
 	}
@@ -136,7 +138,9 @@ private enum SchoolNotificationEvent: String, CaseIterable {
 	}
 
 	func couldBeDue(hour: Int, minute: Int) -> Bool {
-		if self == .morning { return hour == time.hour && minute == time.minute }
+		if self == .morning {
+			return hour == time.hour && minute == time.minute
+		}
 		let eventMinutes = time.hour * 60 + time.minute
 		let currentMinutes = hour * 60 + minute
 		return (0 ... 5).contains(eventMinutes - currentMinutes)

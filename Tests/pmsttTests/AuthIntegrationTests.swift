@@ -2,17 +2,18 @@ import Crypto
 import Fluent
 import FluentSQLiteDriver
 import JWT
-import Vapor
-import XCTVapor
-import XCTest
 @testable import pmstt
+import Vapor
+import XCTest
+import XCTVapor
 
 final class AuthIntegrationTests: XCTestCase, @unchecked Sendable {
 	func testPlatformAuthorityAndCapabilities() {
 		XCTAssertEqual(ClientPlatform.iOS.authority, .authoritative)
 		XCTAssertTrue(ClientPlatform.iOS.capabilities.contains(.mutateAccount))
-		XCTAssertEqual(ClientPlatform.iPadOS.capabilities, [.read, .logout])
-		XCTAssertEqual(ClientPlatform.watchOS.capabilities, [.read, .logout])
+		XCTAssertEqual(ClientPlatform.iPadOS.capabilities, [.read, .logout, .mutateNotifications])
+		XCTAssertEqual(ClientPlatform.macOS.capabilities, [.read, .logout, .mutateNotifications])
+		XCTAssertEqual(ClientPlatform.watchOS.capabilities, [.read, .logout, .mutateNotifications])
 	}
 
 	func testRegisterAndRefreshRotateTheSameSession() async throws {
@@ -61,13 +62,54 @@ final class AuthIntegrationTests: XCTestCase, @unchecked Sendable {
 
 	func testNonAuthoritativeSessionsCanReadButCannotMutate() async throws {
 		let app = try await makeApplication()
-		let response = try await request(app, .POST, "/v1/auth/register", body: RegisterRequest(email: "ipad@example.com", password: "password", displayName: nil, platform: "iPadOS", installationID: "ipad-1"))
-		let tokens = try response.content.decode(TokenResponse.self)
+		_ = try await request(app, .POST, "/v1/auth/register", body: RegisterRequest(email: "ipad@example.com", password: "password", displayName: nil, platform: "iOS", installationID: "iphone-ipad"))
+		let tokens = try await request(app, .POST, "/v1/auth/login", body: LoginRequest(email: "ipad@example.com", password: "password", platform: "iPadOS", installationID: "ipad-1")).content.decode(TokenResponse.self)
 
 		let read = try await request(app, .GET, "/v1/account", token: tokens.accessToken, body: EmptyBody())
 		XCTAssertEqual(read.status, .ok)
 		let mutation = try await request(app, .PUT, "/v1/account", token: tokens.accessToken, body: UpdateAccountRequest(displayName: "blocked", email: nil))
 		XCTAssertEqual(mutation.status, .forbidden)
+	}
+
+	func testOnlyIOSCanCreateAccountsAndIPadOSAndMacOSCanLogIntoExistingAccounts() async throws {
+		let app = try await makeApplication()
+		for platform in [ClientPlatform.iPadOS, .macOS, .watchOS] {
+			let denied = try await request(app, .POST, "/v1/auth/register", body: RegisterRequest(email: "create-\(platform.rawValue)@example.com", password: "password", displayName: nil, platform: platform.rawValue, installationID: "\(platform.rawValue)-new"))
+			XCTAssertEqual(denied.status, .forbidden, platform.rawValue)
+		}
+
+		let registered = try await request(app, .POST, "/v1/auth/register", body: RegisterRequest(email: "existing@example.com", password: "password", displayName: nil, platform: "iOS", installationID: "iphone-existing"))
+		XCTAssertEqual(registered.status, .ok)
+		for platform in [ClientPlatform.iPadOS, .macOS] {
+			let loggedIn = try await request(app, .POST, "/v1/auth/login", body: LoginRequest(email: "existing@example.com", password: "password", platform: platform.rawValue, installationID: "\(platform.rawValue)-existing"))
+			XCTAssertEqual(loggedIn.status, .ok, platform.rawValue)
+			let payload = try await app.jwt.keys.verify([UInt8](loggedIn.content.decode(TokenResponse.self).accessToken.utf8), as: UserPayload.self)
+			XCTAssertEqual(payload.platformValue, platform)
+		}
+	}
+
+	func testNonAuthoritativeSessionsCanRegisterRemoveAndTestOnlyTheirOwnNotificationDevice() async throws {
+		let app = try await makeApplication()
+		let registration = try await request(app, .POST, "/v1/auth/register", body: RegisterRequest(email: "notifications@example.com", password: "password", displayName: nil, platform: "iOS", installationID: "iphone-notifications"))
+		let iOSTokens = try registration.content.decode(TokenResponse.self)
+
+		let iPadTokens = try await request(app, .POST, "/v1/auth/login", body: LoginRequest(email: "notifications@example.com", password: "password", platform: "iPadOS", installationID: "ipad-notifications")).content.decode(TokenResponse.self)
+		let iPadDevice = RegisterUserDeviceRequest(installationID: "ipad-notifications", platform: ClientPlatform.iPadOS.rawValue, apnsToken: String(repeating: "a", count: 64), isDebug: true)
+		let registered = try await request(app, .PUT, "/v1/devices/current", token: iPadTokens.accessToken, body: iPadDevice)
+		XCTAssertEqual(registered.status, .ok)
+		let testNotification = try await request(app, .POST, "/v1/notifications/test", token: iPadTokens.accessToken)
+		XCTAssertEqual(testNotification.status, .serviceUnavailable)
+		let removed = try await request(app, .DELETE, "/v1/devices/current", token: iPadTokens.accessToken, body: RemoveUserDeviceRequest(installationID: "ipad-notifications", platform: ClientPlatform.iPadOS.rawValue))
+		XCTAssertEqual(removed.status, .noContent)
+
+		let forged = try await request(app, .PUT, "/v1/devices/current", token: iOSTokens.accessToken, body: RegisterUserDeviceRequest(installationID: "ipad-notifications", platform: ClientPlatform.iPadOS.rawValue, apnsToken: String(repeating: "b", count: 64), isDebug: true))
+		XCTAssertEqual(forged.status, .forbidden)
+		let forgedRemoval = try await request(app, .DELETE, "/v1/devices/current", token: iOSTokens.accessToken, body: RemoveUserDeviceRequest(installationID: "ipad-notifications", platform: ClientPlatform.iPadOS.rawValue))
+		XCTAssertEqual(forgedRemoval.status, .forbidden)
+
+		let macTokens = try await request(app, .POST, "/v1/auth/login", body: LoginRequest(email: "notifications@example.com", password: "password", platform: "macOS", installationID: "mac-notifications")).content.decode(TokenResponse.self)
+		let macRegistered = try await request(app, .PUT, "/v1/devices/current", token: macTokens.accessToken, body: RegisterUserDeviceRequest(installationID: "mac-notifications", platform: ClientPlatform.macOS.rawValue, apnsToken: String(repeating: "c", count: 64), isDebug: true))
+		XCTAssertEqual(macRegistered.status, .ok)
 	}
 
 	func testWatchSessionIsParentBoundAndRevokedWithTheIPhone() async throws {
@@ -151,8 +193,10 @@ final class AuthIntegrationTests: XCTestCase, @unchecked Sendable {
 	func testRouteCapabilityMatrixAndRepresentativeReads() async throws {
 		let app = try await makeApplication()
 		let phone = try await request(app, .POST, "/v1/auth/register", body: RegisterRequest(email: "matrix-phone@example.com", password: "password", displayName: nil, platform: "iOS", installationID: "matrix-phone")).content.decode(TokenResponse.self)
-		let ipad = try await request(app, .POST, "/v1/auth/register", body: RegisterRequest(email: "matrix-ipad@example.com", password: "password", displayName: nil, platform: "iPadOS", installationID: "matrix-ipad")).content.decode(TokenResponse.self)
-		let mac = try await request(app, .POST, "/v1/auth/register", body: RegisterRequest(email: "matrix-mac@example.com", password: "password", displayName: nil, platform: "macOS", installationID: "matrix-mac")).content.decode(TokenResponse.self)
+		_ = try await request(app, .POST, "/v1/auth/register", body: RegisterRequest(email: "matrix-ipad@example.com", password: "password", displayName: nil, platform: "iOS", installationID: "matrix-ipad-phone"))
+		_ = try await request(app, .POST, "/v1/auth/register", body: RegisterRequest(email: "matrix-mac@example.com", password: "password", displayName: nil, platform: "iOS", installationID: "matrix-mac-phone"))
+		let ipad = try await request(app, .POST, "/v1/auth/login", body: LoginRequest(email: "matrix-ipad@example.com", password: "password", platform: "iPadOS", installationID: "matrix-ipad")).content.decode(TokenResponse.self)
+		let mac = try await request(app, .POST, "/v1/auth/login", body: LoginRequest(email: "matrix-mac@example.com", password: "password", platform: "macOS", installationID: "matrix-mac")).content.decode(TokenResponse.self)
 		let watch = try await request(app, .POST, "/v1/auth/watch-session", token: phone.accessToken, body: WatchSessionRequest(installationID: "matrix-watch")).content.decode(TokenResponse.self)
 		let legacyPayload = LegacyUserPayload(sub: phone.user.id, email: phone.user.email, exp: .init(value: Date().addingTimeInterval(900)))
 		let legacy = try await app.jwt.keys.sign(legacyPayload)
@@ -161,18 +205,31 @@ final class AuthIntegrationTests: XCTestCase, @unchecked Sendable {
 			(.PUT, "/v1/timetables/owner"), (.PUT, "/v1/timetables/owner/visibility"),
 			(.POST, "/v1/timetables/authored"), (.PUT, "/v1/timetables/received"),
 			(.DELETE, "/v1/timetables/received/legacy"), (.PUT, "/v1/received-name-overrides/legacy"),
-			(.DELETE, "/v1/received-name-overrides/legacy"), (.PUT, "/v1/devices/current"),
-			(.DELETE, "/v1/devices/current"), (.POST, "/v1/notifications/test"),
+			(.DELETE, "/v1/received-name-overrides/legacy"),
 			(.PUT, "/v1/devices/current/live-activity-token"), (.DELETE, "/v1/devices/current/live-activity-token"),
 			(.PUT, "/v1/live-activities/00000000-0000-0000-0000-000000000000/update-token"),
 			(.POST, "/v1/live-activities/current/reconcile"), (.POST, "/v1/report/user"),
-			(.POST, "/v1/report/feedback"), (.POST, "/v1/auth/watch-session")
+			(.POST, "/v1/report/feedback"), (.POST, "/v1/auth/watch-session"),
 		]
 		for token in [ipad.accessToken, mac.accessToken, watch.accessToken, legacy] {
 			for (method, path) in mutationRoutes {
 				let result = try await request(app, method, path, token: token)
 				XCTAssertEqual(result.status, .forbidden, "\(method) \(path)")
 			}
+		}
+		for (platform, installationID, tokens) in [("iPadOS", "matrix-ipad", ipad), ("macOS", "matrix-mac", mac), ("watchOS", "matrix-watch", watch)] {
+			let registered = try await request(app, .PUT, "/v1/devices/current", token: tokens.accessToken,
+			                                   body: RegisterUserDeviceRequest(installationID: installationID, platform: platform, apnsToken: String(repeating: "a", count: 64), isDebug: true))
+			XCTAssertNotEqual(registered.status, .forbidden, "PUT /v1/devices/current for \(platform)")
+			let removed = try await request(app, .DELETE, "/v1/devices/current", token: tokens.accessToken,
+			                                body: RemoveUserDeviceRequest(installationID: installationID, platform: platform))
+			XCTAssertNotEqual(removed.status, .forbidden, "DELETE /v1/devices/current for \(platform)")
+			let liveActivityPut = try await request(app, .PUT, "/v1/devices/current/live-activity-token", token: tokens.accessToken,
+			                                        body: LiveActivityPushToStartTokenRequest(installationID: installationID, token: String(repeating: "b", count: 64), isDebug: true))
+			XCTAssertEqual(liveActivityPut.status, .forbidden, "PUT live activity token for \(platform)")
+			let liveActivityDelete = try await request(app, .DELETE, "/v1/devices/current/live-activity-token", token: tokens.accessToken,
+			                                           body: RemoveLiveActivityTokenRequest(installationID: installationID))
+			XCTAssertEqual(liveActivityDelete.status, .forbidden, "DELETE live activity token for \(platform)")
 		}
 		for token in [ipad.accessToken, mac.accessToken, watch.accessToken, legacy] {
 			for path in ["/v1/account", "/v1/settings"] {
@@ -185,7 +242,7 @@ final class AuthIntegrationTests: XCTestCase, @unchecked Sendable {
 
 	func testLegacyOpaqueRefreshAndLogoutRevokeOrphanedWatchRows() async throws {
 		let app = try await makeApplication()
-		let user = User(email: "legacy@example.com", passwordHash: nil, appleSubject: nil, displayName: "Legacy", selfPassSerialNumber: UUID().uuidString, settingsData: try JSONEncoder().encode(AccountSettings.default))
+		let user = try User(email: "legacy@example.com", passwordHash: nil, appleSubject: nil, displayName: "Legacy", selfPassSerialNumber: UUID().uuidString, settingsData: JSONEncoder().encode(AccountSettings.default))
 		try await user.save(on: app.db(.sqlite))
 		let userID = try user.requireID()
 		let legacyRefresh = "legacy-opaque-refresh"
@@ -257,10 +314,12 @@ final class AuthIntegrationTests: XCTestCase, @unchecked Sendable {
 		SHA256.hash(data: Data(token.utf8)).map { String(format: "%02x", $0) }.joined()
 	}
 
-	private func request<T: Content>(_ app: Application, _ method: HTTPMethod, _ path: String, token: String? = nil, body: T? = nil) async throws -> XCTHTTPResponse {
+	private func request(_ app: Application, _ method: HTTPMethod, _ path: String, token: String? = nil, body: (some Content)? = nil) async throws -> XCTHTTPResponse {
 		var result: XCTHTTPResponse?
 		try await app.test(method, path, beforeRequest: { request async throws in
-			if let token { request.headers.bearerAuthorization = .init(token: token) }
+			if let token {
+				request.headers.bearerAuthorization = .init(token: token)
+			}
 			if let body {
 				request.headers.contentType = .json
 				try request.content.encode(body)
@@ -274,14 +333,20 @@ final class AuthIntegrationTests: XCTestCase, @unchecked Sendable {
 
 private func sqliteCompatibleMigrationList() -> [any Migration] {
 	pmsttMigrationList().map { migration in
-		if migration is AddUserTokenClientIdentity { return SQLiteAddUserTokenClientIdentity() }
-		if migration is AddAppleAccountState { return SQLiteAddAppleAccountState() }
+		if migration is AddUserTokenClientIdentity {
+			return SQLiteAddUserTokenClientIdentity()
+		}
+		if migration is AddAppleAccountState {
+			return SQLiteAddAppleAccountState()
+		}
 		return migration
 	}
 }
 
 private struct SQLiteAddUserTokenClientIdentity: AsyncMigration {
-	var name: String { "pmsttTests.SQLiteAddUserTokenClientIdentity" }
+	var name: String {
+		"pmsttTests.SQLiteAddUserTokenClientIdentity"
+	}
 
 	func prepare(on database: any Database) async throws {
 		try await database.schema(UserToken.schema).field("client_platform", .string).update()
@@ -295,7 +360,9 @@ private struct SQLiteAddUserTokenClientIdentity: AsyncMigration {
 }
 
 private struct SQLiteAddAppleAccountState: AsyncMigration {
-	var name: String { "pmsttTests.SQLiteAddAppleAccountState" }
+	var name: String {
+		"pmsttTests.SQLiteAddAppleAccountState"
+	}
 
 	func prepare(on database: any Database) async throws {
 		try await database.schema(User.schema).field("apple_email_forwarding_enabled", .bool).update()
@@ -314,10 +381,12 @@ private struct LogoutRequest: Content { let refreshToken: String }
 final class SeedLegacyTokenRows: AsyncMigration {
 	let userID: UUID
 
-	init(userID: UUID) { self.userID = userID }
+	init(userID: UUID) {
+		self.userID = userID
+	}
 
 	func prepare(on database: any Database) async throws {
-		let user = LegacyUser(id: userID, email: "migration@example.com", displayName: "Migration", selfPassSerialNumber: UUID().uuidString, settingsData: try JSONEncoder().encode(AccountSettings.default))
+		let user = try LegacyUser(id: userID, email: "migration@example.com", displayName: "Migration", selfPassSerialNumber: UUID().uuidString, settingsData: JSONEncoder().encode(AccountSettings.default))
 		try await user.save(on: database)
 		let legacy = LegacyToken(id: UUID(), tokenHash: "legacy", userID: userID, expiresAt: Date().addingTimeInterval(3600), clientPlatform: nil, installationID: nil)
 		let unknown = LegacyToken(id: UUID(), tokenHash: "unknown", userID: userID, expiresAt: Date().addingTimeInterval(3600), clientPlatform: "futureOS", installationID: "future-installation")
@@ -327,7 +396,7 @@ final class SeedLegacyTokenRows: AsyncMigration {
 		try await watch.save(on: database)
 	}
 
-	func revert(on database: any Database) async throws {}
+	func revert(on _: any Database) async throws {}
 }
 
 private final class LegacyToken: Model, @unchecked Sendable {
@@ -341,7 +410,7 @@ private final class LegacyToken: Model, @unchecked Sendable {
 	@Timestamp(key: "created_at", on: .create) var createdAt: Date?
 	init() {}
 	init(id: UUID, tokenHash: String, userID: UUID, expiresAt: Date, clientPlatform: String?, installationID: String?) {
-		self.id = id; self.tokenHash = tokenHash; self.$user.id = userID; self.expiresAt = expiresAt; self.clientPlatform = clientPlatform; self.installationID = installationID
+		self.id = id; self.tokenHash = tokenHash; $user.id = userID; self.expiresAt = expiresAt; self.clientPlatform = clientPlatform; self.installationID = installationID
 	}
 }
 
@@ -358,6 +427,6 @@ private final class LegacyUser: Model, @unchecked Sendable {
 	@Timestamp(key: "updated_at", on: .update) var updatedAt: Date?
 	init() {}
 	init(id: UUID, email: String, displayName: String, selfPassSerialNumber: String, settingsData: Data) {
-		self.id = id; self.email = email; self.passwordHash = nil; self.appleSubject = nil; self.displayName = displayName; self.selfPassSerialNumber = selfPassSerialNumber; self.settingsData = settingsData
+		self.id = id; self.email = email; passwordHash = nil; appleSubject = nil; self.displayName = displayName; self.selfPassSerialNumber = selfPassSerialNumber; self.settingsData = settingsData
 	}
 }

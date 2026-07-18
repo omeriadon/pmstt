@@ -51,5 +51,7 @@ final class UserToken: Model, Content, @unchecked Sendable {
 		self.activeWatchKey = activeWatchKey
 	}
 
-	var platformValue: ClientPlatform { ClientPlatform(rawValue: clientPlatform ?? "") ?? .legacy }
+	var platformValue: ClientPlatform {
+		ClientPlatform(rawValue: clientPlatform ?? "") ?? .legacy
+	}
 }

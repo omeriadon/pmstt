@@ -1,19 +1,42 @@
-import Foundation
 import Fluent
+import Foundation
 import Vapor
 
 enum AuthoritativeTimetableSource {
 	case owner(OwnerTimetable)
 	case authored(AuthoredTimetable)
 
-	var id: UUID { get throws { try modelID() } }
-	var author: User { switch self { case let .owner(value): value.user; case let .authored(value): value.author } }
-	var sourceKind: SourceKind { switch self { case .owner: .accountOwner; case .authored: .authoredForThirdParty } }
-	var title: String { switch self { case let .owner(value): "\(value.user.displayName)'s Timetable"; case let .authored(value): value.subjectDisplayName } }
-	var subjectsData: Data { switch self { case let .owner(value): value.subjectsData; case let .authored(value): value.subjectsData } }
-	var revision: Int { switch self { case let .owner(value): value.revision; case let .authored(value): value.revision } }
-	var isSearchable: Bool { switch self { case let .owner(value): value.isSearchable; case let .authored(value): value.isSearchable } }
-	var updatedAt: Date? { switch self { case let .owner(value): value.updatedAt; case let .authored(value): value.updatedAt } }
+	var id: UUID {
+		get throws { try modelID() }
+	}
+
+	var author: User {
+		switch self { case let .owner(value): value.user; case let .authored(value): value.author }
+	}
+
+	var sourceKind: SourceKind {
+		switch self { case .owner: .accountOwner; case .authored: .authoredForThirdParty }
+	}
+
+	var title: String {
+		switch self { case let .owner(value): "\(value.user.displayName)'s Timetable"; case let .authored(value): value.subjectDisplayName }
+	}
+
+	var subjectsData: Data {
+		switch self { case let .owner(value): value.subjectsData; case let .authored(value): value.subjectsData }
+	}
+
+	var revision: Int {
+		switch self { case let .owner(value): value.revision; case let .authored(value): value.revision }
+	}
+
+	var isSearchable: Bool {
+		switch self { case let .owner(value): value.isSearchable; case let .authored(value): value.isSearchable }
+	}
+
+	var updatedAt: Date? {
+		switch self { case let .owner(value): value.updatedAt; case let .authored(value): value.updatedAt }
+	}
 
 	func subjects() throws -> [TimetableSubjectDTO] {
 		guard subjectsData.count <= 1_048_576 else { throw AppError(.internalServerError, code: .internalServerError, reason: "Stored timetable data is too large.") }
@@ -43,7 +66,7 @@ enum AuthoritativeTimetableResolution {
 	case ambiguous
 }
 
-struct AuthoritativeTimetableResolver {
+enum AuthoritativeTimetableResolver {
 	struct SourceKey: Hashable {
 		let id: UUID
 		let sourceKind: SourceKind
@@ -54,17 +77,27 @@ struct AuthoritativeTimetableResolver {
 		let owners = try await OwnerTimetable.query(on: database).filter(\.$id ~~ ids).with(\.$user).all()
 		let authored = try await AuthoredTimetable.query(on: database).filter(\.$id ~~ ids).with(\.$author).all()
 		var result: [SourceKey: AuthoritativeTimetableSource] = [:]
-		for owner in owners { result[SourceKey(id: try owner.requireID(), sourceKind: .accountOwner)] = .owner(owner) }
-		for value in authored { result[SourceKey(id: try value.requireID(), sourceKind: .authoredForThirdParty)] = .authored(value) }
+		for owner in owners {
+			try result[SourceKey(id: owner.requireID(), sourceKind: .accountOwner)] = .owner(owner)
+		}
+		for value in authored {
+			try result[SourceKey(id: value.requireID(), sourceKind: .authoredForThirdParty)] = .authored(value)
+		}
 		return result
 	}
 
 	static func resolve(id: UUID, on database: any Database) async throws -> AuthoritativeTimetableResolution {
 		let owner = try await OwnerTimetable.query(on: database).filter(\.$id == id).with(\.$user).first()
 		let authored = try await AuthoredTimetable.query(on: database).filter(\.$id == id).with(\.$author).first()
-		if owner != nil && authored != nil { return .ambiguous }
-		if let owner { return owner.isSearchable ? .available(.owner(owner)) : .privateSource(.owner(owner)) }
-		if let authored { return authored.isSearchable ? .available(.authored(authored)) : .privateSource(.authored(authored)) }
+		if owner != nil, authored != nil {
+			return .ambiguous
+		}
+		if let owner {
+			return owner.isSearchable ? .available(.owner(owner)) : .privateSource(.owner(owner))
+		}
+		if let authored {
+			return authored.isSearchable ? .available(.authored(authored)) : .privateSource(.authored(authored))
+		}
 		return .missing
 	}
 
@@ -75,31 +108,33 @@ struct AuthoritativeTimetableResolver {
 
 	static func resolveForImport(id: UUID, userID: UUID, on database: any Database) async throws -> AuthoritativeTimetableSource {
 		switch try await resolve(id: id, on: database) {
-		case .available(let source):
-			guard try source.author.requireID() != userID else { throw Abort(.notFound) }
-			return source
-		case .ambiguous: throw Abort(.conflict)
-		case .privateSource, .missing: throw Abort(.notFound)
+			case let .available(source):
+				guard try source.author.requireID() != userID else { throw Abort(.notFound) }
+				return source
+			case .ambiguous: throw Abort(.conflict)
+			case .privateSource, .missing: throw Abort(.notFound)
 		}
 	}
 
 	static func resolveForViewer(id: UUID, userID: UUID, on database: any Database) async throws -> AuthoritativeTimetableResolution {
 		switch try await resolve(id: id, on: database) {
-		case .available(let source): return .available(source)
-		case .privateSource(let source):
-			let isAuthor = try source.author.requireID() == userID
-			let isImported = try await hasImport(userID: userID, id: id, kind: source.sourceKind, on: database)
-			if isAuthor || isImported {
-				return .available(source)
-			}
-			return .privateSource(source)
-		case .missing, .ambiguous: return try await hasImport(userID: userID, id: id, kind: nil, on: database) ? .missing : (try await resolve(id: id, on: database))
+			case let .available(source): return .available(source)
+			case let .privateSource(source):
+				let isAuthor = try source.author.requireID() == userID
+				let isImported = try await hasImport(userID: userID, id: id, kind: source.sourceKind, on: database)
+				if isAuthor || isImported {
+					return .available(source)
+				}
+				return .privateSource(source)
+			case .missing, .ambiguous: return try await hasImport(userID: userID, id: id, kind: nil, on: database) ? .missing : resolve(id: id, on: database)
 		}
 	}
 
 	static func hasImport(userID: UUID, id: UUID, kind: SourceKind?, on database: any Database) async throws -> Bool {
 		var query = ReceivedTimetableImport.query(on: database).filter(\.$user.$id == userID).filter(\.$timetableID == id).filter(\.$revokedAt == nil)
-		if let kind { query = query.filter(\.$sourceKind == kind) }
+		if let kind {
+			query = query.filter(\.$sourceKind == kind)
+		}
 		return try await query.first() != nil
 	}
 }

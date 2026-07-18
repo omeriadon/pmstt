@@ -21,7 +21,9 @@ enum WalletPushService {
 			request.headers.add(name: "authorization", value: "bearer \(authorization)")
 			request.body = .bytes(ByteBuffer(string: "{}"))
 			let status = try await APNSClient().send(request: request)
-			if status == .gone || status == .badRequest { try await registration.delete(on: req.db) }
+			if status == .gone || status == .badRequest {
+				try await registration.delete(on: req.db)
+			}
 		}
 	}
 }

@@ -1,8 +1,8 @@
 import Fluent
 import FluentSQLiteDriver
+@testable import pmstt
 import Vapor
 import XCTest
-@testable import pmstt
 
 final class MigrationTests: XCTestCase {
 	func testFreshDatabaseMigratesAndRollsBack() async throws {

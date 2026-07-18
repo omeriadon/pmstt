@@ -2,10 +2,10 @@ import Crypto
 import Fluent
 import FluentSQLiteDriver
 import JWT
-import Vapor
-import XCTVapor
-import XCTest
 @testable import pmstt
+import Vapor
+import XCTest
+import XCTVapor
 
 final class SharedTimetableIntegrationTests: XCTestCase, @unchecked Sendable {
 	func testSearchablePreviewIsBoundedAndMalformedUUIDIsIndistinguishable() async throws {
@@ -25,7 +25,7 @@ final class SharedTimetableIntegrationTests: XCTestCase, @unchecked Sendable {
 
 	func testImportIsStrictSelfPrivateAndNonAuthoritative() async throws {
 		let (app, owner, timetable) = try await makeFixture(platform: .iOS)
-		let selfImport = try await request(app, .POST, "/v1/timetables/received/import", token: owner.accessToken, body: ReceivedTimetableImportRequest(timetableID: timetable.id!))
+		let selfImport = try await request(app, .POST, "/v1/timetables/received/import", token: owner.accessToken, body: ReceivedTimetableImportRequest(timetableID: XCTUnwrap(timetable.id)))
 		XCTAssertEqual(selfImport.status, .notFound)
 
 		timetable.isSearchable = false
@@ -40,7 +40,7 @@ final class SharedTimetableIntegrationTests: XCTestCase, @unchecked Sendable {
 
 		let author = try await register(app, platform: .iOS)
 		let publicSource = try await makePublicSource(app: app, authorID: author.user.id)
-		let ipadImport = try await request(app, .POST, "/v1/timetables/received/import", token: ipad.accessToken, body: ReceivedTimetableImportRequest(timetableID: publicSource.id!))
+		let ipadImport = try await request(app, .POST, "/v1/timetables/received/import", token: ipad.accessToken, body: ReceivedTimetableImportRequest(timetableID: XCTUnwrap(publicSource.id)))
 		XCTAssertEqual(ipadImport.status, .forbidden)
 	}
 
@@ -48,12 +48,12 @@ final class SharedTimetableIntegrationTests: XCTestCase, @unchecked Sendable {
 		let (app, owner, _) = try await makeFixture(platform: .iOS)
 		let author = try await register(app, platform: .iOS)
 		let source = try await makePublicSource(app: app, authorID: author.user.id)
-		let forged = ForgedImportBody(timetableID: source.id!, sourceKind: .accountOwner, title: "forged")
+		let forged = try ForgedImportBody(timetableID: XCTUnwrap(source.id), sourceKind: .accountOwner, title: "forged")
 		let rejected = try await request(app, .POST, "/v1/timetables/received/import", token: owner.accessToken, body: forged)
 		XCTAssertEqual(rejected.status, .badRequest)
 
-		let first = try await request(app, .POST, "/v1/timetables/received/import", token: owner.accessToken, body: ReceivedTimetableImportRequest(timetableID: source.id!))
-		let second = try await request(app, .POST, "/v1/timetables/received/import", token: owner.accessToken, body: ReceivedTimetableImportRequest(timetableID: source.id!))
+		let first = try await request(app, .POST, "/v1/timetables/received/import", token: owner.accessToken, body: ReceivedTimetableImportRequest(timetableID: XCTUnwrap(source.id)))
+		let second = try await request(app, .POST, "/v1/timetables/received/import", token: owner.accessToken, body: ReceivedTimetableImportRequest(timetableID: XCTUnwrap(source.id)))
 		XCTAssertEqual(first.status, .created)
 		XCTAssertEqual(second.status, .ok)
 		let importCount = try await ReceivedTimetableImport.query(on: app.db(.sqlite)).count()
@@ -63,9 +63,9 @@ final class SharedTimetableIntegrationTests: XCTestCase, @unchecked Sendable {
 	func testAuthoredSourceIsImportedByAuthoritativeClient() async throws {
 		let (app, importer, _) = try await makeFixture(platform: .iOS)
 		let author = try await register(app, platform: .iOS)
-		let source = AuthoredTimetable(authorUserID: author.user.id, subjectDisplayName: "Shared", passSerialNumber: UUID().uuidString, subjectsData: try JSONEncoder().encode([TimetableSubjectDTO]()), revision: 3)
+		let source = try AuthoredTimetable(authorUserID: author.user.id, subjectDisplayName: "Shared", passSerialNumber: UUID().uuidString, subjectsData: JSONEncoder().encode([TimetableSubjectDTO]()), revision: 3)
 		try await source.save(on: app.db(.sqlite))
-		let response = try await request(app, .POST, "/v1/timetables/received/import", token: importer.accessToken, body: ReceivedTimetableImportRequest(timetableID: source.id!))
+		let response = try await request(app, .POST, "/v1/timetables/received/import", token: importer.accessToken, body: ReceivedTimetableImportRequest(timetableID: XCTUnwrap(source.id)))
 		XCTAssertEqual(response.status, .created)
 		let decoded = try response.content.decode(ReceivedTimetableImportResponse.self)
 		XCTAssertEqual(decoded.sourceKind, .authoredForThirdParty)
@@ -74,9 +74,9 @@ final class SharedTimetableIntegrationTests: XCTestCase, @unchecked Sendable {
 	func testAmbiguousUUIDIsRejectedWithoutChoosingASourceNamespace() async throws {
 		let (app, importer, timetable) = try await makeFixture(platform: .iOS)
 		let author = try await register(app, platform: .iOS)
-		let duplicate = AuthoredTimetable(id: timetable.id!, authorUserID: author.user.id, subjectDisplayName: "Ambiguous", passSerialNumber: UUID().uuidString, subjectsData: try JSONEncoder().encode([TimetableSubjectDTO]()), revision: 1)
+		let duplicate = try AuthoredTimetable(id: XCTUnwrap(timetable.id), authorUserID: author.user.id, subjectDisplayName: "Ambiguous", passSerialNumber: UUID().uuidString, subjectsData: JSONEncoder().encode([TimetableSubjectDTO]()), revision: 1)
 		try await duplicate.save(on: app.db(.sqlite))
-		let response = try await request(app, .POST, "/v1/timetables/received/import", token: importer.accessToken, body: ReceivedTimetableImportRequest(timetableID: timetable.id!))
+		let response = try await request(app, .POST, "/v1/timetables/received/import", token: importer.accessToken, body: ReceivedTimetableImportRequest(timetableID: XCTUnwrap(timetable.id)))
 		XCTAssertEqual(response.status, .conflict)
 		let importCount = try await ReceivedTimetableImport.query(on: app.db(.sqlite)).count()
 		XCTAssertEqual(importCount, 0)
@@ -86,7 +86,7 @@ final class SharedTimetableIntegrationTests: XCTestCase, @unchecked Sendable {
 		let (app, importer, _) = try await makeFixture(platform: .iOS)
 		let author = try await register(app, platform: .iOS)
 		let source = try await makePublicSource(app: app, authorID: author.user.id)
-		let allowed = try await request(app, .POST, "/v1/timetables/received/import", token: importer.accessToken, body: ReceivedTimetableImportRequest(timetableID: source.id!))
+		let allowed = try await request(app, .POST, "/v1/timetables/received/import", token: importer.accessToken, body: ReceivedTimetableImportRequest(timetableID: XCTUnwrap(source.id)))
 		XCTAssertEqual(allowed.status, .created)
 		for platform in [ClientPlatform.iPadOS, .macOS] {
 			let client = try await register(app, platform: platform)
@@ -99,7 +99,7 @@ final class SharedTimetableIntegrationTests: XCTestCase, @unchecked Sendable {
 		let (app, importer, _) = try await makeFixture(platform: .iOS)
 		let author = try await register(app, platform: .iOS)
 		let source = try await makePublicSource(app: app, authorID: author.user.id)
-		let imported = try await request(app, .POST, "/v1/timetables/received/import", token: importer.accessToken, body: ReceivedTimetableImportRequest(timetableID: source.id!))
+		let imported = try await request(app, .POST, "/v1/timetables/received/import", token: importer.accessToken, body: ReceivedTimetableImportRequest(timetableID: XCTUnwrap(source.id)))
 		XCTAssertEqual(imported.status, .created)
 		source.isSearchable = false
 		try await source.save(on: app.db(.sqlite))
@@ -111,13 +111,13 @@ final class SharedTimetableIntegrationTests: XCTestCase, @unchecked Sendable {
 		let (app, importer, _) = try await makeFixture(platform: .iOS)
 		let author = try await register(app, platform: .iOS)
 		let source = try await makePublicSource(app: app, authorID: author.user.id)
-		_ = try await request(app, .POST, "/v1/timetables/received/import", token: importer.accessToken, body: ReceivedTimetableImportRequest(timetableID: source.id!))
-		let relationship = try await ReceivedTimetableImport.query(on: app.db(.sqlite)).first()!
+		_ = try await request(app, .POST, "/v1/timetables/received/import", token: importer.accessToken, body: ReceivedTimetableImportRequest(timetableID: XCTUnwrap(source.id)))
+		let relationship = try try await XCTUnwrap(ReceivedTimetableImport.query(on: app.db(.sqlite)).first())
 		let firstDelete = try await request(app, .DELETE, "/v1/timetables/received/authoritative/\(relationship.id!.uuidString)", token: importer.accessToken)
 		let secondDelete = try await request(app, .DELETE, "/v1/timetables/received/authoritative/\(relationship.id!.uuidString)", token: importer.accessToken)
 		XCTAssertEqual(firstDelete.status, .noContent)
 		XCTAssertEqual(secondDelete.status, .noContent)
-		let reimport = try await request(app, .POST, "/v1/timetables/received/import", token: importer.accessToken, body: ReceivedTimetableImportRequest(timetableID: source.id!))
+		let reimport = try await request(app, .POST, "/v1/timetables/received/import", token: importer.accessToken, body: ReceivedTimetableImportRequest(timetableID: XCTUnwrap(source.id)))
 		XCTAssertEqual(reimport.status, .ok)
 		let importCount = try await ReceivedTimetableImport.query(on: app.db(.sqlite)).count()
 		XCTAssertEqual(importCount, 1)
@@ -125,21 +125,21 @@ final class SharedTimetableIntegrationTests: XCTestCase, @unchecked Sendable {
 
 	func testDeleteRevokesOnlyTheRelationshipNamedByImportIDAcrossUUIDNamespaces() async throws {
 		let (app, importer, timetable) = try await makeFixture(platform: .iOS)
-		let authored = AuthoredTimetable(id: timetable.id!, authorUserID: importer.user.id, subjectDisplayName: "Collision", passSerialNumber: UUID().uuidString, subjectsData: try JSONEncoder().encode([TimetableSubjectDTO]()), revision: 1)
+		let authored = try AuthoredTimetable(id: XCTUnwrap(timetable.id), authorUserID: importer.user.id, subjectDisplayName: "Collision", passSerialNumber: UUID().uuidString, subjectsData: JSONEncoder().encode([TimetableSubjectDTO]()), revision: 1)
 		try await authored.save(on: app.db(.sqlite))
-		let ownerImport = ReceivedTimetableImport(userID: importer.user.id, timetableID: timetable.id!, sourceKind: .accountOwner)
-		let authoredImport = ReceivedTimetableImport(userID: importer.user.id, timetableID: timetable.id!, sourceKind: .authoredForThirdParty)
+		let ownerImport = try ReceivedTimetableImport(userID: importer.user.id, timetableID: XCTUnwrap(timetable.id), sourceKind: .accountOwner)
+		let authoredImport = try ReceivedTimetableImport(userID: importer.user.id, timetableID: XCTUnwrap(timetable.id), sourceKind: .authoredForThirdParty)
 		try await ownerImport.save(on: app.db(.sqlite)); try await authoredImport.save(on: app.db(.sqlite))
 		_ = try await request(app, .DELETE, "/v1/timetables/received/authoritative/\(ownerImport.id!.uuidString)", token: importer.accessToken)
-		let ownerAfter = try await ReceivedTimetableImport.find(ownerImport.id!, on: app.db(.sqlite))!
-		let authoredAfter = try await ReceivedTimetableImport.find(authoredImport.id!, on: app.db(.sqlite))!
+		let ownerAfter = try try await XCTUnwrap(try ReceivedTimetableImport.find(XCTUnwrap(ownerImport.id), on: app.db(.sqlite)))
+		let authoredAfter = try try await XCTUnwrap(ReceivedTimetableImport.find(XCTUnwrap(authoredImport.id), on: app.db(.sqlite)))
 		XCTAssertNotNil(ownerAfter.revokedAt)
 		XCTAssertNil(authoredAfter.revokedAt)
 	}
 
 	func testAuthoritativeListIsBoundedAndPaginated() async throws {
 		let (app, importer, _) = try await makeFixture(platform: .iOS)
-		for index in 0..<51 {
+		for index in 0 ..< 51 {
 			let relationship = ReceivedTimetableImport(userID: importer.user.id, timetableID: UUID(), sourceKind: .accountOwner, importedAt: Date(timeIntervalSince1970: Double(index)))
 			try await relationship.save(on: app.db(.sqlite))
 		}
@@ -160,7 +160,7 @@ final class SharedTimetableIntegrationTests: XCTestCase, @unchecked Sendable {
 		let (app, importer, _) = try await makeFixture(platform: .iOS)
 		let author = try await register(app, platform: .iOS)
 		let source = try await makePublicSource(app: app, authorID: author.user.id)
-		_ = try await request(app, .POST, "/v1/timetables/received/import", token: importer.accessToken, body: ReceivedTimetableImportRequest(timetableID: source.id!))
+		_ = try await request(app, .POST, "/v1/timetables/received/import", token: importer.accessToken, body: ReceivedTimetableImportRequest(timetableID: XCTUnwrap(source.id)))
 		source.subjectsData = Data("not-json".utf8)
 		try await source.save(on: app.db(.sqlite))
 		let response = try await request(app, .GET, "/v1/timetables/received/authoritative", token: importer.accessToken)
@@ -181,9 +181,9 @@ final class SharedTimetableIntegrationTests: XCTestCase, @unchecked Sendable {
 		let (app, importer, _) = try await makeFixture(platform: .iOS)
 		let author = try await register(app, platform: .iOS)
 		let source = try await makePublicSource(app: app, authorID: author.user.id)
-		let first = ReceivedTimetableImport(userID: importer.user.id, timetableID: source.id!, sourceKind: .accountOwner)
+		let first = try ReceivedTimetableImport(userID: importer.user.id, timetableID: XCTUnwrap(source.id), sourceKind: .accountOwner)
 		try await first.save(on: app.db(.sqlite))
-		let duplicate = ReceivedTimetableImport(userID: importer.user.id, timetableID: source.id!, sourceKind: .accountOwner)
+		let duplicate = try ReceivedTimetableImport(userID: importer.user.id, timetableID: XCTUnwrap(source.id), sourceKind: .accountOwner)
 		var duplicateFailed = false
 		do { try await duplicate.save(on: app.db(.sqlite)) } catch { duplicateFailed = true }
 		XCTAssertTrue(duplicateFailed)
@@ -212,7 +212,7 @@ final class SharedTimetableIntegrationTests: XCTestCase, @unchecked Sendable {
 		try await BackfillReceivedTimetableImports().prepare(on: app.db(.sqlite))
 		let importCount = try await ReceivedTimetableImport.query(on: app.db(.sqlite)).count()
 		XCTAssertEqual(importCount, 1)
-		let after = try await ReceivedPassMirror.find(mirror.id!, on: app.db(.sqlite))!
+		let after = try try await XCTUnwrap(try ReceivedPassMirror.find(XCTUnwrap(mirror.id), on: app.db(.sqlite)))
 		XCTAssertEqual(after.signedDisplayName, beforeDisplayName)
 		XCTAssertEqual(after.subjectsData, beforeSubjects)
 		XCTAssertEqual(after.walletRevision, beforeWalletRevision)
@@ -223,7 +223,7 @@ final class SharedTimetableIntegrationTests: XCTestCase, @unchecked Sendable {
 		let (app, importer, _) = try await makeFixture(platform: .iOS)
 		let author = try await register(app, platform: .iOS)
 		let source = try await makePublicSource(app: app, authorID: author.user.id)
-		_ = try await request(app, .POST, "/v1/timetables/received/import", token: importer.accessToken, body: ReceivedTimetableImportRequest(timetableID: source.id!))
+		_ = try await request(app, .POST, "/v1/timetables/received/import", token: importer.accessToken, body: ReceivedTimetableImportRequest(timetableID: XCTUnwrap(source.id)))
 		guard let importedUser = try await User.find(importer.user.id, on: app.db(.sqlite)) else { XCTFail("importer missing"); return }
 		try await importedUser.delete(on: app.db(.sqlite))
 		let importCount = try await ReceivedTimetableImport.query(on: app.db(.sqlite)).count()
@@ -234,7 +234,7 @@ final class SharedTimetableIntegrationTests: XCTestCase, @unchecked Sendable {
 		let (app, importer, _) = try await makeFixture(platform: .iOS)
 		let author = try await register(app, platform: .iOS)
 		let source = try await makePublicSource(app: app, authorID: author.user.id)
-		let imported = try await request(app, .POST, "/v1/timetables/received/import", token: importer.accessToken, body: ReceivedTimetableImportRequest(timetableID: source.id!))
+		let imported = try await request(app, .POST, "/v1/timetables/received/import", token: importer.accessToken, body: ReceivedTimetableImportRequest(timetableID: XCTUnwrap(source.id)))
 		XCTAssertEqual(imported.status, .created)
 
 		source.revision = 2
@@ -280,14 +280,25 @@ final class SharedTimetableIntegrationTests: XCTestCase, @unchecked Sendable {
 
 	private func sqliteMigrations() -> [any Migration] {
 		pmsttMigrationList().map { migration in
-			if migration is AddUserTokenClientIdentity { return SQLiteClientIdentityMigration() }
-			if migration is AddAppleAccountState { return SQLiteAppleStateMigration() }
+			if migration is AddUserTokenClientIdentity {
+				return SQLiteClientIdentityMigration()
+			}
+			if migration is AddAppleAccountState {
+				return SQLiteAppleStateMigration()
+			}
 			return migration
 		}
 	}
 
 	private func register(_ app: Application, platform: ClientPlatform) async throws -> TokenResponse {
-		let response = try await request(app, .POST, "/v1/auth/register", body: RegisterRequest(email: "\(UUID())@example.com", password: "password", displayName: "User", platform: platform.rawValue, installationID: UUID().uuidString))
+		let email = "\(UUID())@example.com"
+		let installationID = UUID().uuidString
+		if platform == .iOS {
+			let response = try await request(app, .POST, "/v1/auth/register", body: RegisterRequest(email: email, password: "password", displayName: "User", platform: platform.rawValue, installationID: installationID))
+			return try response.content.decode(TokenResponse.self)
+		}
+		_ = try await request(app, .POST, "/v1/auth/register", body: RegisterRequest(email: email, password: "password", displayName: "User", platform: "iOS", installationID: "iphone-\(installationID)"))
+		let response = try await request(app, .POST, "/v1/auth/login", body: LoginRequest(email: email, password: "password", platform: platform.rawValue, installationID: installationID))
 		return try response.content.decode(TokenResponse.self)
 	}
 
@@ -295,11 +306,15 @@ final class SharedTimetableIntegrationTests: XCTestCase, @unchecked Sendable {
 		try await request(app, method, path, token: token, body: EmptyBody())
 	}
 
-	private func request<T: Content>(_ app: Application, _ method: HTTPMethod, _ path: String, token: String? = nil, body: T? = nil) async throws -> XCTHTTPResponse {
+	private func request(_ app: Application, _ method: HTTPMethod, _ path: String, token: String? = nil, body: (some Content)? = nil) async throws -> XCTHTTPResponse {
 		var result: XCTHTTPResponse?
 		try await app.test(method, path, beforeRequest: { req async throws in
-			if let token { req.headers.bearerAuthorization = .init(token: token) }
-			if let body { req.headers.contentType = .json; try req.content.encode(body) }
+			if let token {
+				req.headers.bearerAuthorization = .init(token: token)
+			}
+			if let body {
+				req.headers.contentType = .json; try req.content.encode(body)
+			}
 		}, afterResponse: { result = $0 })
 		return result!
 	}
@@ -307,9 +322,13 @@ final class SharedTimetableIntegrationTests: XCTestCase, @unchecked Sendable {
 	private func rawRequest(_ app: Application, _ method: HTTPMethod, _ path: String, token: String? = nil, body: Data, omitContentLength: Bool = false) async throws -> XCTHTTPResponse {
 		var result: XCTHTTPResponse?
 		try await app.test(method, path, beforeRequest: { req async throws in
-			if let token { req.headers.bearerAuthorization = .init(token: token) }
+			if let token {
+				req.headers.bearerAuthorization = .init(token: token)
+			}
 			req.headers.contentType = .json
-			if !omitContentLength { req.headers.replaceOrAdd(name: .contentLength, value: body.count.description) }
+			if !omitContentLength {
+				req.headers.replaceOrAdd(name: .contentLength, value: body.count.description)
+			}
 			req.body = .init(data: body)
 		}, afterResponse: { result = $0 })
 		return result!
@@ -325,11 +344,15 @@ private struct ForgedImportBody: Content {
 }
 
 private struct SQLiteClientIdentityMigration: AsyncMigration {
-	var name: String { "pmsttTests.P2SQLiteClientIdentity" }
+	var name: String {
+		"pmsttTests.P2SQLiteClientIdentity"
+	}
+
 	func prepare(on database: any Database) async throws {
 		try await database.schema(UserToken.schema).field("client_platform", .string).update()
 		try await database.schema(UserToken.schema).field("installation_id", .string).update()
 	}
+
 	func revert(on database: any Database) async throws {
 		try await database.schema(UserToken.schema).deleteField("installation_id").update()
 		try await database.schema(UserToken.schema).deleteField("client_platform").update()
@@ -337,11 +360,15 @@ private struct SQLiteClientIdentityMigration: AsyncMigration {
 }
 
 private struct SQLiteAppleStateMigration: AsyncMigration {
-	var name: String { "pmsttTests.P2SQLiteAppleState" }
+	var name: String {
+		"pmsttTests.P2SQLiteAppleState"
+	}
+
 	func prepare(on database: any Database) async throws {
 		try await database.schema(User.schema).field("apple_email_forwarding_enabled", .bool).update()
 		try await database.schema(User.schema).field("apple_authorization_revoked_at", .datetime).update()
 	}
+
 	func revert(on database: any Database) async throws {
 		try await database.schema(User.schema).deleteField("apple_authorization_revoked_at").update()
 		try await database.schema(User.schema).deleteField("apple_email_forwarding_enabled").update()

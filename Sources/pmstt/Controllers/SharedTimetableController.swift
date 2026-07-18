@@ -18,7 +18,7 @@ struct SharedTimetableController: RouteCollection {
 		guard await SharedTimetableRateLimiter.shared.allow(key: "public:\(key)", limit: 120, window: 60) else {
 			throw AppError(.tooManyRequests, code: .rateLimited, reason: "Too many timetable preview requests.")
 		}
-		let source = try await AuthoritativeTimetableResolver.resolvePublic(id: try requireUUID(req), on: req.db)
+		let source = try await AuthoritativeTimetableResolver.resolvePublic(id: requireUUID(req), on: req.db)
 		let response = Response(status: .ok)
 		try response.content.encode(source.preview())
 		response.headers.cacheControl = .init(isPublic: true, maxAge: 30)
@@ -27,7 +27,7 @@ struct SharedTimetableController: RouteCollection {
 
 	func authenticatedPreview(req: Request) async throws -> SharedTimetablePreview {
 		let payload = try req.auth.require(UserPayload.self)
-		guard case let .available(source) = try await AuthoritativeTimetableResolver.resolveForViewer(id: try requireUUID(req), userID: payload.sub, on: req.db) else { throw Abort(.notFound) }
+		guard case let .available(source) = try await AuthoritativeTimetableResolver.resolveForViewer(id: requireUUID(req), userID: payload.sub, on: req.db) else { throw Abort(.notFound) }
 		return try source.preview()
 	}
 
@@ -52,8 +52,11 @@ struct SharedTimetableController: RouteCollection {
 			result = try await req.db.transaction { database in
 				let source = try await AuthoritativeTimetableResolver.resolveForImport(id: body.timetableID, userID: payload.sub, on: database)
 				if let existing = try await ReceivedTimetableImport.query(on: database)
-					.filter(\.$user.$id == payload.sub).filter(\.$timetableID == body.timetableID).filter(\.$sourceKind == source.sourceKind).first() {
-					if existing.revokedAt != nil { existing.revokedAt = nil; try await existing.save(on: database) }
+					.filter(\.$user.$id == payload.sub).filter(\.$timetableID == body.timetableID).filter(\.$sourceKind == source.sourceKind).first()
+				{
+					if existing.revokedAt != nil {
+						existing.revokedAt = nil; try await existing.save(on: database)
+					}
 					return (source, existing, false)
 				}
 				let relationship = ReceivedTimetableImport(userID: payload.sub, timetableID: body.timetableID, sourceKind: source.sourceKind)
@@ -77,7 +80,7 @@ struct SharedTimetableController: RouteCollection {
 			result = (source, relationship, false)
 		}
 
-		let response = ReceivedTimetableImportResponse(importID: try result.1.requireID(), id: try result.0.id, title: result.0.title, authorAccountID: try result.0.author.requireID(), authorDisplayName: result.0.author.displayName, sourceKind: result.0.sourceKind, revision: result.0.revision, updatedAt: result.0.updatedAt, importedAt: result.1.importedAt, availability: .available)
+		let response = try ReceivedTimetableImportResponse(importID: result.1.requireID(), id: result.0.id, title: result.0.title, authorAccountID: result.0.author.requireID(), authorDisplayName: result.0.author.displayName, sourceKind: result.0.sourceKind, revision: result.0.revision, updatedAt: result.0.updatedAt, importedAt: result.1.importedAt, availability: .available)
 		let responseValue = Response(status: result.2 ? .created : .ok)
 		try responseValue.content.encode(response)
 		return responseValue
@@ -90,17 +93,19 @@ struct SharedTimetableController: RouteCollection {
 		let imports = try await ReceivedTimetableImport.query(on: req.db)
 			.filter(\.$user.$id == payload.sub).filter(\.$revokedAt == nil)
 			.sort(\.$importedAt, .ascending).sort(\.$id, .ascending)
-			.range(offset..<(offset + limit + 1)).all()
+			.range(offset ..< (offset + limit + 1)).all()
 		let hasNextPage = imports.count > limit
 		let page = hasNextPage ? Array(imports.prefix(limit)) : imports
-		let sources = try await AuthoritativeTimetableResolver.resolveMany(ids: Set(page.map { $0.timetableID }), on: req.db)
+		let sources = try await AuthoritativeTimetableResolver.resolveMany(ids: Set(page.map(\.timetableID)), on: req.db)
 		var result: [AuthoritativeReceivedTimetableDTO] = []
 		for relationship in page {
-			guard let source = sources[.init(id: relationship.timetableID, sourceKind: relationship.sourceKind)] else { result.append(try tombstone(for: relationship)); continue }
-			result.append(AuthoritativeReceivedTimetableDTO(importID: try relationship.requireID(), id: relationship.timetableID, title: source.title, authorAccountID: try source.author.requireID(), authorDisplayName: source.author.displayName, sourceKind: source.sourceKind, subjects: try source.subjects(), revision: source.revision, updatedAt: source.updatedAt, importedAt: relationship.importedAt, availability: .available))
+			guard let source = sources[.init(id: relationship.timetableID, sourceKind: relationship.sourceKind)] else { try result.append(tombstone(for: relationship)); continue }
+			try result.append(AuthoritativeReceivedTimetableDTO(importID: relationship.requireID(), id: relationship.timetableID, title: source.title, authorAccountID: source.author.requireID(), authorDisplayName: source.author.displayName, sourceKind: source.sourceKind, subjects: source.subjects(), revision: source.revision, updatedAt: source.updatedAt, importedAt: relationship.importedAt, availability: .available))
 		}
 		let response = Response(status: .ok)
-		if hasNextPage { response.headers.replaceOrAdd(name: "X-Next-Offset", value: String(offset + limit)) }
+		if hasNextPage {
+			response.headers.replaceOrAdd(name: "X-Next-Offset", value: String(offset + limit))
+		}
 		response.headers.replaceOrAdd(name: "X-Page-Limit", value: String(limit))
 		try response.content.encode(result)
 		return response
@@ -110,7 +115,8 @@ struct SharedTimetableController: RouteCollection {
 		let payload = try req.auth.require(UserPayload.self)
 		guard let importID = req.parameters.get("importID").flatMap(UUID.init(uuidString:)) else { throw Abort(.notFound) }
 		if let relationship = try await ReceivedTimetableImport.query(on: req.db)
-			.filter(\.$id == importID).filter(\.$user.$id == payload.sub).filter(\.$revokedAt == nil).first() {
+			.filter(\.$id == importID).filter(\.$user.$id == payload.sub).filter(\.$revokedAt == nil).first()
+		{
 			relationship.revokedAt = Date()
 			try await relationship.save(on: req.db)
 		}
@@ -134,8 +140,12 @@ struct SharedTimetableController: RouteCollection {
 }
 
 private func isUniqueConstraintViolation(_ error: any Error) -> Bool {
-	if let sqlite = error as? SQLiteError { return sqlite.reason == .constraintUniqueFailed }
-	if let postgres = error as? PostgresError { return postgres.code == .uniqueViolation }
+	if let sqlite = error as? SQLiteError {
+		return sqlite.reason == .constraintUniqueFailed
+	}
+	if let postgres = error as? PostgresError {
+		return postgres.code == .uniqueViolation
+	}
 	if let postgres = error as? PSQLError, case .server = postgres.code {
 		return postgres.serverInfo?[.sqlState].map { $0 == "23505" } ?? false
 	}
@@ -146,15 +156,18 @@ private func isUniqueConstraintViolation(_ error: any Error) -> Bool {
 /// distributed limiter: production multi-instance protection still requires
 /// an edge/shared store (for example Redis or the load balancer).
 private actor SharedTimetableRateLimiter {
-	static let shared = SharedTimetableRateLimiter(maxKeys: 10_000)
+	static let shared = SharedTimetableRateLimiter(maxKeys: 10000)
 	private struct Bucket {
 		var attempts: [Date]
 		var lastSeen: Date
 	}
+
 	private let maxKeys: Int
 	private var buckets: [String: Bucket] = [:]
 
-	init(maxKeys: Int) { self.maxKeys = maxKeys }
+	init(maxKeys: Int) {
+		self.maxKeys = maxKeys
+	}
 
 	func allow(key: String, limit: Int, window: TimeInterval, now: Date = .now) -> Bool {
 		let cutoff = now.addingTimeInterval(-window)
@@ -166,7 +179,9 @@ private actor SharedTimetableRateLimiter {
 		buckets[key] = Bucket(attempts: recent + [now], lastSeen: now)
 		if buckets.count > maxKeys {
 			let stale = buckets.filter { $0.value.attempts.allSatisfy { $0 <= cutoff } }.keys
-			for key in stale { buckets.removeValue(forKey: key) }
+			for key in stale {
+				buckets.removeValue(forKey: key)
+			}
 			while buckets.count > maxKeys, let oldest = buckets.min(by: { $0.value.lastSeen < $1.value.lastSeen })?.key {
 				buckets.removeValue(forKey: oldest)
 			}

@@ -158,9 +158,9 @@ enum TimetableResolver {
 	static func resolve(req: Request, userID: UUID) async throws -> ResolvedTimetable {
 		guard let idString = req.parameters.get("timetableID"), let id = UUID(uuidString: idString) else { throw Abort(.notFound) }
 		switch try await AuthoritativeTimetableResolver.resolveForViewer(id: id, userID: userID, on: req.db) {
-		case .available(let source):
-			switch source { case .owner(let owner): return .owner(owner); case .authored(let authored): return .authored(authored) }
-		case .privateSource, .missing, .ambiguous: throw Abort(.notFound)
+			case let .available(source):
+				switch source { case let .owner(owner): return .owner(owner); case let .authored(authored): return .authored(authored) }
+			case .privateSource, .missing, .ambiguous: throw Abort(.notFound)
 		}
 	}
 }

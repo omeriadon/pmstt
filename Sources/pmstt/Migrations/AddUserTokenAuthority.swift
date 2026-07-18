@@ -1,5 +1,5 @@
-import Foundation
 import Fluent
+import Foundation
 import SQLKit
 
 struct AddUserTokenAuthority: AsyncMigration {
@@ -35,7 +35,7 @@ struct AddUserTokenAuthority: AsyncMigration {
 					} else if let installationID = token.installationID {
 						let userID = token.$user.id
 						let key = Self.watchKey(userID: userID, installationID: installationID)
-						if token.revokedAt == nil && activeWatchKeys.insert(key).inserted {
+						if token.revokedAt == nil, activeWatchKeys.insert(key).inserted {
 							token.activeWatchKey = key
 						} else {
 							token.revokedAt = token.revokedAt ?? Date()
