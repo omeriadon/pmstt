@@ -55,6 +55,7 @@ struct SchoolNotificationScheduler {
 					_ = try await NotificationService().send(
 						title: content.title,
 						body: content.body,
+						threadID: dateKey,
 						to: userID,
 						on: database,
 						logger: logger
