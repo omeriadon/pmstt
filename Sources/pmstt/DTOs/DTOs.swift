@@ -87,6 +87,12 @@ struct UpdateSettingsRequest: Content {
 	}
 }
 
+struct NotificationSettingsUpdateRequest: Content {
+	let notificationsEnabled: Bool
+	let broadcastNotificationsEnabled: Bool
+	let notificationLeadTime: NotificationLeadTime
+}
+
 extension UpdateSettingsRequest {
 	init(from decoder: any Decoder) throws {
 		let container = try decoder.container(keyedBy: CodingKeys.self)

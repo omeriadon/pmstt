@@ -119,7 +119,8 @@ struct CapabilityMiddleware: AsyncMiddleware {
 		guard request.method == .PUT || request.method == .POST || request.method == .DELETE else { return .read }
 		switch path.dropFirst().first {
 			case "account", "report": return .mutateAccount
-			case "settings": return .mutateSettings
+			case "settings":
+				return path.dropFirst(2).first == "notifications" ? .mutateNotifications : .mutateSettings
 			case "timetables":
 				switch path.dropFirst(2).first {
 					case "owner": return .mutateOwnerTimetable

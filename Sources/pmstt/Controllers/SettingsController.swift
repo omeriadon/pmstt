@@ -8,6 +8,7 @@ struct SettingsController: RouteCollection {
 
 		protected.get(use: getSettings)
 		protected.put(use: updateSettings)
+		protected.put("notifications", use: updateNotificationSettings)
 	}
 
 	func getSettings(req: Request) async throws -> AccountSettings {
@@ -31,6 +32,18 @@ struct SettingsController: RouteCollection {
 				.update()
 		}
 		return try decodeSettings(for: user)
+	}
+
+	func updateNotificationSettings(req: Request) async throws -> AccountSettings {
+		let update = try req.content.decode(NotificationSettingsUpdateRequest.self)
+		let user = try await authenticatedUser(req)
+		var settings = try decodeSettings(for: user)
+		settings.notificationsEnabled = update.notificationsEnabled
+		settings.broadcastNotificationsEnabled = update.broadcastNotificationsEnabled
+		settings.notificationLeadTime = update.notificationLeadTime
+		user.settingsData = try JSONEncoder().encode(settings)
+		try await user.save(on: req.db)
+		return settings
 	}
 
 	private func authenticatedUser(_ req: Request) async throws -> User {
