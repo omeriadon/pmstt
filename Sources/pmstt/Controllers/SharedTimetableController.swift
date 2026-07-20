@@ -211,9 +211,6 @@ private func isUniqueConstraintViolation(_ error: any Error) -> Bool {
 	return false
 }
 
-/// A bounded per-process abuse guard. It is deliberately not described as a
-/// distributed limiter: production multi-instance protection still requires
-/// an edge/shared store (for example Redis or the load balancer).
 private actor SharedTimetableRateLimiter {
 	static let shared = SharedTimetableRateLimiter(maxKeys: 10000)
 	private struct Bucket {
