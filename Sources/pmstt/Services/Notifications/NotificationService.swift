@@ -10,6 +10,7 @@ struct NotificationService {
 		title: String,
 		body: String,
 		threadID: String? = nil,
+		collapseID: String? = nil,
 		to userID: UUID,
 		on req: Request
 	) async throws -> Int {
@@ -17,6 +18,7 @@ struct NotificationService {
 			title: title,
 			body: body,
 			threadID: threadID,
+			collapseID: collapseID,
 			to: userID,
 			on: req.db,
 			logger: req.logger
@@ -27,6 +29,7 @@ struct NotificationService {
 		title: String,
 		body: String,
 		threadID: String? = nil,
+		collapseID: String? = nil,
 		to userID: UUID,
 		installationID: String,
 		on req: Request
@@ -35,6 +38,7 @@ struct NotificationService {
 			title: title,
 			body: body,
 			threadID: threadID,
+			collapseID: collapseID,
 			to: userID,
 			installationID: installationID,
 			on: req.db,
@@ -46,6 +50,7 @@ struct NotificationService {
 		title: String,
 		body: String,
 		threadID: String? = nil,
+		collapseID: String? = nil,
 		to userID: UUID,
 		on database: any Database,
 		logger: Logger
@@ -58,6 +63,7 @@ struct NotificationService {
 			title: title,
 			body: body,
 			threadID: threadID,
+			collapseID: collapseID,
 			to: userID,
 			devices: devices,
 			on: database,
@@ -69,6 +75,7 @@ struct NotificationService {
 		title: String,
 		body: String,
 		threadID: String? = nil,
+		collapseID: String? = nil,
 		to userID: UUID,
 		installationID: String,
 		on database: any Database,
@@ -83,6 +90,7 @@ struct NotificationService {
 			title: title,
 			body: body,
 			threadID: threadID,
+			collapseID: collapseID,
 			to: userID,
 			devices: devices,
 			on: database,
@@ -94,6 +102,7 @@ struct NotificationService {
 		title: String,
 		body: String,
 		threadID: String?,
+		collapseID: String?,
 		to userID: UUID,
 		devices: [UserDevice],
 		on database: any Database,
@@ -114,22 +123,31 @@ struct NotificationService {
 			}
 
 			do {
-				let status = try await send(
+				let response = try await send(
 					title: title,
 					subtitle: nil,
 					body: body,
 					threadID: threadID,
+					collapseID: collapseID,
 					token: token,
 					isDebug: device.isDebug,
 					authorization: authorization,
 					config: config
 				)
 
-				switch status {
+				logger.info("APNs notification response", metadata: [
+					"user_id": .string(userID.uuidString),
+					"device_id": .string(device.id?.uuidString ?? "unknown"),
+					"status": .stringConvertible(response.status.code),
+					"reason": .string(response.reason ?? "none"),
+					"collapse_id": .string(collapseID ?? "none"),
+				])
+
+				switch response.status {
 					case .ok:
 						deliveredCount += 1
 
-					case .badRequest, .gone:
+					case .badRequest, .unauthorized, .forbidden, .notFound, .gone:
 						device.apnsToken = nil
 						try await device.save(on: database)
 
@@ -137,7 +155,8 @@ struct NotificationService {
 						logger.error(
 							"APNs rejected a notification",
 							metadata: [
-								"status": .stringConvertible(status.code),
+								"status": .stringConvertible(response.status.code),
+								"reason": .string(response.reason ?? "none"),
 								"user_id": .string(userID.uuidString),
 							]
 						)
@@ -213,6 +232,7 @@ struct NotificationService {
 		var deliveredCount = 0
 		var invalidatedCount = 0
 		var failedCount = 0
+		let collapseID = "broadcast-\(UUID().uuidString)"
 
 		for device in eligibleDevices {
 			guard let token = device.apnsToken else {
@@ -225,17 +245,25 @@ struct NotificationService {
 					subtitle: subtitle,
 					body: body,
 					threadID: threadID,
+					collapseID: collapseID,
 					token: token,
 					isDebug: device.isDebug,
 					authorization: authorization,
 					config: config
 				)
 
-				switch status {
+				req.logger.info("APNs broadcast response", metadata: [
+					"device_id": .string(device.id?.uuidString ?? "unknown"),
+					"status": .stringConvertible(status.status.code),
+					"reason": .string(status.reason ?? "none"),
+					"collapse_id": .string(collapseID),
+				])
+
+				switch status.status {
 					case .ok:
 						deliveredCount += 1
 
-					case .badRequest, .gone:
+					case .badRequest, .unauthorized, .forbidden, .notFound, .gone:
 						device.apnsToken = nil
 						try await device.save(on: req.db)
 						invalidatedCount += 1
@@ -246,7 +274,8 @@ struct NotificationService {
 						req.logger.error(
 							"APNs rejected broadcast notification",
 							metadata: [
-								"status": .stringConvertible(status.code),
+								"status": .stringConvertible(status.status.code),
+								"reason": .string(status.reason ?? "none"),
 							]
 						)
 				}
@@ -269,11 +298,12 @@ struct NotificationService {
 		subtitle: String?,
 		body: String,
 		threadID: String?,
+		collapseID: String?,
 		token: String,
 		isDebug: Bool,
 		authorization: String,
 		config: APNSConfig
-	) async throws -> HTTPResponseStatus {
+	) async throws -> APNSClient.Response {
 		let host = isDebug
 			? "api.sandbox.push.apple.com"
 			: "api.push.apple.com"
@@ -297,6 +327,11 @@ struct NotificationService {
 		request.headers.add(
 			name: "apns-topic",
 			value: config.bundleId
+		)
+
+		request.headers.add(
+			name: "apns-collapse-id",
+			value: collapseID ?? UUID().uuidString
 		)
 
 		request.headers.add(

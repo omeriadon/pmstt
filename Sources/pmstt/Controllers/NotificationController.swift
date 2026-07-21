@@ -34,6 +34,15 @@ struct NotificationController: RouteCollection {
 		device.isDebug = body.isDebug
 		device.lastSeenAt = Date()
 		try await device.save(on: req.db)
+		let deviceID = try device.requireID()
+		try await pruneStaleDevices(for: payload.sub, keeping: deviceID, platform: body.platform, database: req.db, logger: req.logger)
+		req.logger.info("Registered APNs device", metadata: [
+			"user_id": .string(payload.sub.uuidString),
+			"device_id": .string(deviceID.uuidString),
+			"installation_id": .string(body.installationID),
+			"platform": .string(body.platform),
+			"is_debug": .stringConvertible(body.isDebug),
+		])
 		return UserDeviceResponse(
 			installationID: device.installationID,
 			platform: device.platform,
@@ -59,7 +68,29 @@ struct NotificationController: RouteCollection {
 			await SchoolDayActivityCoordinator().endActivities(for: device, database: req.db, logger: req.logger)
 			try await device.delete(on: req.db)
 		}
+		req.logger.info("Removed APNs device", metadata: [
+			"user_id": .string(payload.sub.uuidString),
+			"installation_id": .string(body.installationID),
+			"platform": .string(body.platform),
+		])
 		return .noContent
+	}
+
+	private func pruneStaleDevices(for userID: UUID, keeping deviceID: UUID, platform: String, database: any Database, logger: Logger) async throws {
+		let cutoff = Date().addingTimeInterval(-30 * 24 * 60 * 60)
+		let devices = try await UserDevice.query(on: database)
+			.filter(\.$user.$id == userID)
+			.filter(\.$platform == platform)
+			.all()
+		for device in devices where device.id != deviceID && device.lastSeenAt < cutoff {
+			await SchoolDayActivityCoordinator().endActivities(for: device, database: database, logger: logger)
+			try await device.delete(on: database)
+			logger.info("Pruned stale APNs device", metadata: [
+				"user_id": .string(userID.uuidString),
+				"device_id": .string(device.id?.uuidString ?? "unknown"),
+				"platform": .string(platform),
+			])
+		}
 	}
 
 	func sendTestNotification(req: Request) async throws -> TestNotificationResponse {

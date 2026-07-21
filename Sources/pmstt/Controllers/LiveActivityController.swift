@@ -19,6 +19,7 @@ struct LiveActivityController: RouteCollection {
 		try validate(installationID: body.installationID, token: body.token)
 
 		let device = try await UserDevice.query(on: req.db)
+			.filter(\.$user.$id == payload.sub)
 			.filter(\.$installationID == body.installationID)
 			.first() ?? UserDevice(userID: payload.sub, installationID: body.installationID, platform: "iOS")
 		device.$user.id = payload.sub
@@ -27,6 +28,12 @@ struct LiveActivityController: RouteCollection {
 		device.liveActivityPushToStartToken = body.token
 		device.lastSeenAt = Date()
 		try await device.save(on: req.db)
+		let deviceID = try device.requireID()
+		req.logger.info("Registered Live Activity push-to-start token", metadata: [
+			"user_id": .string(payload.sub.uuidString),
+			"device_id": .string(deviceID.uuidString),
+			"installation_id": .string(body.installationID),
+		])
 		return .noContent
 	}
 
@@ -40,6 +47,11 @@ struct LiveActivityController: RouteCollection {
 			device.liveActivityPushToStartToken = nil
 			device.lastSeenAt = Date()
 			try await device.save(on: req.db)
+			let deviceID = try device.requireID()
+			req.logger.info("Removed Live Activity push-to-start token", metadata: [
+				"user_id": .string(payload.sub.uuidString),
+				"device_id": .string(deviceID.uuidString),
+			])
 		}
 		return .noContent
 	}
@@ -66,6 +78,12 @@ struct LiveActivityController: RouteCollection {
 		activity.updateToken = body.token
 		try await device.save(on: req.db)
 		try await activity.save(on: req.db)
+		let deviceID = try device.requireID()
+		req.logger.info("Registered Live Activity update token", metadata: [
+			"user_id": .string(payload.sub.uuidString),
+			"device_id": .string(deviceID.uuidString),
+			"activity_key": .string(activity.activityKey),
+		])
 		return .noContent
 	}
 
@@ -84,6 +102,12 @@ struct LiveActivityController: RouteCollection {
 			database: req.db,
 			logger: req.logger
 		)
+		let deviceID = try device.requireID()
+		req.logger.info("Reconciled current Live Activity", metadata: [
+			"user_id": .string(payload.sub.uuidString),
+			"device_id": .string(deviceID.uuidString),
+			"started": .stringConvertible(started),
+		])
 		return ReconcileLiveActivityResponse(started: started)
 	}
 

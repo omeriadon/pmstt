@@ -1,5 +1,6 @@
 import AsyncHTTPClient
 import Foundation
+import Logging
 import NIOCore
 import NIOHTTP1
 import Vapor
@@ -7,13 +8,14 @@ import Vapor
 struct LiveActivityAPNSService {
 	struct Result {
 		let status: HTTPResponseStatus
+		let reason: String?
 
 		var succeeded: Bool {
 			status == .ok
 		}
 
 		var permanentlyInvalidToken: Bool {
-			status == .badRequest || status == .gone
+			[.badRequest, .unauthorized, .forbidden, .notFound, .gone].contains(status)
 		}
 	}
 
@@ -21,7 +23,8 @@ struct LiveActivityAPNSService {
 		to token: String,
 		isDebug: Bool,
 		attributes: SchoolDayActivityAttributesPayload,
-		projection: SchoolDayActivityProjection
+		projection: SchoolDayActivityProjection,
+		logger: Logger
 	) async throws -> Result {
 		let now = Int(Date().timeIntervalSince1970)
 		let payload = LiveActivityPayload(aps: .init(
@@ -33,12 +36,12 @@ struct LiveActivityAPNSService {
 			attributesType: "SchoolDayActivityAttributes",
 			attributes: attributes,
 			inputPushToken: 1,
-			alert: .init(title: "School day", body: projection.content.title)
+			alert: nil
 		))
-		return try await send(payload, to: token, isDebug: isDebug, priority: 10)
+		return try await send(payload, to: token, isDebug: isDebug, priority: 10, collapseID: "live-activity-\(attributes.activityKey)-start", logger: logger)
 	}
 
-	func sendUpdate(to token: String, isDebug: Bool, projection: SchoolDayActivityProjection) async throws -> Result {
+	func sendUpdate(to token: String, activityKey: String, isDebug: Bool, projection: SchoolDayActivityProjection, logger: Logger) async throws -> Result {
 		let payload = LiveActivityPayload(aps: .init(
 			timestamp: Int(Date().timeIntervalSince1970),
 			event: .update,
@@ -50,10 +53,10 @@ struct LiveActivityAPNSService {
 			inputPushToken: nil,
 			alert: nil
 		))
-		return try await send(payload, to: token, isDebug: isDebug, priority: 5)
+		return try await send(payload, to: token, isDebug: isDebug, priority: 5, collapseID: "live-activity-\(activityKey)-update", logger: logger)
 	}
 
-	func sendEnd(to token: String, isDebug: Bool, projection: SchoolDayActivityProjection) async throws -> Result {
+	func sendEnd(to token: String, activityKey: String, isDebug: Bool, projection: SchoolDayActivityProjection, logger: Logger) async throws -> Result {
 		let payload = LiveActivityPayload(aps: .init(
 			timestamp: Int(Date().timeIntervalSince1970),
 			event: .end,
@@ -65,10 +68,10 @@ struct LiveActivityAPNSService {
 			inputPushToken: nil,
 			alert: nil
 		))
-		return try await send(payload, to: token, isDebug: isDebug, priority: 5)
+		return try await send(payload, to: token, isDebug: isDebug, priority: 5, collapseID: "live-activity-\(activityKey)-end", logger: logger)
 	}
 
-	private func send(_ payload: LiveActivityPayload, to token: String, isDebug: Bool, priority: Int) async throws -> Result {
+	private func send(_ payload: LiveActivityPayload, to token: String, isDebug: Bool, priority: Int, collapseID: String, logger: Logger) async throws -> Result {
 		let config = try configuration()
 		let authorization = try await makeJWT(config: config)
 		let host = isDebug ? "api.sandbox.push.apple.com" : "api.push.apple.com"
@@ -77,11 +80,19 @@ struct LiveActivityAPNSService {
 		request.headers.add(name: "apns-push-type", value: "liveactivity")
 		request.headers.add(name: "apns-priority", value: String(priority))
 		request.headers.add(name: "apns-topic", value: "\(config.bundleId).push-type.liveactivity")
+		request.headers.add(name: "apns-collapse-id", value: collapseID)
 		request.headers.add(name: "authorization", value: "bearer \(authorization)")
 		let encoder = JSONEncoder()
 		encoder.dateEncodingStrategy = .secondsSince1970
 		request.body = try .bytes(ByteBuffer(data: encoder.encode(payload)))
-		return try await Result(status: APNSClient().send(request: request))
+		let response = try await APNSClient().send(request: request)
+		logger.info("APNs Live Activity response", metadata: [
+			"status": .stringConvertible(response.status.code),
+			"reason": .string(response.reason ?? "none"),
+			"collapse_id": .string(collapseID),
+			"event": .string(payload.aps.event.rawValue),
+		])
+		return Result(status: response.status, reason: response.reason)
 	}
 
 	private func configuration() throws -> APNSConfig {

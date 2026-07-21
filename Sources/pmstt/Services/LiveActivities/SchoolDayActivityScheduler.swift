@@ -87,7 +87,8 @@ struct SchoolDayActivityScheduler {
 				to: token,
 				isDebug: device.isDebug,
 				attributes: attributes,
-				projection: projection
+				projection: projection,
+				logger: logger
 			)
 			guard result.succeeded else {
 				try await claim.delete(on: database)
@@ -132,7 +133,7 @@ struct SchoolDayActivityScheduler {
 					guard let claim = try await claim(activity: activity, transition: .morning, database: database) else { continue }
 
 					let attributes = SchoolDayActivityAttributesPayload(activityKey: activity.activityKey, schoolDate: activity.schoolDate)
-					let result = try await apns.sendStart(to: token, isDebug: device.isDebug, attributes: attributes, projection: projection)
+					let result = try await apns.sendStart(to: token, isDebug: device.isDebug, attributes: attributes, projection: projection, logger: logger)
 					guard result.succeeded else {
 						try await claim.delete(on: database)
 						if result.permanentlyInvalidToken {
@@ -180,8 +181,8 @@ struct SchoolDayActivityScheduler {
 					let projection = projector.projection(for: transition, on: date, dayIndex: dayIndex, subjects: subjects)
 					guard let claim = try await claim(activity: activity, transition: transition, database: database) else { continue }
 					let result = transition == .finished
-						? try await apns.sendEnd(to: token, isDebug: device.isDebug, projection: projection)
-						: try await apns.sendUpdate(to: token, isDebug: device.isDebug, projection: projection)
+						? try await apns.sendEnd(to: token, activityKey: activity.activityKey, isDebug: device.isDebug, projection: projection, logger: logger)
+						: try await apns.sendUpdate(to: token, activityKey: activity.activityKey, isDebug: device.isDebug, projection: projection, logger: logger)
 
 					guard result.succeeded else {
 						try await claim.delete(on: database)

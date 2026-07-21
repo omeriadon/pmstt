@@ -56,6 +56,7 @@ struct SchoolNotificationScheduler {
 						title: content.title,
 						body: content.body,
 						threadID: dateKey,
+						collapseID: "school-\(dateKey)-\(event.id)",
 						to: userID,
 						on: database,
 						logger: logger

@@ -28,7 +28,7 @@ struct SchoolDayActivityCoordinator {
 			for activity in activities {
 				if let token = activity.updateToken {
 					do {
-						_ = try await apns.sendEnd(to: token, isDebug: device.isDebug, projection: projection)
+						_ = try await apns.sendEnd(to: token, activityKey: activity.activityKey, isDebug: device.isDebug, projection: projection, logger: logger)
 					} catch {
 						logger.report(error: error, metadata: ["live_activity_id": .string(activity.id?.uuidString ?? "unknown")])
 					}
