@@ -16,6 +16,7 @@ enum NotificationLeadTime: Int, Content, CaseIterable, Hashable {
 
 struct AccountSettings: Content, Hashable {
 	var liveActivitiesEnabled: Bool
+	var highlightsCurrentDay: Bool
 	var notificationsEnabled: Bool
 	var broadcastNotificationsEnabled: Bool
 	var notificationLeadTime: NotificationLeadTime
@@ -23,6 +24,7 @@ struct AccountSettings: Content, Hashable {
 	static var `default`: AccountSettings {
 		AccountSettings(
 			liveActivitiesEnabled: true,
+			highlightsCurrentDay: true,
 			notificationsEnabled: true,
 			broadcastNotificationsEnabled: true,
 			notificationLeadTime: .zero
@@ -36,6 +38,7 @@ extension AccountSettings {
 		let defaults = Self.default
 
 		liveActivitiesEnabled = try container.decodeIfPresent(Bool.self, forKey: .liveActivitiesEnabled) ?? defaults.liveActivitiesEnabled
+		highlightsCurrentDay = try container.decodeIfPresent(Bool.self, forKey: .highlightsCurrentDay) ?? defaults.highlightsCurrentDay
 		notificationsEnabled = try container.decodeIfPresent(Bool.self, forKey: .notificationsEnabled) ?? defaults.notificationsEnabled
 		broadcastNotificationsEnabled = try container.decodeIfPresent(Bool.self, forKey: .broadcastNotificationsEnabled) ?? defaults.broadcastNotificationsEnabled
 		notificationLeadTime = try container.decodeIfPresent(NotificationLeadTime.self, forKey: .notificationLeadTime) ?? defaults.notificationLeadTime

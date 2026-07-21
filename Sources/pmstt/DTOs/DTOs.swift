@@ -66,12 +66,14 @@ struct UpdateAccountRequest: Content {
 
 struct UpdateSettingsRequest: Content {
 	var liveActivitiesEnabled: Bool
+	var highlightsCurrentDay: Bool
 	var notificationsEnabled: Bool
 	var broadcastNotificationsEnabled: Bool
 	var notificationLeadTime: NotificationLeadTime
 
 	static let `default` = UpdateSettingsRequest(
 		liveActivitiesEnabled: true,
+		highlightsCurrentDay: true,
 		notificationsEnabled: true,
 		broadcastNotificationsEnabled: true,
 		notificationLeadTime: .zero
@@ -80,6 +82,7 @@ struct UpdateSettingsRequest: Content {
 	var accountSettings: AccountSettings {
 		AccountSettings(
 			liveActivitiesEnabled: liveActivitiesEnabled,
+			highlightsCurrentDay: highlightsCurrentDay,
 			notificationsEnabled: notificationsEnabled,
 			broadcastNotificationsEnabled: broadcastNotificationsEnabled,
 			notificationLeadTime: notificationLeadTime
@@ -103,6 +106,7 @@ extension UpdateSettingsRequest {
 			forKey: .liveActivitiesEnabled,
 			default: defaults.liveActivitiesEnabled
 		)
+		highlightsCurrentDay = try container.decodeIfPresent(Bool.self, forKey: .highlightsCurrentDay, default: defaults.highlightsCurrentDay)
 		notificationsEnabled = try container.decodeIfPresent(Bool.self, forKey: .notificationsEnabled, default: defaults.notificationsEnabled)
 		broadcastNotificationsEnabled = try container.decodeIfPresent(Bool.self, forKey: .broadcastNotificationsEnabled, default: defaults.broadcastNotificationsEnabled)
 		notificationLeadTime = try container.decodeIfPresent(NotificationLeadTime.self, forKey: .notificationLeadTime, default: defaults.notificationLeadTime)
