@@ -25,11 +25,12 @@ struct SharedTimetableController: RouteCollection {
 		}
 		let locator = try requireLocator(req)
 		let source = try await AuthoritativeTimetableResolver.resolvePublic(locator: locator, on: req.db)
+		let preview = try source.preview()
 		if req.headers.first(name: .accept)?.contains("text/html") == true {
-			return Self.browserFallback(locator: locator, title: source.preview().title)
+			return Self.browserFallback(locator: locator, title: preview.title)
 		}
 		let response = Response(status: .ok)
-		try response.content.encode(source.preview())
+		try response.content.encode(preview)
 		response.headers.cacheControl = .init(isPublic: true, maxAge: 30)
 		return response
 	}
