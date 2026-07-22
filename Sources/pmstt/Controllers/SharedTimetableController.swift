@@ -27,7 +27,7 @@ struct SharedTimetableController: RouteCollection {
 		let source = try await AuthoritativeTimetableResolver.resolvePublic(locator: locator, on: req.db)
 		let preview = try source.preview()
 		if req.headers.first(name: .accept)?.contains("text/html") == true {
-			return Self.browserFallback(locator: locator, title: preview.title)
+			return Self.browserFallback(locator: locator)
 		}
 		let response = Response(status: .ok)
 		try response.content.encode(preview)
@@ -199,29 +199,11 @@ struct SharedTimetableController: RouteCollection {
 		"https://timetable.adonis.pt/share/\(alias)"
 	}
 
-	private static func browserFallback(locator: String, title: String) -> Response {
-		let escapedTitle = htmlEscaped(title)
-		let escapedURL = htmlEscaped("timetable://share/\(locator)")
-		let response = Response(status: .ok)
-		response.headers.contentType = .html
+	private static func browserFallback(locator: String) -> Response {
+		let response = Response(status: .found)
+		response.headers.replaceOrAdd(name: .location, value: "timetable://share/\(locator)")
 		response.headers.cacheControl = .init(isPublic: true, maxAge: 30)
-		response.body = .init(string: """
-		<!doctype html>
-		<html lang="en">
-		<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Open in Timetable</title></head>
-		<body><main><h1>\(escapedTitle)</h1><p>Open this shared timetable in Timetable.</p><p><a href="\(escapedURL)">Open in Timetable</a></p></main></body>
-		</html>
-		""")
 		return response
-	}
-
-	private static func htmlEscaped(_ value: String) -> String {
-		value
-			.replacingOccurrences(of: "&", with: "&amp;")
-			.replacingOccurrences(of: "<", with: "&lt;")
-			.replacingOccurrences(of: ">", with: "&gt;")
-			.replacingOccurrences(of: "\"", with: "&quot;")
-			.replacingOccurrences(of: "'", with: "&#39;")
 	}
 
 	private func tombstone(for relationship: ReceivedTimetableImport) throws -> AuthoritativeReceivedTimetableDTO {
