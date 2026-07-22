@@ -23,9 +23,10 @@ struct SharedTimetableController: RouteCollection {
 		guard await SharedTimetableRateLimiter.shared.allow(key: "public:\(key)", limit: 120, window: 60) else {
 			throw AppError(.tooManyRequests, code: .rateLimited, reason: "Too many timetable preview requests.")
 		}
-		let source = try await AuthoritativeTimetableResolver.resolvePublic(locator: requireLocator(req), on: req.db)
+		let locator = try requireLocator(req)
+		let source = try await AuthoritativeTimetableResolver.resolvePublic(locator: locator, on: req.db)
 		if req.headers.first(name: .accept)?.contains("text/html") == true {
-			return Self.browserFallback(locator: requireLocator(req), title: source.preview().title)
+			return Self.browserFallback(locator: locator, title: source.preview().title)
 		}
 		let response = Response(status: .ok)
 		try response.content.encode(source.preview())
