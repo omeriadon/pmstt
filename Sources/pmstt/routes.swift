@@ -10,10 +10,9 @@ func routes(_ app: Application) throws {
 		  "applinks": {
 		    "details": [
 		      {
-		        "appID": "P6PV2R9443.com.omeriadon.Timetable",
+		        "appIDs": ["P6PV2R9443.com.omeriadon.Timetable"],
 		        "components": [
-		          { "/": "/share/*" },
-		          { "/": "/sharedtimetable/*" }
+		          { "/": "/*" }
 		        ]
 		      }
 		    ]
