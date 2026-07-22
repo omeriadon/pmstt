@@ -1,6 +1,28 @@
 import Vapor
 
 func routes(_ app: Application) throws {
+	app.get(".well-known", "apple-app-site-association") { _ -> Response in
+		let response = Response(status: .ok)
+		response.headers.contentType = .json
+		response.headers.replaceOrAdd(name: "Cache-Control", value: "public, max-age=3600")
+		response.body = .init(string: """
+		{
+		  "applinks": {
+		    "details": [
+		      {
+		        "appID": "P6PV2R9443.com.omeriadon.Timetable",
+		        "components": [
+		          { "/": "/share/*" },
+		          { "/": "/sharedtimetable/*" }
+		        ]
+		      }
+		    ]
+		  }
+		}
+		""")
+		return response
+	}
+
 	app.get("health") { req async -> HealthResponse in
 		req.logger.debug("Health check completed")
 		return HealthResponse(

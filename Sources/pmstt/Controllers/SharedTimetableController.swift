@@ -6,6 +6,7 @@ import Vapor
 struct SharedTimetableController: RouteCollection {
 	func boot(routes: any RoutesBuilder) throws {
 		routes.get("share", ":locator", use: publicPreview)
+		routes.get("sharedtimetable", ":locator", use: publicPreview)
 		let protected = routes.grouped(SessionAuthenticator(), UserPayload.guardMiddleware(), CapabilityMiddleware())
 		protected.get("v1", "shared-timetables", ":locator", use: authenticatedPreview)
 		protected.get("v1", "timetables", "owner", "share-alias", use: getAlias)
@@ -23,6 +24,9 @@ struct SharedTimetableController: RouteCollection {
 			throw AppError(.tooManyRequests, code: .rateLimited, reason: "Too many timetable preview requests.")
 		}
 		let source = try await AuthoritativeTimetableResolver.resolvePublic(locator: requireLocator(req), on: req.db)
+		if req.headers.first(name: .accept)?.contains("text/html") == true {
+			return Self.browserFallback(locator: requireLocator(req), title: source.preview().title)
+		}
 		let response = Response(status: .ok)
 		try response.content.encode(source.preview())
 		response.headers.cacheControl = .init(isPublic: true, maxAge: 30)
@@ -191,6 +195,31 @@ struct SharedTimetableController: RouteCollection {
 
 	private static func shareURL(for alias: String) -> String {
 		"https://timetable.adonis.pt/share/\(alias)"
+	}
+
+	private static func browserFallback(locator: String, title: String) -> Response {
+		let escapedTitle = htmlEscaped(title)
+		let escapedURL = htmlEscaped("timetable://share/\(locator)")
+		let response = Response(status: .ok)
+		response.headers.contentType = .html
+		response.headers.cacheControl = .init(isPublic: true, maxAge: 30)
+		response.body = .init(string: """
+		<!doctype html>
+		<html lang="en">
+		<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Open in Timetable</title></head>
+		<body><main><h1>\(escapedTitle)</h1><p>Open this shared timetable in Timetable.</p><p><a href="\(escapedURL)">Open in Timetable</a></p></main></body>
+		</html>
+		""")
+		return response
+	}
+
+	private static func htmlEscaped(_ value: String) -> String {
+		value
+			.replacingOccurrences(of: "&", with: "&amp;")
+			.replacingOccurrences(of: "<", with: "&lt;")
+			.replacingOccurrences(of: ">", with: "&gt;")
+			.replacingOccurrences(of: "\"", with: "&quot;")
+			.replacingOccurrences(of: "'", with: "&#39;")
 	}
 
 	private func tombstone(for relationship: ReceivedTimetableImport) throws -> AuthoritativeReceivedTimetableDTO {
