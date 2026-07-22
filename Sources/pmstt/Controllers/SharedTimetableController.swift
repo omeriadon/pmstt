@@ -5,7 +5,7 @@ import Vapor
 
 struct SharedTimetableController: RouteCollection {
 	func boot(routes: any RoutesBuilder) throws {
-		routes.get("sharedtimetable", ":locator", use: publicPreview)
+		routes.get("share", ":locator", use: publicPreview)
 		let protected = routes.grouped(SessionAuthenticator(), UserPayload.guardMiddleware(), CapabilityMiddleware())
 		protected.get("v1", "shared-timetables", ":locator", use: authenticatedPreview)
 		protected.get("v1", "timetables", "owner", "share-alias", use: getAlias)
@@ -190,7 +190,7 @@ struct SharedTimetableController: RouteCollection {
 	}
 
 	private static func shareURL(for alias: String) -> String {
-		"https://timetable.adonis.pt/sharedtimetable/\(alias)"
+		"https://timetable.adonis.pt/share/\(alias)"
 	}
 
 	private func tombstone(for relationship: ReceivedTimetableImport) throws -> AuthoritativeReceivedTimetableDTO {

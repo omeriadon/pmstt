@@ -11,7 +11,7 @@ final class SharedTimetableIntegrationTests: XCTestCase, @unchecked Sendable {
 	func testSearchablePreviewIsBoundedAndMalformedUUIDIsIndistinguishable() async throws {
 		let (app, owner, timetable) = try await makeFixture(platform: .iOS)
 
-		let preview = try await request(app, .GET, "/sharedtimetable/\(timetable.id!.uuidString)")
+		let preview = try await request(app, .GET, "/share/\(timetable.id!.uuidString)")
 		XCTAssertEqual(preview.status, .ok)
 		let decoded = try preview.content.decode(SharedTimetablePreview.self)
 		XCTAssertEqual(decoded.authorAccountID, owner.user.id)
@@ -19,7 +19,7 @@ final class SharedTimetableIntegrationTests: XCTestCase, @unchecked Sendable {
 		var previewBody = preview.body
 		XCTAssertFalse(previewBody.readString(length: previewBody.readableBytes)?.contains("subjectsData") ?? true)
 
-		let malformed = try await request(app, .GET, "/sharedtimetable/not-a-uuid")
+		let malformed = try await request(app, .GET, "/share/not-a-uuid")
 		XCTAssertEqual(malformed.status, .notFound)
 	}
 
@@ -28,7 +28,7 @@ final class SharedTimetableIntegrationTests: XCTestCase, @unchecked Sendable {
 		let claim = try await request(app, .PUT, "/v1/timetables/owner/share-alias", token: owner.accessToken, body: TimetableShareAliasUpdateRequest(alias: "Adon-Home"))
 		XCTAssertEqual(claim.status, .ok)
 		XCTAssertEqual(try claim.content.decode(TimetableShareAliasResponse.self).alias, "adon-home")
-		let preview = try await request(app, .GET, "/sharedtimetable/adon-home")
+		let preview = try await request(app, .GET, "/share/adon-home")
 		XCTAssertEqual(preview.status, .ok)
 		let importer = try await register(app, platform: .iOS)
 		let imported = try await request(app, .POST, "/v1/timetables/received/import", token: importer.accessToken, body: ReceivedTimetableImportRequest(timetableLocator: "ADON-HOME"))
@@ -40,7 +40,7 @@ final class SharedTimetableIntegrationTests: XCTestCase, @unchecked Sendable {
 		XCTAssertEqual(taken.status, .conflict)
 		let removed = try await request(app, .DELETE, "/v1/timetables/owner/share-alias", token: owner.accessToken)
 		XCTAssertEqual(removed.status, .noContent)
-		let oldPreview = try await request(app, .GET, "/sharedtimetable/adon-home")
+		let oldPreview = try await request(app, .GET, "/share/adon-home")
 		XCTAssertEqual(oldPreview.status, .notFound)
 	}
 
@@ -63,7 +63,7 @@ final class SharedTimetableIntegrationTests: XCTestCase, @unchecked Sendable {
 
 		timetable.isSearchable = false
 		try await timetable.save(on: app.db(.sqlite))
-		let privatePreview = try await request(app, .GET, "/sharedtimetable/\(timetable.id!.uuidString)")
+		let privatePreview = try await request(app, .GET, "/share/\(timetable.id!.uuidString)")
 		XCTAssertEqual(privatePreview.status, .notFound)
 
 		let ipad = try await register(app, platform: .iPadOS)
