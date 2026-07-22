@@ -81,6 +81,7 @@ struct LiveActivityAPNSService {
 		request.headers.add(name: "apns-priority", value: String(priority))
 		request.headers.add(name: "apns-topic", value: "\(config.bundleId).push-type.liveactivity")
 		request.headers.add(name: "apns-collapse-id", value: collapseID)
+		request.headers.add(name: "apns-expiration", value: String(schoolDayExpiration()))
 		request.headers.add(name: "authorization", value: "bearer \(authorization)")
 		let encoder = JSONEncoder()
 		encoder.dateEncodingStrategy = .secondsSince1970
@@ -93,6 +94,17 @@ struct LiveActivityAPNSService {
 			"event": .string(payload.aps.event.rawValue),
 		])
 		return Result(status: response.status, reason: response.reason)
+	}
+
+	private func schoolDayExpiration(now: Date = .now) -> Int {
+		let calendar = SchoolCalendar.configured.calendar
+		let dismissal = calendar.date(
+			bySettingHour: 15,
+			minute: 30,
+			second: 0,
+			of: now
+		) ?? now
+		return Int(max(now, dismissal).timeIntervalSince1970)
 	}
 
 	private func configuration() throws -> APNSConfig {
