@@ -97,10 +97,7 @@ struct NotificationSettingsUpdateRequest: Content {
 }
 
 extension NotificationSettingsUpdateRequest {
-	enum CodingKeys: String, CodingKey {
-		case notificationsEnabled
-		case broadcastNotificationsEnabled
-		case notificationLeadTimes
+	private enum LegacyCodingKeys: String, CodingKey {
 		case notificationLeadTime
 	}
 
@@ -110,7 +107,7 @@ extension NotificationSettingsUpdateRequest {
 		broadcastNotificationsEnabled = try container.decode(Bool.self, forKey: .broadcastNotificationsEnabled)
 		if let leadTimes = try container.decodeIfPresent(Set<NotificationLeadTime>.self, forKey: .notificationLeadTimes) {
 			notificationLeadTimes = leadTimes
-		} else if let legacyLeadTime = try container.decodeIfPresent(NotificationLeadTime.self, forKey: .notificationLeadTime) {
+		} else if let legacyLeadTime = try decoder.container(keyedBy: LegacyCodingKeys.self).decodeIfPresent(NotificationLeadTime.self, forKey: .notificationLeadTime) {
 			notificationLeadTimes = [legacyLeadTime]
 		} else {
 			notificationLeadTimes = AccountSettings.default.notificationLeadTimes
@@ -119,12 +116,7 @@ extension NotificationSettingsUpdateRequest {
 }
 
 extension UpdateSettingsRequest {
-	enum CodingKeys: String, CodingKey {
-		case liveActivitiesEnabled
-		case highlightsCurrentDay
-		case notificationsEnabled
-		case broadcastNotificationsEnabled
-		case notificationLeadTimes
+	private enum LegacyCodingKeys: String, CodingKey {
 		case notificationLeadTime
 	}
 
@@ -142,7 +134,7 @@ extension UpdateSettingsRequest {
 		broadcastNotificationsEnabled = try container.decodeIfPresent(Bool.self, forKey: .broadcastNotificationsEnabled, default: defaults.broadcastNotificationsEnabled)
 		if let leadTimes = try container.decodeIfPresent(Set<NotificationLeadTime>.self, forKey: .notificationLeadTimes) {
 			notificationLeadTimes = leadTimes
-		} else if let legacyLeadTime = try container.decodeIfPresent(NotificationLeadTime.self, forKey: .notificationLeadTime) {
+		} else if let legacyLeadTime = try decoder.container(keyedBy: LegacyCodingKeys.self).decodeIfPresent(NotificationLeadTime.self, forKey: .notificationLeadTime) {
 			notificationLeadTimes = [legacyLeadTime]
 		} else {
 			notificationLeadTimes = defaults.notificationLeadTimes

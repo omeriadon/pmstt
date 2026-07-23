@@ -33,12 +33,7 @@ struct AccountSettings: Content, Hashable {
 }
 
 extension AccountSettings {
-	enum CodingKeys: String, CodingKey {
-		case liveActivitiesEnabled
-		case highlightsCurrentDay
-		case notificationsEnabled
-		case broadcastNotificationsEnabled
-		case notificationLeadTimes
+	private enum LegacyCodingKeys: String, CodingKey {
 		case notificationLeadTime
 	}
 
@@ -52,7 +47,7 @@ extension AccountSettings {
 		broadcastNotificationsEnabled = try container.decodeIfPresent(Bool.self, forKey: .broadcastNotificationsEnabled) ?? defaults.broadcastNotificationsEnabled
 		if let leadTimes = try container.decodeIfPresent(Set<NotificationLeadTime>.self, forKey: .notificationLeadTimes) {
 			notificationLeadTimes = leadTimes
-		} else if let legacyLeadTime = try container.decodeIfPresent(NotificationLeadTime.self, forKey: .notificationLeadTime) {
+		} else if let legacyLeadTime = try decoder.container(keyedBy: LegacyCodingKeys.self).decodeIfPresent(NotificationLeadTime.self, forKey: .notificationLeadTime) {
 			notificationLeadTimes = [legacyLeadTime]
 		} else {
 			notificationLeadTimes = defaults.notificationLeadTimes
