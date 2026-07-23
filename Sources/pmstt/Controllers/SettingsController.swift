@@ -40,7 +40,7 @@ struct SettingsController: RouteCollection {
 		var settings = try decodeSettings(for: user)
 		settings.notificationsEnabled = update.notificationsEnabled
 		settings.broadcastNotificationsEnabled = update.broadcastNotificationsEnabled
-		settings.notificationLeadTime = update.notificationLeadTime
+		settings.notificationLeadTimes = update.notificationLeadTimes
 		user.settingsData = try JSONEncoder().encode(settings)
 		try await user.save(on: req.db)
 		return settings

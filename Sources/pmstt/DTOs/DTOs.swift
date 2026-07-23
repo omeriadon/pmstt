@@ -69,14 +69,14 @@ struct UpdateSettingsRequest: Content {
 	var highlightsCurrentDay: Bool
 	var notificationsEnabled: Bool
 	var broadcastNotificationsEnabled: Bool
-	var notificationLeadTime: NotificationLeadTime
+	var notificationLeadTimes: Set<NotificationLeadTime>
 
 	static let `default` = UpdateSettingsRequest(
 		liveActivitiesEnabled: true,
 		highlightsCurrentDay: true,
 		notificationsEnabled: true,
 		broadcastNotificationsEnabled: true,
-		notificationLeadTime: .zero
+		notificationLeadTimes: [.zero]
 	)
 
 	var accountSettings: AccountSettings {
@@ -85,7 +85,7 @@ struct UpdateSettingsRequest: Content {
 			highlightsCurrentDay: highlightsCurrentDay,
 			notificationsEnabled: notificationsEnabled,
 			broadcastNotificationsEnabled: broadcastNotificationsEnabled,
-			notificationLeadTime: notificationLeadTime
+			notificationLeadTimes: notificationLeadTimes
 		)
 	}
 }
@@ -93,7 +93,22 @@ struct UpdateSettingsRequest: Content {
 struct NotificationSettingsUpdateRequest: Content {
 	let notificationsEnabled: Bool
 	let broadcastNotificationsEnabled: Bool
-	let notificationLeadTime: NotificationLeadTime
+	let notificationLeadTimes: Set<NotificationLeadTime>
+}
+
+extension NotificationSettingsUpdateRequest {
+	init(from decoder: any Decoder) throws {
+		let container = try decoder.container(keyedBy: CodingKeys.self)
+		notificationsEnabled = try container.decode(Bool.self, forKey: .notificationsEnabled)
+		broadcastNotificationsEnabled = try container.decode(Bool.self, forKey: .broadcastNotificationsEnabled)
+		if let leadTimes = try container.decodeIfPresent(Set<NotificationLeadTime>.self, forKey: .notificationLeadTimes) {
+			notificationLeadTimes = leadTimes
+		} else if let legacyLeadTime = try container.decodeIfPresent(NotificationLeadTime.self, forKey: .notificationLeadTime) {
+			notificationLeadTimes = [legacyLeadTime]
+		} else {
+			notificationLeadTimes = AccountSettings.default.notificationLeadTimes
+		}
+	}
 }
 
 extension UpdateSettingsRequest {
@@ -109,7 +124,13 @@ extension UpdateSettingsRequest {
 		highlightsCurrentDay = try container.decodeIfPresent(Bool.self, forKey: .highlightsCurrentDay, default: defaults.highlightsCurrentDay)
 		notificationsEnabled = try container.decodeIfPresent(Bool.self, forKey: .notificationsEnabled, default: defaults.notificationsEnabled)
 		broadcastNotificationsEnabled = try container.decodeIfPresent(Bool.self, forKey: .broadcastNotificationsEnabled, default: defaults.broadcastNotificationsEnabled)
-		notificationLeadTime = try container.decodeIfPresent(NotificationLeadTime.self, forKey: .notificationLeadTime, default: defaults.notificationLeadTime)
+		if let leadTimes = try container.decodeIfPresent(Set<NotificationLeadTime>.self, forKey: .notificationLeadTimes) {
+			notificationLeadTimes = leadTimes
+		} else if let legacyLeadTime = try container.decodeIfPresent(NotificationLeadTime.self, forKey: .notificationLeadTime) {
+			notificationLeadTimes = [legacyLeadTime]
+		} else {
+			notificationLeadTimes = defaults.notificationLeadTimes
+		}
 	}
 }
 

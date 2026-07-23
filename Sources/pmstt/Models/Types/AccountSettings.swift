@@ -19,7 +19,7 @@ struct AccountSettings: Content, Hashable {
 	var highlightsCurrentDay: Bool
 	var notificationsEnabled: Bool
 	var broadcastNotificationsEnabled: Bool
-	var notificationLeadTime: NotificationLeadTime
+	var notificationLeadTimes: Set<NotificationLeadTime>
 
 	static var `default`: AccountSettings {
 		AccountSettings(
@@ -27,7 +27,7 @@ struct AccountSettings: Content, Hashable {
 			highlightsCurrentDay: true,
 			notificationsEnabled: true,
 			broadcastNotificationsEnabled: true,
-			notificationLeadTime: .zero
+			notificationLeadTimes: [.zero]
 		)
 	}
 }
@@ -41,6 +41,12 @@ extension AccountSettings {
 		highlightsCurrentDay = try container.decodeIfPresent(Bool.self, forKey: .highlightsCurrentDay) ?? defaults.highlightsCurrentDay
 		notificationsEnabled = try container.decodeIfPresent(Bool.self, forKey: .notificationsEnabled) ?? defaults.notificationsEnabled
 		broadcastNotificationsEnabled = try container.decodeIfPresent(Bool.self, forKey: .broadcastNotificationsEnabled) ?? defaults.broadcastNotificationsEnabled
-		notificationLeadTime = try container.decodeIfPresent(NotificationLeadTime.self, forKey: .notificationLeadTime) ?? defaults.notificationLeadTime
+		if let leadTimes = try container.decodeIfPresent(Set<NotificationLeadTime>.self, forKey: .notificationLeadTimes) {
+			notificationLeadTimes = leadTimes
+		} else if let legacyLeadTime = try container.decodeIfPresent(NotificationLeadTime.self, forKey: .notificationLeadTime) {
+			notificationLeadTimes = [legacyLeadTime]
+		} else {
+			notificationLeadTimes = defaults.notificationLeadTimes
+		}
 	}
 }

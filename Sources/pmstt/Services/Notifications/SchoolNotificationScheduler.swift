@@ -33,34 +33,37 @@ struct SchoolNotificationScheduler {
 				do {
 					guard let user = try await User.find(userID, on: database) else { continue }
 					let settings = try JSONDecoder().decode(AccountSettings.self, from: user.settingsData)
-					guard settings.notificationsEnabled,
-					      event.isDue(hour: schoolCalendar.calendar.component(.hour, from: date),
-					                  minute: schoolCalendar.calendar.component(.minute, from: date),
-					                  leadMinutes: settings.notificationLeadTime.minutes)
-					else { continue }
+					guard settings.notificationsEnabled else { continue }
 
-					let dateKey = schoolDateKey(date)
-					guard try await claimDelivery(userID: userID, schoolDate: dateKey, event: event.id, database: database) else { continue }
+					for leadTime in settings.notificationLeadTimes where event.isDue(
+						hour: schoolCalendar.calendar.component(.hour, from: date),
+						minute: schoolCalendar.calendar.component(.minute, from: date),
+						leadMinutes: leadTime.minutes
+					) {
+						let dateKey = schoolDateKey(date)
+						let deliveryEvent = event == .morning ? event.id : "\(event.id)-\(leadTime.minutes)"
+						guard try await claimDelivery(userID: userID, schoolDate: dateKey, event: deliveryEvent, database: database) else { continue }
 
-					guard let timetable = try await OwnerTimetable.query(on: database)
-						.filter(\.$user.$id == userID)
-						.first()
-					else {
-						logger.warning("Skipping scheduled notification because the owner timetable is missing", metadata: ["user_id": .string(userID.uuidString)])
-						continue
+						guard let timetable = try await OwnerTimetable.query(on: database)
+							.filter(\.$user.$id == userID)
+							.first()
+						else {
+							logger.warning("Skipping scheduled notification because the owner timetable is missing", metadata: ["user_id": .string(userID.uuidString)])
+							continue
+						}
+
+						let subjects = try JSONDecoder().decode([TimetableSubjectDTO].self, from: timetable.subjectsData)
+						let content = event.content(dayIndex: dayIndex, subjects: subjects, leadMinutes: leadTime.minutes)
+						_ = try await NotificationService().send(
+							title: content.title,
+							body: content.body,
+							threadID: dateKey,
+							collapseID: "school-\(dateKey)-\(deliveryEvent)",
+							to: userID,
+							on: database,
+							logger: logger
+						)
 					}
-
-					let subjects = try JSONDecoder().decode([TimetableSubjectDTO].self, from: timetable.subjectsData)
-					let content = event.content(dayIndex: dayIndex, subjects: subjects, leadMinutes: settings.notificationLeadTime.minutes)
-					_ = try await NotificationService().send(
-						title: content.title,
-						body: content.body,
-						threadID: dateKey,
-						collapseID: "school-\(dateKey)-\(event.id)",
-						to: userID,
-						on: database,
-						logger: logger
-					)
 				} catch {
 					logger.report(error: error, metadata: ["school_notification_user_id": .string(userID.uuidString), "event": .string(event.id)])
 				}
