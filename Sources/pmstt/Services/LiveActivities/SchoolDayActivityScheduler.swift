@@ -41,6 +41,7 @@ struct SchoolDayActivityScheduler {
 
 	func startCurrentActivity(
 		for device: UserDevice,
+		localActivityKeys: Set<String>?,
 		at date: Date,
 		database: any Database,
 		logger: Logger
@@ -57,12 +58,23 @@ struct SchoolDayActivityScheduler {
 
 		let deviceID = try device.requireID()
 		let schoolDate = schoolDateKey(date)
-		let existingActivity = try await SchoolDayLiveActivity.query(on: database)
+		let existingActivities = try await SchoolDayLiveActivity.query(on: database)
 			.filter(\.$userDevice.$id == deviceID)
 			.filter(\.$schoolDate == schoolDate)
 			.filter(\.$status == .active)
-			.first()
-		guard existingActivity == nil else { return false }
+			.all()
+		if let localActivityKeys {
+			guard !existingActivities.contains(where: { localActivityKeys.contains($0.activityKey) }) else { return false }
+		} else {
+			guard existingActivities.isEmpty else { return false }
+		}
+
+		for activity in existingActivities {
+			activity.status = .ended
+			activity.currentTransition = SchoolDayTransition.finished.rawValue
+			activity.lastAPNSTimestamp = date
+			try await activity.save(on: database)
+		}
 
 		let subjects = try JSONDecoder().decode([TimetableSubjectDTO].self, from: timetable.subjectsData)
 		let projection = projector.projection(for: transition, on: date, dayIndex: dayIndex, subjects: subjects)

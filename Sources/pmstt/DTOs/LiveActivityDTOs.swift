@@ -18,6 +18,7 @@ struct LiveActivityUpdateTokenRequest: Content {
 
 struct ReconcileLiveActivityRequest: Content {
 	let installationID: String
+	let activeActivityKeys: [String]?
 }
 
 struct ReconcileLiveActivityResponse: Content {

@@ -98,6 +98,7 @@ struct LiveActivityController: RouteCollection {
 
 		let started = try await SchoolDayActivityScheduler().startCurrentActivity(
 			for: device,
+			localActivityKeys: body.activeActivityKeys.map(Set.init),
 			at: Date(),
 			database: req.db,
 			logger: req.logger
