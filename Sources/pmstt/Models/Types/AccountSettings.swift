@@ -33,6 +33,15 @@ struct AccountSettings: Content, Hashable {
 }
 
 extension AccountSettings {
+	enum CodingKeys: String, CodingKey {
+		case liveActivitiesEnabled
+		case highlightsCurrentDay
+		case notificationsEnabled
+		case broadcastNotificationsEnabled
+		case notificationLeadTimes
+		case notificationLeadTime
+	}
+
 	init(from decoder: any Decoder) throws {
 		let container = try decoder.container(keyedBy: CodingKeys.self)
 		let defaults = Self.default

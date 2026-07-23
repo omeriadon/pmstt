@@ -97,6 +97,13 @@ struct NotificationSettingsUpdateRequest: Content {
 }
 
 extension NotificationSettingsUpdateRequest {
+	enum CodingKeys: String, CodingKey {
+		case notificationsEnabled
+		case broadcastNotificationsEnabled
+		case notificationLeadTimes
+		case notificationLeadTime
+	}
+
 	init(from decoder: any Decoder) throws {
 		let container = try decoder.container(keyedBy: CodingKeys.self)
 		notificationsEnabled = try container.decode(Bool.self, forKey: .notificationsEnabled)
@@ -112,6 +119,15 @@ extension NotificationSettingsUpdateRequest {
 }
 
 extension UpdateSettingsRequest {
+	enum CodingKeys: String, CodingKey {
+		case liveActivitiesEnabled
+		case highlightsCurrentDay
+		case notificationsEnabled
+		case broadcastNotificationsEnabled
+		case notificationLeadTimes
+		case notificationLeadTime
+	}
+
 	init(from decoder: any Decoder) throws {
 		let container = try decoder.container(keyedBy: CodingKeys.self)
 		let defaults = Self.default
