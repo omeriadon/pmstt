@@ -27,6 +27,14 @@ struct SchoolDayActivityScheduler {
 	}
 
 	func tick(at date: Date, database: any Database, logger: Logger) async {
+		await endActivities(
+			at: date,
+			dayIndex: schoolCalendar.dayIndex(for: date) ?? 0,
+			includeCurrentSchoolDate: false,
+			database: database,
+			logger: logger
+		)
+
 		guard schoolCalendar.isSchoolDay(date),
 		      let dayIndex = schoolCalendar.dayIndex(for: date)
 		else { return }
