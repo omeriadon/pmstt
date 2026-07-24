@@ -91,7 +91,6 @@ struct LiveActivityAPNSService {
 		request.headers.add(name: "apns-expiration", value: String(schoolDayExpiration()))
 		request.headers.add(name: "authorization", value: "bearer \(authorization)")
 		let encoder = JSONEncoder()
-		encoder.dateEncodingStrategy = .secondsSince1970
 		request.body = try .bytes(ByteBuffer(data: encoder.encode(payload)))
 		let response = try await APNSClient().send(request: request)
 		logger.info("APNs Live Activity response", metadata: [
