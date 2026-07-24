@@ -38,7 +38,7 @@ struct LiveActivityAPNSService {
 			inputPushToken: 1,
 			alert: alert(for: projection)
 		))
-		return try await send(payload, to: token, isDebug: isDebug, priority: 10, collapseID: "live-activity-\(attributes.activityKey)-start", logger: logger)
+		return try await send(payload, to: token, isDebug: isDebug, priority: 10, collapseID: "live-activity-\(attributes.activityKey)-start", expiration: schoolDayExpiration(), logger: logger)
 	}
 
 	func sendUpdate(to token: String, activityKey: String, isDebug: Bool, projection: SchoolDayActivityProjection, logger: Logger) async throws -> Result {
@@ -53,22 +53,31 @@ struct LiveActivityAPNSService {
 			inputPushToken: nil,
 			alert: alert(for: projection)
 		))
-		return try await send(payload, to: token, isDebug: isDebug, priority: 10, collapseID: "live-activity-\(activityKey)-update", logger: logger)
+		return try await send(payload, to: token, isDebug: isDebug, priority: 10, collapseID: "live-activity-\(activityKey)-update", expiration: schoolDayExpiration(), logger: logger)
 	}
 
 	func sendEnd(to token: String, activityKey: String, isDebug: Bool, projection: SchoolDayActivityProjection, logger: Logger) async throws -> Result {
+		let sentAt = Date()
 		let payload = LiveActivityPayload(aps: .init(
-			timestamp: Int(Date().timeIntervalSince1970),
+			timestamp: Int(sentAt.timeIntervalSince1970),
 			event: .end,
 			contentState: projection.content,
 			staleDate: nil,
-			dismissalDate: Int(Date().addingTimeInterval(30 * 60).timeIntervalSince1970),
+			dismissalDate: Int(sentAt.timeIntervalSince1970),
 			attributesType: nil,
 			attributes: nil,
 			inputPushToken: nil,
 			alert: nil
 		))
-		return try await send(payload, to: token, isDebug: isDebug, priority: 5, collapseID: "live-activity-\(activityKey)-end", logger: logger)
+		return try await send(
+			payload,
+			to: token,
+			isDebug: isDebug,
+			priority: 10,
+			collapseID: "live-activity-\(activityKey)-end",
+			expiration: Int(sentAt.addingTimeInterval(3 * 60).timeIntervalSince1970),
+			logger: logger
+		)
 	}
 
 	private func alert(for projection: SchoolDayActivityProjection) -> LiveActivityPayload.Alert {
@@ -78,7 +87,7 @@ struct LiveActivityAPNSService {
 		)
 	}
 
-	private func send(_ payload: LiveActivityPayload, to token: String, isDebug: Bool, priority: Int, collapseID: String, logger: Logger) async throws -> Result {
+	private func send(_ payload: LiveActivityPayload, to token: String, isDebug: Bool, priority: Int, collapseID: String, expiration: Int, logger: Logger) async throws -> Result {
 		let config = try configuration()
 		let authorization = try await makeJWT(config: config)
 		let host = isDebug ? "api.sandbox.push.apple.com" : "api.push.apple.com"
@@ -88,7 +97,7 @@ struct LiveActivityAPNSService {
 		request.headers.add(name: "apns-priority", value: String(priority))
 		request.headers.add(name: "apns-topic", value: "\(config.bundleId).push-type.liveactivity")
 		request.headers.add(name: "apns-collapse-id", value: collapseID)
-		request.headers.add(name: "apns-expiration", value: String(schoolDayExpiration()))
+		request.headers.add(name: "apns-expiration", value: String(expiration))
 		request.headers.add(name: "authorization", value: "bearer \(authorization)")
 		let encoder = JSONEncoder()
 		request.body = try .bytes(ByteBuffer(data: encoder.encode(payload)))

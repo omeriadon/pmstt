@@ -28,9 +28,26 @@ struct SchoolDayActivityScheduler {
 
 	func tick(at date: Date, database: any Database, logger: Logger) async {
 		guard schoolCalendar.isSchoolDay(date),
-		      let transition = SchoolDayTransition.due(at: date, calendar: schoolCalendar.calendar),
 		      let dayIndex = schoolCalendar.dayIndex(for: date)
 		else { return }
+
+		let hasReachedDismissal = SchoolDayTransition.hasReachedDismissal(
+			at: date,
+			dayIndex: dayIndex,
+			calendar: schoolCalendar.calendar
+		)
+		await endActivities(
+			at: date,
+			dayIndex: dayIndex,
+			includeCurrentSchoolDate: hasReachedDismissal,
+			database: database,
+			logger: logger
+		)
+		if hasReachedDismissal {
+			return
+		}
+
+		guard let transition = SchoolDayTransition.due(at: date, dayIndex: dayIndex, calendar: schoolCalendar.calendar) else { return }
 
 		if transition == .morning {
 			await startActivities(at: date, dayIndex: dayIndex, database: database, logger: logger)
@@ -47,9 +64,9 @@ struct SchoolDayActivityScheduler {
 		logger: Logger
 	) async throws -> Bool {
 		guard schoolCalendar.isSchoolDay(date),
-		      let transition = SchoolDayTransition.current(at: date, calendar: schoolCalendar.calendar),
-		      transition != .finished,
 		      let dayIndex = schoolCalendar.dayIndex(for: date),
+		      let transition = SchoolDayTransition.current(at: date, dayIndex: dayIndex, calendar: schoolCalendar.calendar),
+		      transition != .finished,
 		      let token = device.liveActivityPushToStartToken,
 		      let user = try await User.find(device.$user.id, on: database),
 		      try JSONDecoder().decode(AccountSettings.self, from: user.settingsData).liveActivitiesEnabled,
@@ -218,6 +235,65 @@ struct SchoolDayActivityScheduler {
 			}
 		} catch {
 			logger.report(error: error, metadata: ["live_activity_transition": .string(transition.rawValue)])
+		}
+	}
+
+	private func endActivities(
+		at date: Date,
+		dayIndex: Int,
+		includeCurrentSchoolDate: Bool,
+		database: any Database,
+		logger: Logger
+	) async {
+		do {
+			let activities = try await SchoolDayLiveActivity.query(on: database)
+				.filter(\.$status == .active)
+				.with(\.$userDevice)
+				.all()
+			let projection = projector.projection(for: .finished, on: date, dayIndex: dayIndex, subjects: [])
+			let currentSchoolDate = schoolDateKey(date)
+
+			for activity in activities
+				where includeCurrentSchoolDate || activity.schoolDate != currentSchoolDate
+			{
+				let device = activity.userDevice
+				guard let token = activity.updateToken else {
+					logger.warning(
+						"Cannot end Live Activity until its update token is registered",
+						metadata: ["activity_key": .string(activity.activityKey)]
+					)
+					continue
+				}
+
+				do {
+					let result = try await apns.sendEnd(
+						to: token,
+						activityKey: activity.activityKey,
+						isDebug: device.isDebug,
+						projection: projection,
+						logger: logger
+					)
+
+					guard result.succeeded || result.permanentlyInvalidToken else { continue }
+					if result.permanentlyInvalidToken {
+						activity.updateToken = nil
+					}
+					activity.status = .ended
+					activity.currentTransition = SchoolDayTransition.finished.rawValue
+					activity.lastAPNSTimestamp = date
+					try await activity.save(on: database)
+				} catch {
+					logger.report(
+						error: error,
+						metadata: [
+							"live_activity_id": .string(activity.id?.uuidString ?? "unknown"),
+							"transition": .string(SchoolDayTransition.finished.rawValue),
+						]
+					)
+				}
+			}
+		} catch {
+			logger.report(error: error, metadata: ["live_activity_transition": .string(SchoolDayTransition.finished.rawValue)])
 		}
 	}
 

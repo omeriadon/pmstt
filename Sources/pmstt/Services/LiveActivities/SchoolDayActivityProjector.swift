@@ -1,6 +1,6 @@
 import Foundation
 
-enum SchoolDayTransition: String, CaseIterable {
+enum SchoolDayTransition: String, CaseIterable, Equatable {
 	case morning
 	case period1
 	case period2
@@ -28,16 +28,55 @@ enum SchoolDayTransition: String, CaseIterable {
 	}
 
 	static func due(at date: Date, calendar: Calendar) -> Self? {
+		due(at: date, dayIndex: nil, calendar: calendar)
+	}
+
+	static func due(at date: Date, dayIndex: Int?, calendar: Calendar) -> Self? {
 		let hour = calendar.component(.hour, from: date)
 		let minute = calendar.component(.minute, from: date)
+		if let dayIndex, isShortDay(dayIndex) {
+			if (hour, minute) == dismissalTime(for: dayIndex) {
+				return .finished
+			}
+			if (hour, minute) == period6.time {
+				return nil
+			}
+		}
 		return allCases.first { $0.time == (hour, minute) }
 	}
 
 	static func current(at date: Date, calendar: Calendar) -> Self? {
+		current(at: date, dayIndex: nil, calendar: calendar)
+	}
+
+	static func current(at date: Date, dayIndex: Int?, calendar: Calendar) -> Self? {
 		let currentMinutes = calendar.component(.hour, from: date) * 60 + calendar.component(.minute, from: date)
-		return allCases.last { transition in
-			transition.time.hour * 60 + transition.time.minute <= currentMinutes
+		if let dayIndex, currentMinutes >= minutes(dismissalTime(for: dayIndex)) {
+			return .finished
 		}
+		return allCases.last { transition in
+			if let dayIndex, isShortDay(dayIndex), transition == .period6 {
+				return false
+			}
+			return transition.time.hour * 60 + transition.time.minute <= currentMinutes
+		}
+	}
+
+	static func hasReachedDismissal(at date: Date, dayIndex: Int, calendar: Calendar) -> Bool {
+		let currentMinutes = calendar.component(.hour, from: date) * 60 + calendar.component(.minute, from: date)
+		return currentMinutes >= minutes(dismissalTime(for: dayIndex))
+	}
+
+	static func dismissalTime(for dayIndex: Int) -> (hour: Int, minute: Int) {
+		isShortDay(dayIndex) ? period6.time : finished.time
+	}
+
+	static func isShortDay(_ dayIndex: Int) -> Bool {
+		dayIndex == 2 || dayIndex == 4
+	}
+
+	private static func minutes(_ time: (hour: Int, minute: Int)) -> Int {
+		time.hour * 60 + time.minute
 	}
 }
 
@@ -80,10 +119,21 @@ struct SchoolDayActivityProjector {
 			case .period3: content = lesson(period: 3, date: date, dayIndex: dayIndex, subjects: subjects, next: nextSubjectText(period: 4, dayIndex: dayIndex, subjects: subjects), end: (12, 6))
 			case .period4: content = lesson(period: 4, date: date, dayIndex: dayIndex, subjects: subjects, next: "Lunch", end: (13, 4))
 			case .lunch: content = breakState(.lunch, date: date, nextPeriod: 5, dayIndex: dayIndex, subjects: subjects, end: (13, 34))
-			case .period5: content = lesson(period: 5, date: date, dayIndex: dayIndex, subjects: subjects, next: nextSubjectText(period: 6, dayIndex: dayIndex, subjects: subjects), end: (14, 32))
-			case .period6: content = lesson(period: 6, date: date, dayIndex: dayIndex, subjects: subjects, next: "Last Period", end: (15, 30))
+			case .period5:
+				content = lesson(
+					period: 5,
+					date: date,
+					dayIndex: dayIndex,
+					subjects: subjects,
+					next: SchoolDayTransition.isShortDay(dayIndex) ? "Last Period" : nextSubjectText(period: 6, dayIndex: dayIndex, subjects: subjects),
+					end: (14, 32)
+				)
+			case .period6:
+				content = SchoolDayTransition.isShortDay(dayIndex)
+					? finishedContent()
+					: lesson(period: 6, date: date, dayIndex: dayIndex, subjects: subjects, next: "Last Period", end: (15, 30))
 			case .finished:
-				content = .init(phase: .finished, title: "School's Out", symbol: "house.fill", color: .indigo, nextText: nil, startDate: nil, endDate: nil)
+				content = finishedContent()
 		}
 
 		return SchoolDayActivityProjection(
@@ -133,6 +183,10 @@ struct SchoolDayActivityProjector {
 	private func color(_ subject: TimetableSubjectDTO?) -> SchoolDayActivityColor {
 		guard let color = subject?.colour else { return .blue }
 		return .init(r: color.r, g: color.g, b: color.b, a: color.a)
+	}
+
+	private func finishedContent() -> SchoolDayActivityContentState {
+		.init(phase: .finished, title: "School's Out", symbol: "house.fill", color: .indigo, nextText: nil, startDate: nil, endDate: nil)
 	}
 
 	private func date(on baseDate: Date, hour: Int, minute: Int) -> Date {

@@ -26,12 +26,17 @@ struct SchoolDayActivityCoordinator {
 			let now = Date()
 			let projection = projector.projection(for: .finished, on: now, dayIndex: 0, subjects: [])
 			for activity in activities {
-				if let token = activity.updateToken {
-					do {
-						_ = try await apns.sendEnd(to: token, activityKey: activity.activityKey, isDebug: device.isDebug, projection: projection, logger: logger)
-					} catch {
-						logger.report(error: error, metadata: ["live_activity_id": .string(activity.id?.uuidString ?? "unknown")])
-					}
+				guard let token = activity.updateToken else { continue }
+				let result: LiveActivityAPNSService.Result
+				do {
+					result = try await apns.sendEnd(to: token, activityKey: activity.activityKey, isDebug: device.isDebug, projection: projection, logger: logger)
+				} catch {
+					logger.report(error: error, metadata: ["live_activity_id": .string(activity.id?.uuidString ?? "unknown")])
+					continue
+				}
+				guard result.succeeded || result.permanentlyInvalidToken else { continue }
+				if result.permanentlyInvalidToken {
+					activity.updateToken = nil
 				}
 				activity.status = .ended
 				activity.currentTransition = SchoolDayTransition.finished.rawValue
