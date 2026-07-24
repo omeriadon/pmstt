@@ -19,9 +19,14 @@ struct SchoolNotificationScheduler {
 
 	func tick(at date: Date, database: any Database, logger: Logger) async {
 		guard schoolCalendar.isSchoolDay(date),
-		      let event = dueEvent(at: date),
 		      let dayIndex = schoolCalendar.dayIndex(for: date)
 		else { return }
+		let hour = schoolCalendar.calendar.component(.hour, from: date)
+		let minute = schoolCalendar.calendar.component(.minute, from: date)
+		let candidateEvents = SchoolNotificationEvent.allCases.filter {
+			$0.couldBeDue(hour: hour, minute: minute, dayIndex: dayIndex)
+		}
+		guard !candidateEvents.isEmpty else { return }
 
 		do {
 			let devices = try await UserDevice.query(on: database)
@@ -35,48 +40,52 @@ struct SchoolNotificationScheduler {
 					let settings = try JSONDecoder().decode(AccountSettings.self, from: user.settingsData)
 					guard settings.notificationsEnabled else { continue }
 
-					for leadTime in settings.notificationLeadTimes where event.isDue(
-						hour: schoolCalendar.calendar.component(.hour, from: date),
-						minute: schoolCalendar.calendar.component(.minute, from: date),
-						leadMinutes: leadTime.minutes
-					) {
-						let dateKey = schoolDateKey(date)
-						let deliveryEvent = event == .morning ? event.id : "\(event.id)-\(leadTime.minutes)"
-						guard try await claimDelivery(userID: userID, schoolDate: dateKey, event: deliveryEvent, database: database) else { continue }
+					for event in candidateEvents {
+						let leadTimes: Set<NotificationLeadTime> = event == .morning ? [.zero] : settings.notificationLeadTimes
+						for leadTime in leadTimes where event.isDue(
+							hour: hour,
+							minute: minute,
+							leadMinutes: leadTime.minutes,
+							dayIndex: dayIndex
+						) {
+							let dateKey = schoolDateKey(date)
+							let deliveryEvent = event == .morning ? event.id : "\(event.id)-\(leadTime.minutes)"
+							guard try await claimDelivery(userID: userID, schoolDate: dateKey, event: deliveryEvent, database: database) else { continue }
 
-						guard let timetable = try await OwnerTimetable.query(on: database)
-							.filter(\.$user.$id == userID)
-							.first()
-						else {
-							logger.warning("Skipping scheduled notification because the owner timetable is missing", metadata: ["user_id": .string(userID.uuidString)])
-							continue
+							guard let timetable = try await OwnerTimetable.query(on: database)
+								.filter(\.$user.$id == userID)
+								.first()
+							else {
+								logger.warning("Skipping scheduled notification because the owner timetable is missing", metadata: ["user_id": .string(userID.uuidString)])
+								continue
+							}
+
+							let subjects = try JSONDecoder().decode([TimetableSubjectDTO].self, from: timetable.subjectsData)
+							let content = event.content(dayIndex: dayIndex, subjects: subjects, leadMinutes: leadTime.minutes)
+							_ = try await NotificationService().send(
+								title: content.title,
+								body: content.body,
+								threadID: dateKey,
+								collapseID: "school-\(dateKey)-\(deliveryEvent)",
+								to: userID,
+								on: database,
+								logger: logger
+							)
+							logger.info("Dispatched scheduled notification", metadata: [
+								"user_id": .string(userID.uuidString),
+								"event": .string(event.id),
+								"lead_minutes": .stringConvertible(leadTime.minutes),
+								"school_date": .string(dateKey),
+							])
 						}
-
-						let subjects = try JSONDecoder().decode([TimetableSubjectDTO].self, from: timetable.subjectsData)
-						let content = event.content(dayIndex: dayIndex, subjects: subjects, leadMinutes: leadTime.minutes)
-						_ = try await NotificationService().send(
-							title: content.title,
-							body: content.body,
-							threadID: dateKey,
-							collapseID: "school-\(dateKey)-\(deliveryEvent)",
-							to: userID,
-							on: database,
-							logger: logger
-						)
 					}
 				} catch {
-					logger.report(error: error, metadata: ["school_notification_user_id": .string(userID.uuidString), "event": .string(event.id)])
+					logger.report(error: error, metadata: ["school_notification_user_id": .string(userID.uuidString)])
 				}
 			}
 		} catch {
-			logger.report(error: error, metadata: ["school_notification_event": .string(event.id)])
+			logger.report(error: error, metadata: ["school_notification_scheduler": .string("tick")])
 		}
-	}
-
-	private func dueEvent(at date: Date) -> SchoolNotificationEvent? {
-		let hour = schoolCalendar.calendar.component(.hour, from: date)
-		let minute = schoolCalendar.calendar.component(.minute, from: date)
-		return SchoolNotificationEvent.allCases.first { $0.couldBeDue(hour: hour, minute: minute) }
 	}
 
 	private func schoolDateKey(_ date: Date) -> String {
@@ -111,7 +120,7 @@ struct SchoolNotificationScheduler {
 	}
 }
 
-private enum SchoolNotificationEvent: String, CaseIterable {
+enum SchoolNotificationEvent: String, CaseIterable, Equatable {
 	case morning
 	case period1
 	case period2
@@ -127,7 +136,7 @@ private enum SchoolNotificationEvent: String, CaseIterable {
 		rawValue
 	}
 
-	private var time: (hour: Int, minute: Int) {
+	private func time(on dayIndex: Int) -> (hour: Int, minute: Int)? {
 		switch self {
 			case .morning: (8, 0)
 			case .period1: (8, 50)
@@ -137,12 +146,15 @@ private enum SchoolNotificationEvent: String, CaseIterable {
 			case .period4: (12, 6)
 			case .lunch: (13, 4)
 			case .period5: (13, 34)
-			case .period6: (14, 32)
-			case .finished: (15, 30)
+			case .period6:
+				SchoolDayTransition.isShortDay(dayIndex) ? nil : (14, 32)
+			case .finished:
+				SchoolDayTransition.dismissalTime(for: dayIndex)
 		}
 	}
 
-	func couldBeDue(hour: Int, minute: Int) -> Bool {
+	func couldBeDue(hour: Int, minute: Int, dayIndex: Int) -> Bool {
+		guard let time = time(on: dayIndex) else { return false }
 		if self == .morning {
 			return hour == time.hour && minute == time.minute
 		}
@@ -152,7 +164,8 @@ private enum SchoolNotificationEvent: String, CaseIterable {
 		return (0 ... maximumLeadMinutes).contains(eventMinutes - currentMinutes)
 	}
 
-	func isDue(hour: Int, minute: Int, leadMinutes: Int) -> Bool {
+	func isDue(hour: Int, minute: Int, leadMinutes: Int, dayIndex: Int) -> Bool {
+		guard let time = time(on: dayIndex) else { return false }
 		let appliedLead = self == .morning ? 0 : leadMinutes
 		return hour * 60 + minute == time.hour * 60 + time.minute - appliedLead
 	}

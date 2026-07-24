@@ -6,6 +6,10 @@ import NIOHTTP1
 import Vapor
 
 struct NotificationService {
+	static func apnsExpiration(sentAt: Date) -> Date {
+		sentAt.addingTimeInterval(3 * 60)
+	}
+
 	func send(
 		title: String,
 		body: String,
@@ -114,11 +118,24 @@ struct NotificationService {
 
 		let config = try configuration()
 		let authorization = try await makeJWT(config: config)
+		let expiration = Self.apnsExpiration(sentAt: Date())
 
 		var deliveredCount = 0
+		var sentTokens = Set<String>()
 
 		for device in devices {
 			guard let token = device.apnsToken else {
+				continue
+			}
+			let tokenKey = "\(device.isDebug):\(token)"
+			guard sentTokens.insert(tokenKey).inserted else {
+				logger.warning(
+					"Skipping duplicate APNs token",
+					metadata: [
+						"user_id": .string(userID.uuidString),
+						"device_id": .string(device.id?.uuidString ?? "unknown"),
+					]
+				)
 				continue
 			}
 
@@ -132,7 +149,8 @@ struct NotificationService {
 					token: token,
 					isDebug: device.isDebug,
 					authorization: authorization,
-					config: config
+					config: config,
+					expiration: expiration
 				)
 
 				logger.info("APNs notification response", metadata: [
@@ -141,6 +159,7 @@ struct NotificationService {
 					"status": .stringConvertible(response.status.code),
 					"reason": .string(response.reason ?? "none"),
 					"collapse_id": .string(collapseID ?? "none"),
+					"apns_expiration": .stringConvertible(Int(expiration.timeIntervalSince1970)),
 				])
 
 				switch response.status {
@@ -228,6 +247,7 @@ struct NotificationService {
 
 		let config = try configuration()
 		let authorization = try await makeJWT(config: config)
+		let expiration = Self.apnsExpiration(sentAt: Date())
 
 		var deliveredCount = 0
 		var invalidatedCount = 0
@@ -249,7 +269,8 @@ struct NotificationService {
 					token: token,
 					isDebug: device.isDebug,
 					authorization: authorization,
-					config: config
+					config: config,
+					expiration: expiration
 				)
 
 				req.logger.info("APNs broadcast response", metadata: [
@@ -257,6 +278,7 @@ struct NotificationService {
 					"status": .stringConvertible(status.status.code),
 					"reason": .string(status.reason ?? "none"),
 					"collapse_id": .string(collapseID),
+					"apns_expiration": .stringConvertible(Int(expiration.timeIntervalSince1970)),
 				])
 
 				switch status.status {
@@ -302,7 +324,8 @@ struct NotificationService {
 		token: String,
 		isDebug: Bool,
 		authorization: String,
-		config: APNSConfig
+		config: APNSConfig,
+		expiration: Date
 	) async throws -> APNSClient.Response {
 		let host = isDebug
 			? "api.sandbox.push.apple.com"
@@ -332,6 +355,11 @@ struct NotificationService {
 		request.headers.add(
 			name: "apns-collapse-id",
 			value: collapseID ?? UUID().uuidString
+		)
+
+		request.headers.add(
+			name: "apns-expiration",
+			value: String(Int(expiration.timeIntervalSince1970))
 		)
 
 		request.headers.add(
