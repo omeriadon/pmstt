@@ -22,7 +22,7 @@ final class SchoolSchedulingTests: XCTestCase {
 	}
 
 	func testNotificationExpirationIsThreeMinutesAfterSend() {
-		let sentAt = Date(timeIntervalSince1970: 1_000)
+		let sentAt = Date(timeIntervalSince1970: 1000)
 		XCTAssertEqual(
 			NotificationService.apnsExpiration(sentAt: sentAt).timeIntervalSince(sentAt),
 			180
@@ -67,8 +67,8 @@ final class SchoolSchedulingTests: XCTestCase {
 			.period6
 		)
 		XCTAssertEqual(
-			SchoolDayTransition.current(
-				at: try date(2026, 7, 20, 15, 30),
+			try SchoolDayTransition.current(
+				at: date(2026, 7, 20, 15, 30),
 				dayIndex: 0,
 				calendar: calendar
 			),
