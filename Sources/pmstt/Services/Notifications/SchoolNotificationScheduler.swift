@@ -148,7 +148,8 @@ private enum SchoolNotificationEvent: String, CaseIterable {
 		}
 		let eventMinutes = time.hour * 60 + time.minute
 		let currentMinutes = hour * 60 + minute
-		return (0 ... 5).contains(eventMinutes - currentMinutes)
+		let maximumLeadMinutes = NotificationLeadTime.allCases.map(\.minutes).max() ?? 0
+		return (0 ... maximumLeadMinutes).contains(eventMinutes - currentMinutes)
 	}
 
 	func isDue(hour: Int, minute: Int, leadMinutes: Int) -> Bool {
