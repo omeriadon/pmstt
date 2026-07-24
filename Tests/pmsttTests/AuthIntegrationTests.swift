@@ -14,6 +14,9 @@ final class AuthIntegrationTests: XCTestCase, @unchecked Sendable {
 		XCTAssertEqual(ClientPlatform.iPadOS.capabilities, [.read, .logout, .mutateNotifications])
 		XCTAssertEqual(ClientPlatform.macOS.capabilities, [.read, .logout, .mutateNotifications])
 		XCTAssertEqual(ClientPlatform.watchOS.capabilities, [.read, .logout, .mutateNotifications])
+		XCTAssertTrue(ClientPlatform.iPadOS.appleAccountCreationAllowed)
+		XCTAssertTrue(ClientPlatform.macOS.appleAccountCreationAllowed)
+		XCTAssertFalse(ClientPlatform.watchOS.appleAccountCreationAllowed)
 	}
 
 	func testRegisterAndRefreshRotateTheSameSession() async throws {

@@ -56,7 +56,7 @@ struct AuthController: RouteCollection {
 		}
 		let email = token.email?.lowercased()
 		if let email, let existing = try await User.query(on: req.db).filter(\.$email == email).first() {
-			guard platform == .iOS else {
+			guard platform.appleAccountCreationAllowed else {
 				throw AppError(.forbidden, code: .invalidRequest, reason: "This client can only sign in to an Apple-linked account.", field: "platform")
 			}
 			existing.appleSubject = appleSubject
@@ -64,8 +64,8 @@ struct AuthController: RouteCollection {
 			try await existing.save(on: req.db)
 			return try await issueNewSession(for: existing, platform: platform, installationID: normalizedInstallationID(body.installationID), on: req)
 		}
-		guard platform == .iOS else {
-			throw AppError(.forbidden, code: .invalidRequest, reason: "Only iOS can create accounts.", field: "platform")
+		guard platform.appleAccountCreationAllowed else {
+			throw AppError(.forbidden, code: .invalidRequest, reason: "This platform cannot create an Apple account.", field: "platform")
 		}
 		let user = try User(email: email, passwordHash: nil, appleSubject: appleSubject, displayName: resolvedDisplayName(body.displayName, fallbackEmail: email), selfPassSerialNumber: UUID().uuidString, settingsData: JSONEncoder().encode(AccountSettings.default))
 		try await user.save(on: req.db)
