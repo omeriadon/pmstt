@@ -36,7 +36,7 @@ struct LiveActivityAPNSService {
 			attributesType: "SchoolDayActivityAttributes",
 			attributes: attributes,
 			inputPushToken: 1,
-			alert: nil
+			alert: alert(for: projection)
 		))
 		return try await send(payload, to: token, isDebug: isDebug, priority: 10, collapseID: "live-activity-\(attributes.activityKey)-start", logger: logger)
 	}
@@ -51,9 +51,9 @@ struct LiveActivityAPNSService {
 			attributesType: nil,
 			attributes: nil,
 			inputPushToken: nil,
-			alert: nil
+			alert: alert(for: projection)
 		))
-		return try await send(payload, to: token, isDebug: isDebug, priority: 5, collapseID: "live-activity-\(activityKey)-update", logger: logger)
+		return try await send(payload, to: token, isDebug: isDebug, priority: 10, collapseID: "live-activity-\(activityKey)-update", logger: logger)
 	}
 
 	func sendEnd(to token: String, activityKey: String, isDebug: Bool, projection: SchoolDayActivityProjection, logger: Logger) async throws -> Result {
@@ -69,6 +69,13 @@ struct LiveActivityAPNSService {
 			alert: nil
 		))
 		return try await send(payload, to: token, isDebug: isDebug, priority: 5, collapseID: "live-activity-\(activityKey)-end", logger: logger)
+	}
+
+	private func alert(for projection: SchoolDayActivityProjection) -> LiveActivityPayload.Alert {
+		LiveActivityPayload.Alert(
+			title: projection.content.title,
+			body: projection.content.nextText.map { "Next: \($0)" } ?? "Your timetable has been updated."
+		)
 	}
 
 	private func send(_ payload: LiveActivityPayload, to token: String, isDebug: Bool, priority: Int, collapseID: String, logger: Logger) async throws -> Result {
