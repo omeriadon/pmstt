@@ -18,15 +18,15 @@ struct SchoolNotificationScheduler {
 	}
 
 	func tick(at date: Date, database: any Database, logger: Logger) async {
-		guard schoolCalendar.isSchoolDay(date),
-		      let dayIndex = schoolCalendar.dayIndex(for: date)
-		else { return }
 		let hour = schoolCalendar.calendar.component(.hour, from: date)
 		let minute = schoolCalendar.calendar.component(.minute, from: date)
-		let candidateEvents = SchoolNotificationEvent.allCases.filter {
-			$0.couldBeDue(hour: hour, minute: minute, dayIndex: dayIndex)
+		let candidateEvents: [SchoolNotificationEvent] = if schoolCalendar.isSchoolDay(date), let dayIndex = schoolCalendar.dayIndex(for: date) {
+			SchoolNotificationEvent.allCases.filter {
+				$0.couldBeDue(hour: hour, minute: minute, dayIndex: dayIndex)
+			}
+		} else {
+			[]
 		}
-		guard !candidateEvents.isEmpty else { return }
 
 		do {
 			let devices = try await UserDevice.query(on: database)
@@ -38,53 +38,97 @@ struct SchoolNotificationScheduler {
 				do {
 					guard let user = try await User.find(userID, on: database) else { continue }
 					let settings = try JSONDecoder().decode(AccountSettings.self, from: user.settingsData)
-					guard settings.notificationsEnabled else { continue }
+					if settings.notificationsEnabled {
+						for event in candidateEvents {
+							let leadTimes: Set<NotificationLeadTime> = event == .morning
+								? [.zero]
+								: (event.isBreakToPeriod ? settings.breakToPeriodNotificationLeadTimes : settings.notificationLeadTimes)
+							for leadTime in leadTimes where event.isDue(
+								hour: hour,
+								minute: minute,
+								leadMinutes: leadTime.minutes,
+								dayIndex: dayIndex
+							) {
+								let dateKey = schoolDateKey(date)
+								let deliveryEvent = event == .morning ? event.id : "\(event.id)-\(leadTime.minutes)"
+								guard try await claimDelivery(userID: userID, schoolDate: dateKey, event: deliveryEvent, database: database) else { continue }
 
-					for event in candidateEvents {
-						let leadTimes: Set<NotificationLeadTime> = event == .morning ? [.zero] : settings.notificationLeadTimes
-						for leadTime in leadTimes where event.isDue(
-							hour: hour,
-							minute: minute,
-							leadMinutes: leadTime.minutes,
-							dayIndex: dayIndex
-						) {
-							let dateKey = schoolDateKey(date)
-							let deliveryEvent = event == .morning ? event.id : "\(event.id)-\(leadTime.minutes)"
-							guard try await claimDelivery(userID: userID, schoolDate: dateKey, event: deliveryEvent, database: database) else { continue }
+								guard let timetable = try await OwnerTimetable.query(on: database)
+									.filter(\.$user.$id == userID)
+									.first()
+								else {
+									logger.warning("Skipping scheduled notification because the owner timetable is missing", metadata: ["user_id": .string(userID.uuidString)])
+									continue
+								}
 
-							guard let timetable = try await OwnerTimetable.query(on: database)
-								.filter(\.$user.$id == userID)
-								.first()
-							else {
-								logger.warning("Skipping scheduled notification because the owner timetable is missing", metadata: ["user_id": .string(userID.uuidString)])
-								continue
+								let subjects = try JSONDecoder().decode([TimetableSubjectDTO].self, from: timetable.subjectsData)
+								let content = event.content(dayIndex: dayIndex, subjects: subjects, leadMinutes: leadTime.minutes)
+								_ = try await NotificationService().send(
+									title: content.title,
+									body: content.body,
+									threadID: dateKey,
+									collapseID: "school-\(dateKey)-\(deliveryEvent)",
+									to: userID,
+									on: database,
+									logger: logger
+								)
+								logger.info("Dispatched scheduled notification", metadata: [
+									"user_id": .string(userID.uuidString),
+									"event": .string(event.id),
+									"lead_minutes": .stringConvertible(leadTime.minutes),
+									"school_date": .string(dateKey),
+								])
 							}
-
-							let subjects = try JSONDecoder().decode([TimetableSubjectDTO].self, from: timetable.subjectsData)
-							let content = event.content(dayIndex: dayIndex, subjects: subjects, leadMinutes: leadTime.minutes)
-							_ = try await NotificationService().send(
-								title: content.title,
-								body: content.body,
-								threadID: dateKey,
-								collapseID: "school-\(dateKey)-\(deliveryEvent)",
-								to: userID,
-								on: database,
-								logger: logger
-							)
-							logger.info("Dispatched scheduled notification", metadata: [
-								"user_id": .string(userID.uuidString),
-								"event": .string(event.id),
-								"lead_minutes": .stringConvertible(leadTime.minutes),
-								"school_date": .string(dateKey),
-							])
 						}
 					}
+
+					try await dispatchEventNotifications(
+						for: userID,
+						settings: settings,
+						at: date,
+						database: database,
+						logger: logger
+					)
 				} catch {
 					logger.report(error: error, metadata: ["school_notification_user_id": .string(userID.uuidString)])
 				}
 			}
 		} catch {
 			logger.report(error: error, metadata: ["school_notification_scheduler": .string("tick")])
+		}
+	}
+
+	private func dispatchEventNotifications(
+		for userID: UUID,
+		settings: AccountSettings,
+		at date: Date,
+		database: any Database,
+		logger: Logger
+	) async throws {
+		guard !settings.eventNotificationSchedules.isEmpty else { return }
+		let currentHour = schoolCalendar.calendar.component(.hour, from: date)
+		let currentMinute = schoolCalendar.calendar.component(.minute, from: date)
+		let globalEvents = try await CalendarEvent.query(on: database).filter(\.$isGlobal == true).all()
+		let privateEvents = try await CalendarEvent.query(on: database)
+			.filter(\.$isGlobal == false).filter(\.$user.$id == userID).all()
+
+		for schedule in settings.eventNotificationSchedules where schedule.hour == currentHour && schedule.minute == currentMinute {
+			guard let eventDay = schoolCalendar.calendar.date(byAdding: .day, value: schedule.dayOffset, to: date) else { continue }
+			let eventDate = schoolDateKey(eventDay)
+			for event in globalEvents + privateEvents where event.eventDate == eventDate {
+				let eventID = try event.requireID()
+				let deliveryEvent = "calendar-event-\(eventID.uuidString)-\(schedule.dayOffset)-\(schedule.hour)-\(schedule.minute)"
+				guard try await claimDelivery(userID: userID, schoolDate: eventDate, event: deliveryEvent, database: database) else { continue }
+				_ = try await NotificationService().send(
+					title: event.title,
+					body: event.notes?.isEmpty == false ? event.notes! : "Calendar event on \(event.eventDate).",
+					threadID: eventDate,
+					collapseID: "event-\(eventID.uuidString)-\(eventDate)",
+					to: userID,
+					on: database,
+					logger: logger
+				)
+			}
 		}
 	}
 
@@ -134,6 +178,13 @@ enum SchoolNotificationEvent: String, CaseIterable, Equatable {
 
 	var id: String {
 		rawValue
+	}
+
+	var isBreakToPeriod: Bool {
+		switch self {
+			case .period1, .period3, .period5: true
+			default: false
+		}
 	}
 
 	private func time(on dayIndex: Int) -> (hour: Int, minute: Int)? {

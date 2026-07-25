@@ -128,6 +128,7 @@ struct CapabilityMiddleware: AsyncMiddleware {
 			case "account", "report": return .mutateAccount
 			case "settings":
 				return path.dropFirst(2).first == "notifications" ? .mutateNotifications : .mutateSettings
+			case "events": return .mutateNotifications
 			case "timetables":
 				switch path.dropFirst(2).first {
 					case "owner": return .mutateOwnerTimetable

@@ -70,13 +70,17 @@ struct UpdateSettingsRequest: Content {
 	var notificationsEnabled: Bool
 	var broadcastNotificationsEnabled: Bool
 	var notificationLeadTimes: Set<NotificationLeadTime>
+	var breakToPeriodNotificationLeadTimes: Set<NotificationLeadTime>
+	var eventNotificationSchedules: Set<EventNotificationSchedule>
 
 	static let `default` = UpdateSettingsRequest(
 		liveActivitiesEnabled: true,
 		highlightsCurrentDay: true,
 		notificationsEnabled: true,
 		broadcastNotificationsEnabled: true,
-		notificationLeadTimes: [.zero]
+		notificationLeadTimes: [.zero],
+		breakToPeriodNotificationLeadTimes: [.zero],
+		eventNotificationSchedules: []
 	)
 
 	var accountSettings: AccountSettings {
@@ -85,7 +89,9 @@ struct UpdateSettingsRequest: Content {
 			highlightsCurrentDay: highlightsCurrentDay,
 			notificationsEnabled: notificationsEnabled,
 			broadcastNotificationsEnabled: broadcastNotificationsEnabled,
-			notificationLeadTimes: notificationLeadTimes
+			notificationLeadTimes: notificationLeadTimes,
+			breakToPeriodNotificationLeadTimes: breakToPeriodNotificationLeadTimes,
+			eventNotificationSchedules: eventNotificationSchedules
 		)
 	}
 }
@@ -94,6 +100,8 @@ struct NotificationSettingsUpdateRequest: Content {
 	let notificationsEnabled: Bool
 	let broadcastNotificationsEnabled: Bool
 	let notificationLeadTimes: Set<NotificationLeadTime>
+	let breakToPeriodNotificationLeadTimes: Set<NotificationLeadTime>
+	let eventNotificationSchedules: Set<EventNotificationSchedule>
 }
 
 extension NotificationSettingsUpdateRequest {
@@ -112,6 +120,8 @@ extension NotificationSettingsUpdateRequest {
 		} else {
 			notificationLeadTimes = AccountSettings.default.notificationLeadTimes
 		}
+		breakToPeriodNotificationLeadTimes = try container.decodeIfPresent(Set<NotificationLeadTime>.self, forKey: .breakToPeriodNotificationLeadTimes) ?? AccountSettings.default.breakToPeriodNotificationLeadTimes
+		eventNotificationSchedules = try container.decodeIfPresent(Set<EventNotificationSchedule>.self, forKey: .eventNotificationSchedules) ?? AccountSettings.default.eventNotificationSchedules
 	}
 }
 
@@ -139,6 +149,8 @@ extension UpdateSettingsRequest {
 		} else {
 			notificationLeadTimes = defaults.notificationLeadTimes
 		}
+		breakToPeriodNotificationLeadTimes = try container.decodeIfPresent(Set<NotificationLeadTime>.self, forKey: .breakToPeriodNotificationLeadTimes) ?? defaults.breakToPeriodNotificationLeadTimes
+		eventNotificationSchedules = try container.decodeIfPresent(Set<EventNotificationSchedule>.self, forKey: .eventNotificationSchedules) ?? defaults.eventNotificationSchedules
 	}
 }
 

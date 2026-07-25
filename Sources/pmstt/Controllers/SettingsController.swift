@@ -46,6 +46,8 @@ struct SettingsController: RouteCollection {
 		settings.notificationsEnabled = update.notificationsEnabled
 		settings.broadcastNotificationsEnabled = update.broadcastNotificationsEnabled
 		settings.notificationLeadTimes = update.notificationLeadTimes
+		settings.breakToPeriodNotificationLeadTimes = update.breakToPeriodNotificationLeadTimes
+		settings.eventNotificationSchedules = update.eventNotificationSchedules
 		user.settingsData = try JSONEncoder().encode(settings)
 		try await user.save(on: req.db)
 		return settings

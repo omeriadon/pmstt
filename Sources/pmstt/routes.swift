@@ -36,6 +36,7 @@ func routes(_ app: Application) throws {
 	try api.register(collection: AccountController())
 	try api.register(collection: OwnerTimetableController())
 	try api.register(collection: SettingsController())
+	try api.register(collection: CalendarEventsController())
 	try api.register(collection: NotificationController())
 	try api.register(collection: LiveActivityController())
 	try api.register(collection: ReportController())
