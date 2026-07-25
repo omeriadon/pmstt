@@ -41,6 +41,7 @@ struct SchoolCalendar {
 		excludedDates: [
 			.ymd(2026, 3, 2), // Labour Day
 			.ymd(2026, 6, 1), // Western Australia Day
+			.ymd(2026, 7, 26),
 		]
 	)
 
