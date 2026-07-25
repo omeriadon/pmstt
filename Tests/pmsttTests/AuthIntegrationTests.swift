@@ -206,7 +206,7 @@ final class AuthIntegrationTests: XCTestCase, @unchecked Sendable {
 		let mutationRoutes: [(HTTPMethod, String)] = [
 			(.PUT, "/v1/account"), (.DELETE, "/v1/account"), (.PUT, "/v1/settings"),
 			(.PUT, "/v1/timetables/owner"), (.PUT, "/v1/timetables/owner/visibility"),
-			(.POST, "/v1/timetables/authored"), (.PUT, "/v1/timetables/received"),
+			(.POST, "/v1/timetables/created"), (.PUT, "/v1/timetables/received"),
 			(.DELETE, "/v1/timetables/received/legacy"), (.PUT, "/v1/received-name-overrides/legacy"),
 			(.DELETE, "/v1/received-name-overrides/legacy"),
 			(.PUT, "/v1/devices/current/live-activity-token"), (.DELETE, "/v1/devices/current/live-activity-token"),

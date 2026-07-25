@@ -1,8 +1,8 @@
 import Fluent
 import Vapor
 
-final class AuthoredTimetable: Model, Content, @unchecked Sendable {
-	static let schema = "authored_timetables"
+final class CreatedTimetable: Model, Content, @unchecked Sendable {
+	static let schema = "created_timetables"
 
 	@ID(key: .id)
 	var id: UUID?

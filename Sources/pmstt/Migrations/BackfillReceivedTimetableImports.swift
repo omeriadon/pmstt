@@ -21,12 +21,12 @@ struct BackfillReceivedTimetableImports: AsyncMigration {
 				let issuerIDs = Set(mirrors.compactMap { UUID(uuidString: $0.issuerAccountID) })
 				let serials = Set(mirrors.map(\.passSerialNumber))
 				let owners = issuerIDs.isEmpty ? [] : try await OwnerTimetable.query(on: database).filter(\.$user.$id ~~ issuerIDs).with(\.$user).all()
-				let authored = serials.isEmpty ? [] : try await AuthoredTimetable.query(on: database).filter(\.$passSerialNumber ~~ serials).all()
+				let created = serials.isEmpty ? [] : try await CreatedTimetable.query(on: database).filter(\.$passSerialNumber ~~ serials).all()
 				let ownerByIdentity: [String: UUID] = Dictionary(uniqueKeysWithValues: owners.compactMap { owner in
 					guard let id = owner.id else { return nil }
 					return ("\(owner.$user.id.uuidString):\(owner.user.selfPassSerialNumber)", id)
 				})
-				let authoredBySerial: [String: UUID] = Dictionary(uniqueKeysWithValues: authored.compactMap { value in value.id.map { (value.passSerialNumber, $0) } })
+				let createdBySerial: [String: UUID] = Dictionary(uniqueKeysWithValues: created.compactMap { value in value.id.map { (value.passSerialNumber, $0) } })
 				let userIDs = Set(mirrors.map(\.$user.id))
 				let existing = try await ReceivedTimetableImport.query(on: database).filter(\.$user.$id ~~ userIDs).all()
 				var existingKeys = Set(existing.map { "\($0.$user.id.uuidString):\($0.timetableID.uuidString):\($0.sourceKind.rawValue)" })
@@ -38,8 +38,8 @@ struct BackfillReceivedTimetableImports: AsyncMigration {
 						case .accountOwner:
 							let issuer = UUID(uuidString: mirror.issuerAccountID)?.uuidString ?? ""
 							sourceID = ownerByIdentity["\(issuer):\(mirror.passSerialNumber)"]
-						case .authoredForThirdParty:
-							sourceID = authoredBySerial[mirror.passSerialNumber]
+						case .createdForThirdParty:
+							sourceID = createdBySerial[mirror.passSerialNumber]
 					}
 					guard let sourceID else { skipped += 1; continue }
 					let key = "\(mirror.$user.id.uuidString):\(sourceID.uuidString):\(mirror.sourceKind.rawValue)"

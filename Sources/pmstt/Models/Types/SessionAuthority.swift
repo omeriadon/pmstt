@@ -55,7 +55,7 @@ enum Capability: String, Codable, Sendable {
 	case mutateAccount
 	case mutateSettings
 	case mutateOwnerTimetable
-	case mutateAuthoredTimetable
+	case mutateCreatedTimetable
 	case mutateReceivedTimetable
 	case mutateReceivedNameOverride
 	case mutateNotifications
@@ -68,7 +68,7 @@ extension ClientPlatform {
 		switch self {
 			case .iOS:
 				[.read, .logout, .mutateAccount, .mutateSettings, .mutateOwnerTimetable,
-				 .mutateAuthoredTimetable, .mutateReceivedTimetable, .mutateReceivedNameOverride,
+				 .mutateCreatedTimetable, .mutateReceivedTimetable, .mutateReceivedNameOverride,
 				 .mutateNotifications, .mutateLiveActivities, .createWatchSession]
 			case .iPadOS, .macOS, .watchOS:
 				[.read, .logout, .mutateNotifications]
@@ -131,7 +131,7 @@ struct CapabilityMiddleware: AsyncMiddleware {
 			case "timetables":
 				switch path.dropFirst(2).first {
 					case "owner": return .mutateOwnerTimetable
-					case "authored": return .mutateAuthoredTimetable
+					case "created": return .mutateCreatedTimetable
 					case "received": return .mutateReceivedTimetable
 					default: return .read
 				}

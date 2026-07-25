@@ -293,13 +293,13 @@ struct TimetableDetailResponse: Content {
 	let canEdit: Bool
 }
 
-struct AuthoredTimetableUpdateRequest: Content {
+struct CreatedTimetableUpdateRequest: Content {
 	let title: String
 	let subjects: [TimetableSubjectDTO]
 	let isSearchable: Bool
 }
 
-typealias AuthoredTimetableCreateRequest = AuthoredTimetableUpdateRequest
+typealias CreatedTimetableCreateRequest = CreatedTimetableUpdateRequest
 
 struct ReportUserRequest: Content {
 	let reportedAccountID: String

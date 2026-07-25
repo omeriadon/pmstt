@@ -21,7 +21,7 @@ struct TimetableDiscoveryController: RouteCollection {
 			.filter(\.$isSearchable == true)
 			.with(\.$user)
 			.all()
-		let authored = try await AuthoredTimetable.query(on: req.db)
+		let created = try await CreatedTimetable.query(on: req.db)
 			.filter(\.$isSearchable == true)
 			.with(\.$author)
 			.all()
@@ -31,7 +31,7 @@ struct TimetableDiscoveryController: RouteCollection {
 		var results: [TimetableSearchResult] = []
 		for timetable in owners {
 			guard let id = timetable.id, let authorID = timetable.user.id else { continue }
-			let title = "\(timetable.user.displayName)'s Timetable"
+			let title = "\(timetable.user.displayName)"
 
 			guard let confidence = bestConfidence(
 				query: query,
@@ -52,7 +52,7 @@ struct TimetableDiscoveryController: RouteCollection {
 				)
 			)
 		}
-		for timetable in authored {
+		for timetable in created {
 			guard let id = timetable.id, let authorID = timetable.author.id else { continue }
 
 			guard let confidence = bestConfidence(
@@ -68,7 +68,7 @@ struct TimetableDiscoveryController: RouteCollection {
 				      title: timetable.subjectDisplayName,
 				      authorAccountID: authorID,
 				      authorDisplayName: timetable.author.displayName,
-				      sourceKind: .authoredForThirdParty,
+				      sourceKind: .createdForThirdParty,
 				      confidence: confidence)
 			)
 		}
@@ -96,38 +96,38 @@ struct TimetableDiscoveryController: RouteCollection {
 
 enum ResolvedTimetable {
 	case owner(OwnerTimetable)
-	case authored(AuthoredTimetable)
+	case created(CreatedTimetable)
 
 	var id: UUID {
 		get throws { try modelID() }
 	}
 
 	var title: String {
-		switch self { case let .owner(value): "\(value.user.displayName)'s Timetable"; case let .authored(value): value.subjectDisplayName }
+		switch self { case let .owner(value): "\(value.user.displayName)"; case let .created(value): value.subjectDisplayName }
 	}
 
 	var author: User {
-		switch self { case let .owner(value): value.user; case let .authored(value): value.author }
+		switch self { case let .owner(value): value.user; case let .created(value): value.author }
 	}
 
 	var sourceKind: SourceKind {
-		switch self { case .owner: .accountOwner; case .authored: .authoredForThirdParty }
+		switch self { case .owner: .accountOwner; case .created: .createdForThirdParty }
 	}
 
 	var subjectsData: Data {
-		switch self { case let .owner(value): value.subjectsData; case let .authored(value): value.subjectsData }
+		switch self { case let .owner(value): value.subjectsData; case let .created(value): value.subjectsData }
 	}
 
 	var revision: Int {
-		switch self { case let .owner(value): value.revision; case let .authored(value): value.revision }
+		switch self { case let .owner(value): value.revision; case let .created(value): value.revision }
 	}
 
 	var isSearchable: Bool {
-		switch self { case let .owner(value): value.isSearchable; case let .authored(value): value.isSearchable }
+		switch self { case let .owner(value): value.isSearchable; case let .created(value): value.isSearchable }
 	}
 
 	var updatedAt: Date? {
-		switch self { case let .owner(value): value.updatedAt; case let .authored(value): value.updatedAt }
+		switch self { case let .owner(value): value.updatedAt; case let .created(value): value.updatedAt }
 	}
 
 	func detail(on database: any Database, viewerID: UUID) async throws -> TimetableDetailResponse {
@@ -143,7 +143,7 @@ enum ResolvedTimetable {
 	}
 
 	private func modelID() throws -> UUID {
-		switch self { case let .owner(value): try value.requireID(); case let .authored(value): try value.requireID() }
+		switch self { case let .owner(value): try value.requireID(); case let .created(value): try value.requireID() }
 	}
 }
 
@@ -152,7 +152,7 @@ enum TimetableResolver {
 		guard let idString = req.parameters.get("timetableID"), let id = UUID(uuidString: idString) else { throw Abort(.notFound) }
 		switch try await AuthoritativeTimetableResolver.resolveForViewer(id: id, userID: userID, on: req.db) {
 			case let .available(source):
-				switch source { case let .owner(owner): return .owner(owner); case let .authored(authored): return .authored(authored) }
+				switch source { case let .owner(owner): return .owner(owner); case let .created(created): return .created(created) }
 			case .privateSource, .missing, .ambiguous: throw Abort(.notFound)
 		}
 	}

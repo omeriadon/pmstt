@@ -4,38 +4,38 @@ import Vapor
 
 enum AuthoritativeTimetableSource {
 	case owner(OwnerTimetable)
-	case authored(AuthoredTimetable)
+	case created(CreatedTimetable)
 
 	var id: UUID {
 		get throws { try modelID() }
 	}
 
 	var author: User {
-		switch self { case let .owner(value): value.user; case let .authored(value): value.author }
+		switch self { case let .owner(value): value.user; case let .created(value): value.author }
 	}
 
 	var sourceKind: SourceKind {
-		switch self { case .owner: .accountOwner; case .authored: .authoredForThirdParty }
+		switch self { case .owner: .accountOwner; case .created: .createdForThirdParty }
 	}
 
 	var title: String {
-		switch self { case let .owner(value): "\(value.user.displayName)'s Timetable"; case let .authored(value): value.subjectDisplayName }
+		switch self { case let .owner(value): "\(value.user.displayName)"; case let .created(value): value.subjectDisplayName }
 	}
 
 	var subjectsData: Data {
-		switch self { case let .owner(value): value.subjectsData; case let .authored(value): value.subjectsData }
+		switch self { case let .owner(value): value.subjectsData; case let .created(value): value.subjectsData }
 	}
 
 	var revision: Int {
-		switch self { case let .owner(value): value.revision; case let .authored(value): value.revision }
+		switch self { case let .owner(value): value.revision; case let .created(value): value.revision }
 	}
 
 	var isSearchable: Bool {
-		switch self { case let .owner(value): value.isSearchable; case let .authored(value): value.isSearchable }
+		switch self { case let .owner(value): value.isSearchable; case let .created(value): value.isSearchable }
 	}
 
 	var updatedAt: Date? {
-		switch self { case let .owner(value): value.updatedAt; case let .authored(value): value.updatedAt }
+		switch self { case let .owner(value): value.updatedAt; case let .created(value): value.updatedAt }
 	}
 
 	func subjects() throws -> [TimetableSubjectDTO] {
@@ -55,7 +55,7 @@ enum AuthoritativeTimetableSource {
 	}
 
 	private func modelID() throws -> UUID {
-		switch self { case let .owner(value): try value.requireID(); case let .authored(value): try value.requireID() }
+		switch self { case let .owner(value): try value.requireID(); case let .created(value): try value.requireID() }
 	}
 }
 
@@ -75,28 +75,28 @@ enum AuthoritativeTimetableResolver {
 	static func resolveMany(ids: Set<UUID>, on database: any Database) async throws -> [SourceKey: AuthoritativeTimetableSource] {
 		guard !ids.isEmpty else { return [:] }
 		let owners = try await OwnerTimetable.query(on: database).filter(\.$id ~~ ids).with(\.$user).all()
-		let authored = try await AuthoredTimetable.query(on: database).filter(\.$id ~~ ids).with(\.$author).all()
+		let created = try await CreatedTimetable.query(on: database).filter(\.$id ~~ ids).with(\.$author).all()
 		var result: [SourceKey: AuthoritativeTimetableSource] = [:]
 		for owner in owners {
 			try result[SourceKey(id: owner.requireID(), sourceKind: .accountOwner)] = .owner(owner)
 		}
-		for value in authored {
-			try result[SourceKey(id: value.requireID(), sourceKind: .authoredForThirdParty)] = .authored(value)
+		for value in created {
+			try result[SourceKey(id: value.requireID(), sourceKind: .createdForThirdParty)] = .created(value)
 		}
 		return result
 	}
 
 	static func resolve(id: UUID, on database: any Database) async throws -> AuthoritativeTimetableResolution {
 		let owner = try await OwnerTimetable.query(on: database).filter(\.$id == id).with(\.$user).first()
-		let authored = try await AuthoredTimetable.query(on: database).filter(\.$id == id).with(\.$author).first()
-		if owner != nil, authored != nil {
+		let created = try await CreatedTimetable.query(on: database).filter(\.$id == id).with(\.$author).first()
+		if owner != nil, created != nil {
 			return .ambiguous
 		}
 		if let owner {
 			return owner.isSearchable ? .available(.owner(owner)) : .privateSource(.owner(owner))
 		}
-		if let authored {
-			return authored.isSearchable ? .available(.authored(authored)) : .privateSource(.authored(authored))
+		if let created {
+			return created.isSearchable ? .available(.created(created)) : .privateSource(.created(created))
 		}
 		return .missing
 	}

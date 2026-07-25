@@ -93,21 +93,21 @@ final class SharedTimetableIntegrationTests: XCTestCase, @unchecked Sendable {
 		XCTAssertEqual(importCount, 1)
 	}
 
-	func testAuthoredSourceIsImportedByAuthoritativeClient() async throws {
+	func testCreatedSourceIsImportedByAuthoritativeClient() async throws {
 		let (app, importer, _) = try await makeFixture(platform: .iOS)
 		let author = try await register(app, platform: .iOS)
-		let source = try AuthoredTimetable(authorUserID: author.user.id, subjectDisplayName: "Shared", passSerialNumber: UUID().uuidString, subjectsData: JSONEncoder().encode([TimetableSubjectDTO]()), revision: 3)
+		let source = try CreatedTimetable(authorUserID: author.user.id, subjectDisplayName: "Shared", passSerialNumber: UUID().uuidString, subjectsData: JSONEncoder().encode([TimetableSubjectDTO]()), revision: 3)
 		try await source.save(on: app.db(.sqlite))
 		let response = try await request(app, .POST, "/v1/timetables/received/import", token: importer.accessToken, body: ReceivedTimetableImportRequest(timetableID: XCTUnwrap(source.id)))
 		XCTAssertEqual(response.status, .created)
 		let decoded = try response.content.decode(ReceivedTimetableImportResponse.self)
-		XCTAssertEqual(decoded.sourceKind, .authoredForThirdParty)
+		XCTAssertEqual(decoded.sourceKind, .createdForThirdParty)
 	}
 
 	func testAmbiguousUUIDIsRejectedWithoutChoosingASourceNamespace() async throws {
 		let (app, importer, timetable) = try await makeFixture(platform: .iOS)
 		let author = try await register(app, platform: .iOS)
-		let duplicate = try AuthoredTimetable(id: XCTUnwrap(timetable.id), authorUserID: author.user.id, subjectDisplayName: "Ambiguous", passSerialNumber: UUID().uuidString, subjectsData: JSONEncoder().encode([TimetableSubjectDTO]()), revision: 1)
+		let duplicate = try CreatedTimetable(id: XCTUnwrap(timetable.id), authorUserID: author.user.id, subjectDisplayName: "Ambiguous", passSerialNumber: UUID().uuidString, subjectsData: JSONEncoder().encode([TimetableSubjectDTO]()), revision: 1)
 		try await duplicate.save(on: app.db(.sqlite))
 		let response = try await request(app, .POST, "/v1/timetables/received/import", token: importer.accessToken, body: ReceivedTimetableImportRequest(timetableID: XCTUnwrap(timetable.id)))
 		XCTAssertEqual(response.status, .conflict)
@@ -159,18 +159,18 @@ final class SharedTimetableIntegrationTests: XCTestCase, @unchecked Sendable {
 
 	func testDeleteRevokesOnlyTheRelationshipNamedByImportIDAcrossUUIDNamespaces() async throws {
 		let (app, importer, timetable) = try await makeFixture(platform: .iOS)
-		let authored = try AuthoredTimetable(id: XCTUnwrap(timetable.id), authorUserID: importer.user.id, subjectDisplayName: "Collision", passSerialNumber: UUID().uuidString, subjectsData: JSONEncoder().encode([TimetableSubjectDTO]()), revision: 1)
-		try await authored.save(on: app.db(.sqlite))
+		let created = try CreatedTimetable(id: XCTUnwrap(timetable.id), authorUserID: importer.user.id, subjectDisplayName: "Collision", passSerialNumber: UUID().uuidString, subjectsData: JSONEncoder().encode([TimetableSubjectDTO]()), revision: 1)
+		try await created.save(on: app.db(.sqlite))
 		let ownerImport = try ReceivedTimetableImport(userID: importer.user.id, timetableID: XCTUnwrap(timetable.id), sourceKind: .accountOwner)
-		let authoredImport = try ReceivedTimetableImport(userID: importer.user.id, timetableID: XCTUnwrap(timetable.id), sourceKind: .authoredForThirdParty)
-		try await ownerImport.save(on: app.db(.sqlite)); try await authoredImport.save(on: app.db(.sqlite))
+		let createdImport = try ReceivedTimetableImport(userID: importer.user.id, timetableID: XCTUnwrap(timetable.id), sourceKind: .createdForThirdParty)
+		try await ownerImport.save(on: app.db(.sqlite)); try await createdImport.save(on: app.db(.sqlite))
 		_ = try await request(app, .DELETE, "/v1/timetables/received/authoritative/\(ownerImport.id!.uuidString)", token: importer.accessToken)
 		let ownerAfterValue = try await ReceivedTimetableImport.find(XCTUnwrap(ownerImport.id), on: app.db(.sqlite))
-		let authoredAfterValue = try await ReceivedTimetableImport.find(XCTUnwrap(authoredImport.id), on: app.db(.sqlite))
+		let createdAfterValue = try await ReceivedTimetableImport.find(XCTUnwrap(createdImport.id), on: app.db(.sqlite))
 		let ownerAfter = try XCTUnwrap(ownerAfterValue)
-		let authoredAfter = try XCTUnwrap(authoredAfterValue)
+		let createdAfter = try XCTUnwrap(createdAfterValue)
 		XCTAssertNotNil(ownerAfter.revokedAt)
-		XCTAssertNil(authoredAfter.revokedAt)
+		XCTAssertNil(createdAfter.revokedAt)
 	}
 
 	func testAuthoritativeListIsBoundedAndPaginated() async throws {

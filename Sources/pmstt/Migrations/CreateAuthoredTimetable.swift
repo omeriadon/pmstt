@@ -1,8 +1,8 @@
 import Fluent
 
-struct CreateAuthoredTimetable: AsyncMigration {
+struct CreateCreatedTimetable: AsyncMigration {
 	func prepare(on database: any Database) async throws {
-		try await database.schema("authored_timetables")
+		try await database.schema("created_timetables")
 			.id()
 			.field("author_user_id", .uuid, .required, .references("users", "id", onDelete: .cascade))
 			.field("subject_display_name", .string, .required)
@@ -17,6 +17,6 @@ struct CreateAuthoredTimetable: AsyncMigration {
 	}
 
 	func revert(on database: any Database) async throws {
-		try await database.schema("authored_timetables").delete()
+		try await database.schema("created_timetables").delete()
 	}
 }

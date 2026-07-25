@@ -7,7 +7,7 @@ struct CreatePassRecord: AsyncMigration {
 			.field("serial_number", .string, .required)
 			.field("issuer_account_id", .string, .required)
 			.field("source_kind", .string, .required)
-			.field("authored_timetable_id", .uuid, .references("authored_timetables", "id", onDelete: .setNull))
+			.field("created_timetable_id", .uuid, .references("created_timetables", "id", onDelete: .setNull))
 			.field("revision", .int, .required)
 			.field("authentication_token_hash", .string, .required)
 			.field("is_deleted", .bool, .required)

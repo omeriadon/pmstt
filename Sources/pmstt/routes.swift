@@ -39,7 +39,7 @@ func routes(_ app: Application) throws {
 	try api.register(collection: NotificationController())
 	try api.register(collection: LiveActivityController())
 	try api.register(collection: ReportController())
-	try api.register(collection: AuthoredTimetableController())
+	try api.register(collection: CreatedTimetableController())
 	try api.register(collection: TimetableDiscoveryController())
 	try api.register(collection: SharedTimetableController())
 }

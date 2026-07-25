@@ -1,9 +1,9 @@
 import Fluent
 import Vapor
 
-struct AuthoredTimetableController: RouteCollection {
+struct CreatedTimetableController: RouteCollection {
 	func boot(routes: any RoutesBuilder) throws {
-		let routes = routes.grouped("v1", "timetables", "authored")
+		let routes = routes.grouped("v1", "timetables", "created")
 			.grouped(SessionAuthenticator(), UserPayload.guardMiddleware(), CapabilityMiddleware())
 		routes.get(use: list)
 		routes.post(use: create)
@@ -13,13 +13,13 @@ struct AuthoredTimetableController: RouteCollection {
 
 	func create(req: Request) async throws -> TimetableDetailResponse {
 		let payload = try req.auth.require(UserPayload.self)
-		let body = try req.content.decode(AuthoredTimetableCreateRequest.self)
+		let body = try req.content.decode(CreatedTimetableCreateRequest.self)
 		let title = body.title.trimmingCharacters(in: .whitespacesAndNewlines)
 		guard !title.isEmpty, title.count <= 100 else {
 			throw AppError(.badRequest, code: .invalidRequest, reason: "The title must contain between 1 and 100 characters.", field: "title")
 		}
 		guard let user = try await User.find(payload.sub, on: req.db) else { throw Abort(.notFound) }
-		let timetable = try AuthoredTimetable(
+		let timetable = try CreatedTimetable(
 			authorUserID: payload.sub,
 			subjectDisplayName: title,
 			passSerialNumber: UUID().uuidString,
@@ -29,19 +29,19 @@ struct AuthoredTimetableController: RouteCollection {
 		)
 		timetable.$author.value = user
 		try await timetable.save(on: req.db)
-		return try await ResolvedTimetable.authored(timetable).detail(on: req.db, viewerID: payload.sub)
+		return try await ResolvedTimetable.created(timetable).detail(on: req.db, viewerID: payload.sub)
 	}
 
 	func list(req: Request) async throws -> [TimetableDetailResponse] {
 		let payload = try req.auth.require(UserPayload.self)
-		let values = try await AuthoredTimetable.query(on: req.db).filter(\.$author.$id == payload.sub).with(\.$author).all()
-		return try await values.asyncMap { try await ResolvedTimetable.authored($0).detail(on: req.db, viewerID: payload.sub) }
+		let values = try await CreatedTimetable.query(on: req.db).filter(\.$author.$id == payload.sub).with(\.$author).all()
+		return try await values.asyncMap { try await ResolvedTimetable.created($0).detail(on: req.db, viewerID: payload.sub) }
 	}
 
 	func update(req: Request) async throws -> TimetableDetailResponse {
 		let payload = try req.auth.require(UserPayload.self)
-		guard let id = req.parameters.get("timetableID", as: UUID.self), let timetable = try await AuthoredTimetable.query(on: req.db).filter(\.$id == id).filter(\.$author.$id == payload.sub).with(\.$author).first() else { throw Abort(.notFound) }
-		let body = try req.content.decode(AuthoredTimetableUpdateRequest.self)
+		guard let id = req.parameters.get("timetableID", as: UUID.self), let timetable = try await CreatedTimetable.query(on: req.db).filter(\.$id == id).filter(\.$author.$id == payload.sub).with(\.$author).first() else { throw Abort(.notFound) }
+		let body = try req.content.decode(CreatedTimetableUpdateRequest.self)
 		let title = body.title.trimmingCharacters(in: .whitespacesAndNewlines)
 		guard !title.isEmpty, title.count <= 100 else { throw AppError(.badRequest, code: .invalidRequest, reason: "The title must contain between 1 and 100 characters.", field: "title") }
 		timetable.subjectDisplayName = title
@@ -49,12 +49,12 @@ struct AuthoredTimetableController: RouteCollection {
 		timetable.isSearchable = body.isSearchable
 		timetable.revision += 1
 		try await timetable.save(on: req.db)
-		return try await ResolvedTimetable.authored(timetable).detail(on: req.db, viewerID: payload.sub)
+		return try await ResolvedTimetable.created(timetable).detail(on: req.db, viewerID: payload.sub)
 	}
 
 	func delete(req: Request) async throws -> HTTPStatus {
 		let payload = try req.auth.require(UserPayload.self)
-		guard let id = req.parameters.get("timetableID", as: UUID.self), let timetable = try await AuthoredTimetable.query(on: req.db).filter(\.$id == id).filter(\.$author.$id == payload.sub).first() else { throw Abort(.notFound) }
+		guard let id = req.parameters.get("timetableID", as: UUID.self), let timetable = try await CreatedTimetable.query(on: req.db).filter(\.$id == id).filter(\.$author.$id == payload.sub).first() else { throw Abort(.notFound) }
 		try await timetable.delete(on: req.db)
 		return .noContent
 	}

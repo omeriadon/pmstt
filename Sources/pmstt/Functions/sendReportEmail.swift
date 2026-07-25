@@ -29,7 +29,7 @@ func sendReportEmail(
 		.filter(\.$user.$id == reportedUserID)
 		.first()
 
-	let authoredTimetables: [AuthoredTimetable] = try await AuthoredTimetable.query(on: req.db)
+	let createdTimetables: [CreatedTimetable] = try await CreatedTimetable.query(on: req.db)
 		.filter(\.$author.$id == reportedUserID)
 		.all()
 
@@ -50,7 +50,7 @@ func sendReportEmail(
 
 	\(renderOwnerTimetableHTML(ownerTimetable))
 
-	\(renderAuthoredTimetablesHTML(authoredTimetables))
+	\(renderCreatedTimetablesHTML(createdTimetables))
 	"""
 
 	let email = ResendEmailRequest(
@@ -159,18 +159,18 @@ private func renderOwnerTimetableHTML(_ timetable: OwnerTimetable?) -> String {
 	"""
 }
 
-private func renderAuthoredTimetablesHTML(_ timetables: [AuthoredTimetable]) -> String {
+private func renderCreatedTimetablesHTML(_ timetables: [CreatedTimetable]) -> String {
 	guard !timetables.isEmpty else {
 		return """
-		<h3>Authored Timetables</h3>
-		<p><em>No authored timetables found.</em></p>
+		<h3>Created Timetables</h3>
+		<p><em>No created timetables found.</em></p>
 		"""
 	}
 
 	let items = timetables.map { timetable in
 		"""
 		<div style="border: 1px solid #999; padding: 12px; margin: 12px 0;">
-		 <h4>Authored Timetable</h4>
+		 <h4>Created Timetable</h4>
 
 		 <table border="1" cellpadding="6" cellspacing="0">
 		  <tr>
@@ -214,7 +214,7 @@ private func renderAuthoredTimetablesHTML(_ timetables: [AuthoredTimetable]) -> 
 	}.joined(separator: "\n")
 
 	return """
-	<h3>Authored Timetables</h3>
+	<h3>Created Timetables</h3>
 	\(items)
 	"""
 }
