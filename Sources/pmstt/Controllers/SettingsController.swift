@@ -17,8 +17,8 @@ struct SettingsController: RouteCollection {
 		return try decodeSettings(for: user)
 	}
 
-	func getSchoolCalendar(req _: Request) -> SchoolCalendarResponse {
-		SchoolCalendar.configured.response
+	func getSchoolCalendar(req: Request) async throws -> SchoolCalendarResponse {
+		try await SchoolCalendar.response(on: req.db)
 	}
 
 	func updateSettings(req: Request) async throws -> AccountSettings {

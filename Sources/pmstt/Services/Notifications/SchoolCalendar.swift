@@ -1,3 +1,4 @@
+import Fluent
 import Foundation
 import Vapor
 
@@ -104,10 +105,30 @@ struct SchoolCalendar {
 			skippedDates: excludedDates.map { SchoolCalendarNamedDate(date: SchoolCalendarDate($0.date), label: $0.label) }
 		)
 	}
+
+	static func response(on database: any Database) async throws -> SchoolCalendarResponse {
+		let entries = try await SchoolCalendarEntry.query(on: database).all()
+		guard !entries.isEmpty else { return configured.response }
+		let terms = try entries.filter { $0.kind == "term" }.map { entry in
+			try SchoolCalendarDateRange(label: entry.label, start: SchoolCalendarDate(storageValue: entry.startDate), end: SchoolCalendarDate(storageValue: entry.endDate ?? entry.startDate))
+		}
+		let skipped = try entries.filter { $0.kind == "noSchool" }.map { entry in
+			try SchoolCalendarNamedDate(date: SchoolCalendarDate(storageValue: entry.startDate), label: entry.label)
+		}
+		return SchoolCalendarResponse(termRanges: terms, skippedDates: skipped)
+	}
 }
 
 private extension DateComponents {
 	static func ymd(_ year: Int, _ month: Int, _ day: Int) -> DateComponents {
 		DateComponents(year: year, month: month, day: day)
+	}
+}
+
+private extension SchoolCalendarDate {
+	init(storageValue: String) throws {
+		let values = storageValue.split(separator: "-").compactMap { Int($0) }
+		guard values.count == 3 else { throw Abort(.internalServerError) }
+		year = values[0]; month = values[1]; day = values[2]
 	}
 }
