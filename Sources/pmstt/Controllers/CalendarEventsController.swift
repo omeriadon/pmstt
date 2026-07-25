@@ -8,8 +8,10 @@ struct CalendarEventsController: RouteCollection {
 		protected.get(use: list)
 		protected.post("private", use: createPrivate)
 		protected.delete("private", ":eventID", use: deletePrivate)
+		protected.put("private", ":eventID", use: updatePrivate)
 		protected.post("global", use: createGlobal)
 		protected.delete("global", ":eventID", use: deleteGlobal)
+		protected.put("global", ":eventID", use: updateGlobal)
 	}
 
 	private func list(req: Request) async throws -> CalendarEventsResponse {
@@ -34,6 +36,14 @@ struct CalendarEventsController: RouteCollection {
 		return try await response(for: user, on: req)
 	}
 
+	private func updatePrivate(req: Request) async throws -> CalendarEventsResponse {
+		let user = try await authenticatedUser(req)
+		let event = try await ownedEvent(req: req, user: user, globally: false)
+		try update(event, with: req)
+		try await event.update(on: req.db)
+		return try await response(for: user, on: req)
+	}
+
 	private func createGlobal(req: Request) async throws -> CalendarEventsResponse {
 		let user = try await authenticatedUser(req)
 		try requireGlobalEventAuthority(user, req: req)
@@ -51,6 +61,15 @@ struct CalendarEventsController: RouteCollection {
 		try requireGlobalEventAuthority(user, req: req)
 		let event = try await ownedEvent(req: req, user: user, globally: true, requiresOwner: false)
 		try await event.delete(on: req.db)
+		return try await response(for: user, on: req)
+	}
+
+	private func updateGlobal(req: Request) async throws -> CalendarEventsResponse {
+		let user = try await authenticatedUser(req)
+		try requireGlobalEventAuthority(user, req: req)
+		let event = try await ownedEvent(req: req, user: user, globally: true, requiresOwner: false)
+		try update(event, with: req)
+		try await event.update(on: req.db)
 		return try await response(for: user, on: req)
 	}
 
@@ -98,6 +117,15 @@ struct CalendarEventsController: RouteCollection {
 		guard !request.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
 		      request.title.count <= 120, request.symbol.count <= 120, request.notes?.count ?? 0 <= 2000
 		else { throw Abort(.badRequest) }
+	}
+
+	private func update(_ event: CalendarEvent, with req: Request) throws {
+		let request = try req.content.decode(CreateCalendarEventRequest.self)
+		try validate(request)
+		event.title = request.title
+		event.notes = request.notes
+		event.symbol = request.symbol
+		event.eventDate = request.date.storageValue
 	}
 }
 

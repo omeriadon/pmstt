@@ -14,19 +14,31 @@ struct SchoolCalendarDate: Content, Hashable {
 }
 
 struct SchoolCalendarDateRange: Content, Hashable {
+	let label: String
 	let start: SchoolCalendarDate
 	let end: SchoolCalendarDate
 }
 
+struct SchoolCalendarNamedDate: Content, Hashable {
+	let date: SchoolCalendarDate
+	let label: String
+}
+
 struct SchoolCalendarResponse: Content {
 	let termRanges: [SchoolCalendarDateRange]
-	let skippedDates: Set<SchoolCalendarDate>
+	let skippedDates: [SchoolCalendarNamedDate]
 }
 
 struct SchoolCalendar {
 	struct DateRange {
+		let label: String
 		let start: DateComponents
 		let end: DateComponents
+	}
+
+	struct NamedDate {
+		let date: DateComponents
+		let label: String
 	}
 
 	static let perthTimeZone = TimeZone(identifier: "Australia/Perth")!
@@ -35,21 +47,21 @@ struct SchoolCalendar {
 	static let configured = SchoolCalendar(
 		termRanges: [
 			// Term 3: started early (7 Jul) for development testing
-			.init(start: .ymd(2026, 7, 7), end: .ymd(2026, 9, 25)),
-			.init(start: .ymd(2026, 10, 12), end: .ymd(2026, 12, 17)),
+			.init(label: "Term 3", start: .ymd(2026, 7, 7), end: .ymd(2026, 9, 25)),
+			.init(label: "Term 4", start: .ymd(2026, 10, 12), end: .ymd(2026, 12, 17)),
 		],
 		excludedDates: [
-			.ymd(2026, 3, 2), // Labour Day
-			.ymd(2026, 6, 1), // Western Australia Day
-			.ymd(2026, 7, 26),
+			.init(date: .ymd(2026, 3, 2), label: "Labour Day"),
+			.init(date: .ymd(2026, 6, 1), label: "Western Australia Day"),
+			.init(date: .ymd(2026, 7, 26), label: "No school"),
 		]
 	)
 
 	let termRanges: [DateRange]
-	let excludedDates: Set<DateComponents>
+	let excludedDates: [NamedDate]
 	let calendar: Calendar
 
-	init(termRanges: [DateRange], excludedDates: Set<DateComponents>) {
+	init(termRanges: [DateRange], excludedDates: [NamedDate]) {
 		self.termRanges = termRanges
 		self.excludedDates = excludedDates
 		var calendar = Calendar(identifier: .gregorian)
@@ -62,7 +74,7 @@ struct SchoolCalendar {
 		guard let weekday = calendar.dateComponents([.weekday], from: date).weekday,
 		      (2 ... 6).contains(weekday),
 		      !excludedDates.contains(where: { excluded in
-		      	excluded.year == components.year && excluded.month == components.month && excluded.day == components.day
+		      	excluded.date.year == components.year && excluded.date.month == components.month && excluded.date.day == components.day
 		      }),
 		      let day = calendar.date(from: components)
 		else { return false }
@@ -87,9 +99,9 @@ struct SchoolCalendar {
 	var response: SchoolCalendarResponse {
 		SchoolCalendarResponse(
 			termRanges: termRanges.map { range in
-				SchoolCalendarDateRange(start: SchoolCalendarDate(range.start), end: SchoolCalendarDate(range.end))
+				SchoolCalendarDateRange(label: range.label, start: SchoolCalendarDate(range.start), end: SchoolCalendarDate(range.end))
 			},
-			skippedDates: Set(excludedDates.map(SchoolCalendarDate.init))
+			skippedDates: excludedDates.map { SchoolCalendarNamedDate(date: SchoolCalendarDate($0.date), label: $0.label) }
 		)
 	}
 }
