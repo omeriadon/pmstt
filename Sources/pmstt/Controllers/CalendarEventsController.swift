@@ -12,11 +12,11 @@ struct CalendarEventsController: RouteCollection {
 		protected.delete("global", ":eventID", use: deleteGlobal)
 	}
 
-	func list(req: Request) async throws -> CalendarEventsResponse {
+	private func list(req: Request) async throws -> CalendarEventsResponse {
 		try await response(for: authenticatedUser(req), on: req)
 	}
 
-	func createPrivate(req: Request) async throws -> CalendarEventsResponse {
+	private func createPrivate(req: Request) async throws -> CalendarEventsResponse {
 		let user = try await authenticatedUser(req)
 		let request = try req.content.decode(CreateCalendarEventRequest.self)
 		try validate(request)
@@ -27,14 +27,14 @@ struct CalendarEventsController: RouteCollection {
 		return try await response(for: user, on: req)
 	}
 
-	func deletePrivate(req: Request) async throws -> CalendarEventsResponse {
+	private func deletePrivate(req: Request) async throws -> CalendarEventsResponse {
 		let user = try await authenticatedUser(req)
 		let event = try await ownedEvent(req: req, user: user, globally: false)
 		try await event.delete(on: req.db)
 		return try await response(for: user, on: req)
 	}
 
-	func createGlobal(req: Request) async throws -> CalendarEventsResponse {
+	private func createGlobal(req: Request) async throws -> CalendarEventsResponse {
 		let user = try await authenticatedUser(req)
 		try requireGlobalEventAuthority(user, req: req)
 		let request = try req.content.decode(CreateCalendarEventRequest.self)
@@ -46,7 +46,7 @@ struct CalendarEventsController: RouteCollection {
 		return try await response(for: user, on: req)
 	}
 
-	func deleteGlobal(req: Request) async throws -> CalendarEventsResponse {
+	private func deleteGlobal(req: Request) async throws -> CalendarEventsResponse {
 		let user = try await authenticatedUser(req)
 		try requireGlobalEventAuthority(user, req: req)
 		let event = try await ownedEvent(req: req, user: user, globally: true, requiresOwner: false)
@@ -69,8 +69,10 @@ struct CalendarEventsController: RouteCollection {
 		guard let id = req.parameters.get("eventID", as: UUID.self),
 		      let event = try await CalendarEvent.find(id, on: req.db), event.isGlobal == globally
 		else { throw Abort(.notFound) }
-		if requiresOwner, event.$user.id != user.requireID() {
-			throw Abort(.forbidden)
+		if requiresOwner {
+			guard try event.$user.id == user.requireID() else {
+				throw Abort(.forbidden)
+			}
 		}
 		return event
 	}

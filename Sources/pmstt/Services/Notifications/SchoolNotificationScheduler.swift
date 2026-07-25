@@ -20,9 +20,10 @@ struct SchoolNotificationScheduler {
 	func tick(at date: Date, database: any Database, logger: Logger) async {
 		let hour = schoolCalendar.calendar.component(.hour, from: date)
 		let minute = schoolCalendar.calendar.component(.minute, from: date)
-		let candidateEvents: [SchoolNotificationEvent] = if schoolCalendar.isSchoolDay(date), let dayIndex = schoolCalendar.dayIndex(for: date) {
+		let schoolDayIndex = schoolCalendar.isSchoolDay(date) ? schoolCalendar.dayIndex(for: date) : nil
+		let candidateEvents: [SchoolNotificationEvent] = if let schoolDayIndex {
 			SchoolNotificationEvent.allCases.filter {
-				$0.couldBeDue(hour: hour, minute: minute, dayIndex: dayIndex)
+				$0.couldBeDue(hour: hour, minute: minute, dayIndex: schoolDayIndex)
 			}
 		} else {
 			[]
@@ -38,7 +39,7 @@ struct SchoolNotificationScheduler {
 				do {
 					guard let user = try await User.find(userID, on: database) else { continue }
 					let settings = try JSONDecoder().decode(AccountSettings.self, from: user.settingsData)
-					if settings.notificationsEnabled {
+					if settings.notificationsEnabled, let dayIndex = schoolDayIndex {
 						for event in candidateEvents {
 							let leadTimes: Set<NotificationLeadTime> = event == .morning
 								? [.zero]
