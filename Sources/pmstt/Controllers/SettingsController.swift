@@ -7,6 +7,7 @@ struct SettingsController: RouteCollection {
 		let protected = settings.grouped(SessionAuthenticator(), UserPayload.guardMiddleware(), CapabilityMiddleware())
 
 		protected.get(use: getSettings)
+		protected.get("calendar", use: getSchoolCalendar)
 		protected.put(use: updateSettings)
 		protected.put("notifications", use: updateNotificationSettings)
 	}
@@ -14,6 +15,10 @@ struct SettingsController: RouteCollection {
 	func getSettings(req: Request) async throws -> AccountSettings {
 		let user = try await authenticatedUser(req)
 		return try decodeSettings(for: user)
+	}
+
+	func getSchoolCalendar(req _: Request) -> SchoolCalendarResponse {
+		SchoolCalendar.configured.response
 	}
 
 	func updateSettings(req: Request) async throws -> AccountSettings {

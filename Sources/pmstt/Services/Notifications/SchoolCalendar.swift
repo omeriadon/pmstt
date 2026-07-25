@@ -1,4 +1,27 @@
 import Foundation
+import Vapor
+
+struct SchoolCalendarDate: Content, Hashable {
+	let year: Int
+	let month: Int
+	let day: Int
+
+	init(_ components: DateComponents) {
+		year = components.year ?? 0
+		month = components.month ?? 0
+		day = components.day ?? 0
+	}
+}
+
+struct SchoolCalendarDateRange: Content, Hashable {
+	let start: SchoolCalendarDate
+	let end: SchoolCalendarDate
+}
+
+struct SchoolCalendarResponse: Content {
+	let termRanges: [SchoolCalendarDateRange]
+	let skippedDates: Set<SchoolCalendarDate>
+}
 
 struct SchoolCalendar {
 	struct DateRange {
@@ -58,6 +81,15 @@ struct SchoolCalendar {
 		      (2 ... 6).contains(weekday)
 		else { return nil }
 		return weekday - 2
+	}
+
+	var response: SchoolCalendarResponse {
+		SchoolCalendarResponse(
+			termRanges: termRanges.map { range in
+				SchoolCalendarDateRange(start: SchoolCalendarDate(range.start), end: SchoolCalendarDate(range.end))
+			},
+			skippedDates: Set(excludedDates.map(SchoolCalendarDate.init))
+		)
 	}
 }
 
