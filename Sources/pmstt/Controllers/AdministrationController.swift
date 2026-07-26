@@ -92,39 +92,21 @@ struct AdministrationController: RouteCollection {
 			try container.encode(String(data: data, encoding: .utf8) ?? data.base64EncodedString())
 		}
 
-		let account = try AdministrationRawAccount(user)
-		var sections = [try detailSection("Account", value: account, encoder: encoder)]
-		sections += try await detailSections("Owner Timetable", values: OwnerTimetable.query(on: req.db).filter(\.$user.$id == id), encoder: encoder)
-		sections += try await detailSections("Created Timetable", values: CreatedTimetable.query(on: req.db).filter(\.$author.$id == id), encoder: encoder)
-		sections += try await detailSections("Received Timetable Import", values: ReceivedTimetableImport.query(on: req.db).filter(\.$user.$id == id), encoder: encoder)
-		sections += try await detailSections("Received Pass Mirror", values: ReceivedPassMirror.query(on: req.db).filter(\.$user.$id == id), encoder: encoder)
-		sections += try await detailSections("Received Name Override", values: ReceivedNameOverride.query(on: req.db).filter(\.$user.$id == id), encoder: encoder)
-		sections += try await detailSections("Device", values: UserDevice.query(on: req.db).filter(\.$user.$id == id), encoder: encoder)
-		sections += try await detailSections("Calendar Event", values: CalendarEvent.query(on: req.db).filter(\.$user.$id == id), encoder: encoder)
-		sections += try await detailSections("School Notification Delivery", values: SchoolNotificationDelivery.query(on: req.db).filter(\.$user.$id == id), encoder: encoder)
-		sections += try await detailSections("Session", values: UserToken.query(on: req.db).filter(\.$user.$id == id), encoder: encoder)
+		let rawData = AdministrationUserRawData(
+			account: try AdministrationRawAccount(user),
+			ownerTimetables: try await OwnerTimetable.query(on: req.db).filter(\.$user.$id == id).all(),
+			createdTimetables: try await CreatedTimetable.query(on: req.db).filter(\.$author.$id == id).all(),
+			receivedTimetableImports: try await ReceivedTimetableImport.query(on: req.db).filter(\.$user.$id == id).all(),
+			receivedPassMirrors: try await ReceivedPassMirror.query(on: req.db).filter(\.$user.$id == id).all(),
+			receivedNameOverrides: try await ReceivedNameOverride.query(on: req.db).filter(\.$user.$id == id).all(),
+			devices: try await UserDevice.query(on: req.db).filter(\.$user.$id == id).all(),
+			calendarEvents: try await CalendarEvent.query(on: req.db).filter(\.$user.$id == id).all(),
+			schoolNotificationDeliveries: try await SchoolNotificationDelivery.query(on: req.db).filter(\.$user.$id == id).all(),
+			sessions: try await UserToken.query(on: req.db).filter(\.$user.$id == id).all()
+		)
 
-		return AdministrationUserDetailResponse(sections: sections)
-	}
-
-	private func detailSections<Model: Fluent.Model & Content>(
-		_ title: String,
-		values query: QueryBuilder<Model>,
-		encoder: JSONEncoder
-	) async throws -> [AdministrationUserDetailSection] {
-		let values = try await query.all()
-		return try values.enumerated().map { index, value in
-			try detailSection("\(title) \(index + 1)", value: value, encoder: encoder)
-		}
-	}
-
-	private func detailSection<Value: Encodable>(
-		_ title: String,
-		value: Value,
-		encoder: JSONEncoder
-	) throws -> AdministrationUserDetailSection {
-		let data = try encoder.encode(value)
-		return AdministrationUserDetailSection(title: title, content: String(decoding: data, as: UTF8.self))
+		let data = try encoder.encode(rawData)
+		return AdministrationUserDetailResponse(rawData: String(decoding: data, as: UTF8.self))
 	}
 
 	private func broadcastNotification(req: Request) async throws -> BroadcastNotificationResponse {
@@ -191,11 +173,7 @@ private struct AdministrationUserCreateRequest: Content {
 }
 private struct AdministrationUserUpdateRequest: Content { let displayName: String; let email: String; let password: String? }
 private struct AdministrationUserDetailResponse: Content {
-	let sections: [AdministrationUserDetailSection]
-}
-private struct AdministrationUserDetailSection: Content {
-	let title: String
-	let content: String
+	let rawData: String
 }
 private struct AdministrationUserResponse: Content { let id: UUID; let displayName: String; let email: String?; let createdAt: Date?; init(_ user: User) throws {
 	id = try user.requireID(); displayName = user.displayName; email = user.email; createdAt = user.createdAt
@@ -224,6 +202,18 @@ private struct AdministrationRawAccount: Content {
 		createdAt = user.createdAt
 		updatedAt = user.updatedAt
 	}
+}
+private struct AdministrationUserRawData: Content {
+	let account: AdministrationRawAccount
+	let ownerTimetables: [OwnerTimetable]
+	let createdTimetables: [CreatedTimetable]
+	let receivedTimetableImports: [ReceivedTimetableImport]
+	let receivedPassMirrors: [ReceivedPassMirror]
+	let receivedNameOverrides: [ReceivedNameOverride]
+	let devices: [UserDevice]
+	let calendarEvents: [CalendarEvent]
+	let schoolNotificationDeliveries: [SchoolNotificationDelivery]
+	let sessions: [UserToken]
 }
 private struct AdministrationCalendarEntryRequest: Content { let kind: String; let label: String; let startDate: SchoolCalendarDate; let endDate: SchoolCalendarDate? }
 private struct AdministrationCalendarEntryResponse: Content { let id: UUID; let kind: String; let label: String; let startDate: SchoolCalendarDate; let endDate: SchoolCalendarDate?; init(_ entry: SchoolCalendarEntry) throws {
