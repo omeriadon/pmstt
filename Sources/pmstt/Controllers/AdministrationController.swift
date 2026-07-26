@@ -7,6 +7,7 @@ struct AdministrationController: RouteCollection {
 		admin.get(use: dashboard)
 		admin.get("users", use: users)
 		admin.put("users", ":userID", use: updateUser)
+		admin.post("broadcast-notification", use: broadcastNotification)
 		admin.get("calendar", use: calendar)
 		admin.post("calendar", use: createCalendarEntry)
 		admin.put("calendar", ":entryID", use: updateCalendarEntry)
@@ -40,6 +41,28 @@ struct AdministrationController: RouteCollection {
 		}
 		try await user.update(on: req.db)
 		return try AdministrationUserResponse(user)
+	}
+
+	private func broadcastNotification(req: Request) async throws -> BroadcastNotificationResponse {
+		try await requireAdmin(req)
+		let request = try req.content.decode(BroadcastNotificationRequest.self)
+		let title = request.title.trimmingCharacters(in: .whitespacesAndNewlines)
+		let subtitle = request.subtitle.trimmingCharacters(in: .whitespacesAndNewlines)
+		let body = request.body.trimmingCharacters(in: .whitespacesAndNewlines)
+
+		guard !title.isEmpty, title.count <= 200 else {
+			throw Abort(.badRequest)
+		}
+
+		guard !subtitle.isEmpty, subtitle.count <= 200 else {
+			throw Abort(.badRequest)
+		}
+
+		guard !body.isEmpty, body.count <= 2_000 else {
+			throw Abort(.badRequest)
+		}
+
+		return try await NotificationService().broadcast(title: title, subtitle: subtitle, body: body, on: req)
 	}
 
 	private func calendar(req: Request) async throws -> [AdministrationCalendarEntryResponse] {
