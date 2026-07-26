@@ -85,7 +85,7 @@ struct AdministrationController: RouteCollection {
 		}
 
 		let rawData = AdministrationUserRawData(
-			account: AdministrationRawAccount(user),
+			account: try AdministrationRawAccount(user),
 			ownerTimetables: try await OwnerTimetable.query(on: req.db).filter(\.$user.$id == id).all(),
 			createdTimetables: try await CreatedTimetable.query(on: req.db).filter(\.$author.$id == id).all(),
 			receivedTimetableImports: try await ReceivedTimetableImport.query(on: req.db).filter(\.$user.$id == id).all(),
