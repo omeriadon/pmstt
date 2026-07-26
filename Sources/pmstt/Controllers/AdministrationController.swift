@@ -6,6 +6,7 @@ struct AdministrationController: RouteCollection {
 		let admin = routes.grouped("v1", "administration").grouped(SessionAuthenticator(), UserPayload.guardMiddleware(), CapabilityMiddleware())
 		admin.get(use: dashboard)
 		admin.get("users", use: users)
+		admin.put("users", ":userID", use: updateUser)
 		admin.get("calendar", use: calendar)
 		admin.post("calendar", use: createCalendarEntry)
 		admin.put("calendar", ":entryID", use: updateCalendarEntry)
@@ -20,6 +21,25 @@ struct AdministrationController: RouteCollection {
 	private func users(req: Request) async throws -> [AdministrationUserResponse] {
 		try await requireAdmin(req)
 		return try await User.query(on: req.db).sort(\.$displayName).all().map(AdministrationUserResponse.init)
+	}
+
+	private func updateUser(req: Request) async throws -> AdministrationUserResponse {
+		try await requireAdmin(req)
+		guard let id = req.parameters.get("userID", as: UUID.self), let user = try await User.find(id, on: req.db) else { throw Abort(.notFound) }
+		let update = try req.content.decode(AdministrationUserUpdateRequest.self)
+		let displayName = update.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+		guard !displayName.isEmpty else { throw Abort(.badRequest) }
+		let email = update.email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+		guard email.contains("@") else { throw Abort(.badRequest) }
+		if email != user.email, try await User.query(on: req.db).filter(\.$email == email).first() != nil { throw Abort(.conflict) }
+		user.displayName = displayName
+		user.email = email
+		if let password = update.password, !password.isEmpty {
+			guard password.count >= 8 else { throw Abort(.badRequest) }
+			user.passwordHash = try req.password.hash(password)
+		}
+		try await user.update(on: req.db)
+		return try AdministrationUserResponse(user)
 	}
 
 	private func calendar(req: Request) async throws -> [AdministrationCalendarEntryResponse] {
@@ -57,6 +77,7 @@ struct AdministrationController: RouteCollection {
 }
 
 private struct AdministrationDashboardResponse: Content { let isAdmin: Bool }
+private struct AdministrationUserUpdateRequest: Content { let displayName: String; let email: String; let password: String? }
 private struct AdministrationUserResponse: Content { let id: UUID; let displayName: String; let email: String?; let createdAt: Date?; init(_ user: User) throws {
 	id = try user.requireID(); displayName = user.displayName; email = user.email; createdAt = user.createdAt
 } }
