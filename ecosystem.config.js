@@ -10,7 +10,7 @@ module.exports = {
 				HOSTNAME: "127.0.0.1",
 				PORT: "8081",
 
-				TIMETABLE_EVENT_ADMIN_EMAILS: "omeriadon@outlook.com",
+				TIMETABLE_EVENT_ADMIN_EMAILS: "omeriadon@outlook.com,bob@icloud.com",
 
 				APNS_TEAM_ID: "P6PV2R9443",
 				APNS_KEY_ID: "LS45S5RDJ2",

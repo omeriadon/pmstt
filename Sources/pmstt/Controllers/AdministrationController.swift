@@ -35,7 +35,9 @@ struct AdministrationController: RouteCollection {
 		guard !displayName.isEmpty else { throw Abort(.badRequest) }
 		let email = update.email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
 		guard email.contains("@") else { throw Abort(.badRequest) }
-		if email != user.email, try await User.query(on: req.db).filter(\.$email == email).first() != nil { throw Abort(.conflict) }
+		if email != user.email, try await User.query(on: req.db).filter(\.$email == email).first() != nil {
+			throw Abort(.conflict)
+		}
 		user.displayName = displayName
 		user.email = email
 		if let password = update.password, !password.isEmpty {
@@ -92,17 +94,17 @@ struct AdministrationController: RouteCollection {
 			try container.encode(String(data: data, encoding: .utf8) ?? data.base64EncodedString())
 		}
 
-		let rawData = AdministrationUserRawData(
-			account: try AdministrationRawAccount(user),
-			ownerTimetables: try await OwnerTimetable.query(on: req.db).filter(\.$user.$id == id).all(),
-			createdTimetables: try await CreatedTimetable.query(on: req.db).filter(\.$author.$id == id).all(),
-			receivedTimetableImports: try await ReceivedTimetableImport.query(on: req.db).filter(\.$user.$id == id).all(),
-			receivedPassMirrors: try await ReceivedPassMirror.query(on: req.db).filter(\.$user.$id == id).all(),
-			receivedNameOverrides: try await ReceivedNameOverride.query(on: req.db).filter(\.$user.$id == id).all(),
-			devices: try await UserDevice.query(on: req.db).filter(\.$user.$id == id).all(),
-			calendarEvents: try await CalendarEvent.query(on: req.db).filter(\.$user.$id == id).all(),
-			schoolNotificationDeliveries: try await SchoolNotificationDelivery.query(on: req.db).filter(\.$user.$id == id).all(),
-			sessions: try await UserToken.query(on: req.db).filter(\.$user.$id == id).all()
+		let rawData = try await AdministrationUserRawData(
+			account: AdministrationRawAccount(user),
+			ownerTimetables: OwnerTimetable.query(on: req.db).filter(\.$user.$id == id).all(),
+			createdTimetables: CreatedTimetable.query(on: req.db).filter(\.$author.$id == id).all(),
+			receivedTimetableImports: ReceivedTimetableImport.query(on: req.db).filter(\.$user.$id == id).all(),
+			receivedPassMirrors: ReceivedPassMirror.query(on: req.db).filter(\.$user.$id == id).all(),
+			receivedNameOverrides: ReceivedNameOverride.query(on: req.db).filter(\.$user.$id == id).all(),
+			devices: UserDevice.query(on: req.db).filter(\.$user.$id == id).all(),
+			calendarEvents: CalendarEvent.query(on: req.db).filter(\.$user.$id == id).all(),
+			schoolNotificationDeliveries: SchoolNotificationDelivery.query(on: req.db).filter(\.$user.$id == id).all(),
+			sessions: UserToken.query(on: req.db).filter(\.$user.$id == id).all()
 		)
 
 		let data = try encoder.encode(rawData)
@@ -124,7 +126,7 @@ struct AdministrationController: RouteCollection {
 			throw Abort(.badRequest)
 		}
 
-		guard !body.isEmpty, body.count <= 2_000 else {
+		guard !body.isEmpty, body.count <= 2000 else {
 			throw Abort(.badRequest)
 		}
 
@@ -171,10 +173,12 @@ private struct AdministrationUserCreateRequest: Content {
 	let email: String
 	let password: String
 }
+
 private struct AdministrationUserUpdateRequest: Content { let displayName: String; let email: String; let password: String? }
 private struct AdministrationUserDetailResponse: Content {
 	let rawData: String
 }
+
 private struct AdministrationUserResponse: Content { let id: UUID; let displayName: String; let email: String?; let createdAt: Date?; init(_ user: User) throws {
 	id = try user.requireID(); displayName = user.displayName; email = user.email; createdAt = user.createdAt
 } }
@@ -203,6 +207,7 @@ private struct AdministrationRawAccount: Content {
 		updatedAt = user.updatedAt
 	}
 }
+
 private struct AdministrationUserRawData: Content {
 	let account: AdministrationRawAccount
 	let ownerTimetables: [OwnerTimetable]
@@ -215,6 +220,7 @@ private struct AdministrationUserRawData: Content {
 	let schoolNotificationDeliveries: [SchoolNotificationDelivery]
 	let sessions: [UserToken]
 }
+
 private struct AdministrationCalendarEntryRequest: Content { let kind: String; let label: String; let startDate: SchoolCalendarDate; let endDate: SchoolCalendarDate? }
 private struct AdministrationCalendarEntryResponse: Content { let id: UUID; let kind: String; let label: String; let startDate: SchoolCalendarDate; let endDate: SchoolCalendarDate?; init(_ entry: SchoolCalendarEntry) throws {
 	id = try entry.requireID(); kind = entry.kind; label = entry.label; startDate = try SchoolCalendarDate(storageValue: entry.startDate); endDate = try entry.endDate.map(SchoolCalendarDate.init(storageValue:))

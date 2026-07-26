@@ -124,5 +124,4 @@ struct NotificationController: RouteCollection {
 			throw AppError(.badRequest, code: .invalidRequest, reason: "The APNS token is invalid.", field: "apnsToken")
 		}
 	}
-
 }
