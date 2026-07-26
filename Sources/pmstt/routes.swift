@@ -30,20 +30,19 @@ func routes(_ app: Application) throws {
 		)
 	}
 
-	let api = app.grouped("api")
-	try api.register(collection: AuthController())
-	try api.register(collection: AppleNotificationController())
-	try api.register(collection: AccountController())
-	try api.register(collection: OwnerTimetableController())
-	try api.register(collection: SettingsController())
-	try api.register(collection: CalendarEventsController())
-	try api.register(collection: AdministrationController())
-	try api.register(collection: NotificationController())
-	try api.register(collection: LiveActivityController())
-	try api.register(collection: ReportController())
-	try api.register(collection: CreatedTimetableController())
-	try api.register(collection: TimetableDiscoveryController())
-	try api.register(collection: SharedTimetableController())
+	try app.register(collection: AuthController())
+	try app.register(collection: AppleNotificationController())
+	try app.register(collection: AccountController())
+	try app.register(collection: OwnerTimetableController())
+	try app.register(collection: SettingsController())
+	try app.register(collection: CalendarEventsController())
+	try app.register(collection: AdministrationController())
+	try app.register(collection: NotificationController())
+	try app.register(collection: LiveActivityController())
+	try app.register(collection: ReportController())
+	try app.register(collection: CreatedTimetableController())
+	try app.register(collection: TimetableDiscoveryController())
+	try app.register(collection: SharedTimetableController())
 }
 
 struct HealthResponse: Content {
