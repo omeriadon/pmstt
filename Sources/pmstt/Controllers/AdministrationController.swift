@@ -6,7 +6,10 @@ struct AdministrationController: RouteCollection {
 		let admin = routes.grouped("v1", "administration").grouped(SessionAuthenticator(), UserPayload.guardMiddleware(), CapabilityMiddleware())
 		admin.get(use: dashboard)
 		admin.get("users", use: users)
+		admin.get("users", ":userID", use: userDetail)
+		admin.post("users", use: createUser)
 		admin.put("users", ":userID", use: updateUser)
+		admin.delete("users", ":userID", use: deleteUser)
 		admin.post("broadcast-notification", use: broadcastNotification)
 		admin.get("calendar", use: calendar)
 		admin.post("calendar", use: createCalendarEntry)
@@ -41,6 +44,64 @@ struct AdministrationController: RouteCollection {
 		}
 		try await user.update(on: req.db)
 		return try AdministrationUserResponse(user)
+	}
+
+	private func createUser(req: Request) async throws -> AdministrationUserResponse {
+		try await requireAdmin(req)
+		let create = try req.content.decode(AdministrationUserCreateRequest.self)
+		let displayName = create.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+		let email = create.email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+		guard !displayName.isEmpty, email.contains("@"), create.password.count >= 8 else {
+			throw Abort(.badRequest)
+		}
+		guard try await User.query(on: req.db).filter(\.$email == email).first() == nil else {
+			throw Abort(.conflict)
+		}
+
+		let user = try User(
+			email: email,
+			passwordHash: req.password.hash(create.password),
+			displayName: displayName,
+			selfPassSerialNumber: UUID().uuidString,
+			settingsData: JSONEncoder().encode(AccountSettings.default)
+		)
+		try await user.create(on: req.db)
+		return try AdministrationUserResponse(user)
+	}
+
+	private func deleteUser(req: Request) async throws -> HTTPStatus {
+		try await requireAdmin(req)
+		guard let id = req.parameters.get("userID", as: UUID.self), let user = try await User.find(id, on: req.db) else {
+			throw Abort(.notFound)
+		}
+		try await user.delete(on: req.db)
+		return .noContent
+	}
+
+	private func userDetail(req: Request) async throws -> AdministrationUserDetailResponse {
+		try await requireAdmin(req)
+		guard let id = req.parameters.get("userID", as: UUID.self), let user = try await User.find(id, on: req.db) else {
+			throw Abort(.notFound)
+		}
+
+		let rawData = AdministrationUserRawData(
+			account: AdministrationRawAccount(user),
+			ownerTimetables: try await OwnerTimetable.query(on: req.db).filter(\.$user.$id == id).all(),
+			createdTimetables: try await CreatedTimetable.query(on: req.db).filter(\.$author.$id == id).all(),
+			receivedTimetableImports: try await ReceivedTimetableImport.query(on: req.db).filter(\.$user.$id == id).all(),
+			receivedPassMirrors: try await ReceivedPassMirror.query(on: req.db).filter(\.$user.$id == id).all(),
+			receivedNameOverrides: try await ReceivedNameOverride.query(on: req.db).filter(\.$user.$id == id).all(),
+			devices: try await UserDevice.query(on: req.db).filter(\.$user.$id == id).all(),
+			calendarEvents: try await CalendarEvent.query(on: req.db).filter(\.$user.$id == id).all(),
+			schoolNotificationDeliveries: try await SchoolNotificationDelivery.query(on: req.db).filter(\.$user.$id == id).all(),
+			sessions: try await UserToken.query(on: req.db).filter(\.$user.$id == id).all()
+		)
+
+		let encoder = JSONEncoder()
+		encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+		encoder.dateEncodingStrategy = .iso8601
+		let data = try encoder.encode(rawData)
+		return AdministrationUserDetailResponse(rawData: String(decoding: data, as: UTF8.self))
 	}
 
 	private func broadcastNotification(req: Request) async throws -> BroadcastNotificationResponse {
@@ -100,10 +161,55 @@ struct AdministrationController: RouteCollection {
 }
 
 private struct AdministrationDashboardResponse: Content { let isAdmin: Bool }
+private struct AdministrationUserCreateRequest: Content {
+	let displayName: String
+	let email: String
+	let password: String
+}
 private struct AdministrationUserUpdateRequest: Content { let displayName: String; let email: String; let password: String? }
+private struct AdministrationUserDetailResponse: Content {
+	let rawData: String
+}
 private struct AdministrationUserResponse: Content { let id: UUID; let displayName: String; let email: String?; let createdAt: Date?; init(_ user: User) throws {
 	id = try user.requireID(); displayName = user.displayName; email = user.email; createdAt = user.createdAt
 } }
+private struct AdministrationRawAccount: Content {
+	let id: UUID
+	let email: String?
+	let appleSubject: String?
+	let appleEmailForwardingEnabled: Bool?
+	let appleAuthorizationRevokedAt: Date?
+	let displayName: String
+	let selfPassSerialNumber: String
+	let settingsData: Data
+	let createdAt: Date?
+	let updatedAt: Date?
+
+	init(_ user: User) throws {
+		id = try user.requireID()
+		email = user.email
+		appleSubject = user.appleSubject
+		appleEmailForwardingEnabled = user.appleEmailForwardingEnabled
+		appleAuthorizationRevokedAt = user.appleAuthorizationRevokedAt
+		displayName = user.displayName
+		selfPassSerialNumber = user.selfPassSerialNumber
+		settingsData = user.settingsData
+		createdAt = user.createdAt
+		updatedAt = user.updatedAt
+	}
+}
+private struct AdministrationUserRawData: Content {
+	let account: AdministrationRawAccount
+	let ownerTimetables: [OwnerTimetable]
+	let createdTimetables: [CreatedTimetable]
+	let receivedTimetableImports: [ReceivedTimetableImport]
+	let receivedPassMirrors: [ReceivedPassMirror]
+	let receivedNameOverrides: [ReceivedNameOverride]
+	let devices: [UserDevice]
+	let calendarEvents: [CalendarEvent]
+	let schoolNotificationDeliveries: [SchoolNotificationDelivery]
+	let sessions: [UserToken]
+}
 private struct AdministrationCalendarEntryRequest: Content { let kind: String; let label: String; let startDate: SchoolCalendarDate; let endDate: SchoolCalendarDate? }
 private struct AdministrationCalendarEntryResponse: Content { let id: UUID; let kind: String; let label: String; let startDate: SchoolCalendarDate; let endDate: SchoolCalendarDate?; init(_ entry: SchoolCalendarEntry) throws {
 	id = try entry.requireID(); kind = entry.kind; label = entry.label; startDate = try SchoolCalendarDate(storageValue: entry.startDate); endDate = try entry.endDate.map(SchoolCalendarDate.init(storageValue:))
