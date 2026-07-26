@@ -8,7 +8,7 @@
 import Fluent
 import Vapor
 
-let resendAPIKey = "re_GSwEFAdz_H52TxxRZbeNekpR5me3Bkizn"
+let resendAPIKey = Environment.get("RESEND_API_KEY")!
 
 struct ResendEmailRequest: Content {
 	let from: String
