@@ -128,7 +128,7 @@ struct FriendController: RouteCollection {
 		try await friendship.$requester.load(on: req.db)
 		try await friendship.$recipient.load(on: req.db)
 		let requester = friendship.requester
-		try? await NotificationService().send(
+		_ = try? await NotificationService().send(
 			title: "Friend request",
 			body: "\(requester.displayName) sent you a friend request.",
 			threadID: "friend-requests",
