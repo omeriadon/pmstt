@@ -46,6 +46,7 @@ func routes(_ app: Application) throws {
 	try api.register(collection: ReportController())
 	try api.register(collection: CreatedTimetableController())
 	try api.register(collection: TimetableDiscoveryController())
+	try api.register(collection: FriendController())
 	try api.register(collection: sharedTimetables)
 }
 

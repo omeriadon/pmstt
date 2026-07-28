@@ -31,6 +31,9 @@ final class User: Model, Content, @unchecked Sendable {
 	@Field(key: "settings_data")
 	var settingsData: Data
 
+	@OptionalField(key: "profile_appearance_data")
+	var profileAppearanceData: Data?
+
 	@Timestamp(key: "created_at", on: .create)
 	var createdAt: Date?
 
@@ -48,7 +51,8 @@ final class User: Model, Content, @unchecked Sendable {
 		appleAuthorizationRevokedAt: Date? = nil,
 		displayName: String,
 		selfPassSerialNumber: String,
-		settingsData: Data
+		settingsData: Data,
+		profileAppearanceData: Data? = nil
 	) {
 		self.id = id
 		self.email = email?.lowercased()
@@ -59,5 +63,6 @@ final class User: Model, Content, @unchecked Sendable {
 		self.displayName = displayName
 		self.selfPassSerialNumber = selfPassSerialNumber
 		self.settingsData = settingsData
+		self.profileAppearanceData = profileAppearanceData
 	}
 }

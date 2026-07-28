@@ -62,6 +62,7 @@ func registerMigrations(on app: Application) {
 func pmsttMigrationList() -> [any Migration] {
 	[
 		CreateUser(),
+		AddUserProfileAppearance(),
 		CreateUserToken(),
 		AddUserTokenClientIdentity(),
 		CreateOwnerTimetable(),
@@ -84,6 +85,8 @@ func pmsttMigrationList() -> [any Migration] {
 		AddUserTokenAuthority(),
 		CreateReceivedTimetableImport(),
 		BackfillReceivedTimetableImports(),
+		CreateFriendship(),
+		BackfillFriendshipsFromReceivedTimetables(),
 		CreateTimetableShareAlias(),
 		CreateCalendarEvent(),
 		CreateSchoolCalendarEntry(),
