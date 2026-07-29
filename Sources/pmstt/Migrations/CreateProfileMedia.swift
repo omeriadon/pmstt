@@ -34,6 +34,9 @@ struct CreateProfileMedia: AsyncMigration {
 			.field("stored_bytes", .int64, .required)
 			.field("reserved_bytes", .int64, .required)
 			.field("writes_disabled", .bool, .required)
+			.field("reconciled_stored_bytes", .int64)
+			.field("reconciliation_warning", .bool, .required)
+			.field("reconciled_at", .datetime)
 			.field("updated_at", .datetime)
 			.create()
 

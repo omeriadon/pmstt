@@ -17,15 +17,32 @@ final class ProfileStorageQuota: Model, @unchecked Sendable {
 	@Field(key: "writes_disabled")
 	var writesDisabled: Bool
 
+	@OptionalField(key: "reconciled_stored_bytes")
+	var reconciledStoredBytes: Int64?
+
+	@Field(key: "reconciliation_warning")
+	var reconciliationWarning: Bool
+
+	@Timestamp(key: "reconciled_at", on: .none)
+	var reconciledAt: Date?
+
 	@Timestamp(key: "updated_at", on: .update)
 	var updatedAt: Date?
 
 	init() {}
 
-	init(storedBytes: Int64 = 0, reservedBytes: Int64 = 0, writesDisabled: Bool = false) {
+	init(
+		storedBytes: Int64 = 0,
+		reservedBytes: Int64 = 0,
+		writesDisabled: Bool = false,
+		reconciledStoredBytes: Int64? = nil,
+		reconciliationWarning: Bool = false
+	) {
 		id = Self.singletonID
 		self.storedBytes = storedBytes
 		self.reservedBytes = reservedBytes
 		self.writesDisabled = writesDisabled
+		self.reconciledStoredBytes = reconciledStoredBytes
+		self.reconciliationWarning = reconciliationWarning
 	}
 }

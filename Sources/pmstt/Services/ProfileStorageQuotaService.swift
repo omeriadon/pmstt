@@ -24,6 +24,9 @@ struct ProfileStorageQuotaSnapshot: Content {
 	let monthlyOperationLimit: Int
 	let monthlyWriteCutoff: Int
 	let writesDisabled: Bool
+	let reconciledStoredBytes: Int64?
+	let reconciliationWarning: Bool
+	let reconciledAt: Date?
 }
 
 struct ProfileStorageQuotaService {
@@ -136,7 +139,10 @@ struct ProfileStorageQuotaService {
 			monthlyOperations: operations,
 			monthlyOperationLimit: configuration.monthlyOperationLimit,
 			monthlyWriteCutoff: configuration.monthlyWriteCutoff,
-			writesDisabled: quota.writesDisabled
+			writesDisabled: quota.writesDisabled,
+			reconciledStoredBytes: quota.reconciledStoredBytes,
+			reconciliationWarning: quota.reconciliationWarning,
+			reconciledAt: quota.reconciledAt
 		)
 	}
 

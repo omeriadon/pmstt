@@ -47,9 +47,11 @@ actor ProfileStorageCleanupLifecycle: LifecycleHandler {
 
 	func didBootAsync(_ application: Application) async throws {
 		let cleanup = ProfileStorageCleanup()
+		let reconciliation = ProfileStorageReconciliation()
 		task = Task {
 			while !Task.isCancelled {
 				await cleanup.run(on: application)
+				await reconciliation.run(on: application)
 				try? await Task.sleep(for: .hours(6))
 			}
 		}

@@ -8,6 +8,7 @@ struct ProfileStorageConfiguration {
 	let storageLimitBytes: Int64
 	let monthlyOperationLimit: Int
 	let monthlyWriteCutoff: Int
+	let analyticsAPIToken: String?
 
 	static func load() throws -> ProfileStorageConfiguration {
 		guard let accountID = Environment.get("R2_ACCOUNT_ID"),
@@ -24,7 +25,8 @@ struct ProfileStorageConfiguration {
 			bucketName: bucketName,
 			storageLimitBytes: Environment.get("R2_STORAGE_LIMIT_BYTES").flatMap(Int64.init) ?? 9_000_000_000,
 			monthlyOperationLimit: Environment.get("R2_MONTHLY_OPERATION_LIMIT").flatMap(Int.init) ?? 900_000,
-			monthlyWriteCutoff: Environment.get("R2_MONTHLY_WRITE_CUTOFF").flatMap(Int.init) ?? 850_000
+			monthlyWriteCutoff: Environment.get("R2_MONTHLY_WRITE_CUTOFF").flatMap(Int.init) ?? 850_000,
+			analyticsAPIToken: Environment.get("R2_ANALYTICS_API_TOKEN")
 		)
 	}
 
