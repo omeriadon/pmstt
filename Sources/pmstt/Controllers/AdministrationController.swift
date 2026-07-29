@@ -83,6 +83,7 @@ struct AdministrationController: RouteCollection {
 		let create = try req.content.decode(AdministrationUserCreateRequest.self)
 		let displayName = create.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
 		let email = create.email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+		try await ServerAccessModeService.requirePermittedEmail(email, on: req.db)
 		guard !displayName.isEmpty, email.contains("@"), create.password.count >= 8 else {
 			throw Abort(.badRequest)
 		}

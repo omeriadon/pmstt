@@ -14,6 +14,7 @@ enum ServerErrorCode: String, Codable {
 	case conflict
 	case aliasTaken
 	case rateLimited
+	case developmentAccessRestricted
 	case internalServerError
 }
 

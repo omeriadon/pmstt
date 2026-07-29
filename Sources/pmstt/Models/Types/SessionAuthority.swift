@@ -83,6 +83,10 @@ enum SessionAuthorityResolver {
 		guard payload.authority == payload.platformValue.authority.rawValue else {
 			throw Abort(.forbidden)
 		}
+		guard let user = try await User.find(payload.sub, on: request.db) else {
+			throw AppError(.notFound, code: .accountNotFound, reason: "Your account could not be found.")
+		}
+		try await ServerAccessModeService.requirePermittedAccount(user, on: request.db)
 		guard payload.platformValue != .legacy else { return }
 		guard let session = try await UserToken.find(payload.sid, on: request.db),
 		      session.revokedAt == nil,

@@ -22,6 +22,7 @@ struct AuthController: RouteCollection {
 		let body = try req.content.decode(RegisterRequest.self)
 		let platform = try validatedClient(platform: body.platform, installationID: body.installationID)
 		guard !body.email.isEmpty, body.email.contains("@") else { throw AppError(.badRequest, code: .invalidRequest, reason: "Invalid email format.", field: "email") }
+		try await ServerAccessModeService.requirePermittedEmail(body.email, on: req.db)
 		guard body.password.count >= 8 else { throw AppError(.badRequest, code: .invalidRequest, reason: "Password must be at least 8 characters long.", field: "password") }
 		guard try await User.query(on: req.db).filter(\.$email == body.email.lowercased()).first() == nil else {
 			throw AppError(.conflict, code: .emailAlreadyExists, reason: "Email is already registered.", field: "email")
@@ -44,6 +45,7 @@ struct AuthController: RouteCollection {
 		      let passwordHash = user.passwordHash,
 		      try req.password.verify(body.password, created: passwordHash)
 		else { throw AppError(.unauthorized, code: .invalidCredentials, reason: "Invalid email or password.") }
+		try await ServerAccessModeService.requirePermittedAccount(user, on: req.db)
 		return try await issueNewSession(for: user, platform: platform, installationID: normalizedInstallationID(body.installationID), on: req)
 	}
 
@@ -56,12 +58,14 @@ struct AuthController: RouteCollection {
 
 		let appleSubject = token.subject.value
 		if let existing = try await User.query(on: req.db).filter(\.$appleSubject == appleSubject).first() {
+			try await ServerAccessModeService.requirePermittedAccount(existing, on: req.db)
 			existing.appleAuthorizationRevokedAt = nil
 			try await existing.save(on: req.db)
 			return try await issueNewSession(for: existing, platform: platform, installationID: normalizedInstallationID(body.installationID), on: req)
 		}
 		let email = token.email?.lowercased()
 		if let email, let existing = try await User.query(on: req.db).filter(\.$email == email).first() {
+			try await ServerAccessModeService.requirePermittedAccount(existing, on: req.db)
 			guard platform.appleAccountCreationAllowed else {
 				throw AppError(.forbidden, code: .invalidRequest, reason: "This client can only sign in to an Apple-linked account.", field: "platform")
 			}
@@ -73,6 +77,7 @@ struct AuthController: RouteCollection {
 		guard platform.appleAccountCreationAllowed else {
 			throw AppError(.forbidden, code: .invalidRequest, reason: "This platform cannot create an Apple account.", field: "platform")
 		}
+		try await ServerAccessModeService.requirePermittedEmail(email, on: req.db)
 		let user = try User(email: email, passwordHash: nil, appleSubject: appleSubject, displayName: resolvedDisplayName(body.displayName, fallbackEmail: email), selfPassSerialNumber: UUID().uuidString, settingsData: JSONEncoder().encode(AccountSettings.default))
 		try await user.save(on: req.db)
 		return try await issueNewSession(for: user, platform: platform, installationID: normalizedInstallationID(body.installationID), on: req)
@@ -98,6 +103,8 @@ struct AuthController: RouteCollection {
 			session = try await UserToken.query(on: req.db).filter(\.$tokenHash == submittedHash).with(\.$user).first()
 		}
 		guard let session, session.revokedAt == nil, session.expiresAt > Date() else { throw AppError(.unauthorized, code: .sessionExpired, reason: "Invalid or expired session.") }
+		let refreshUser = try await session.$user.get(on: req.db)
+		try await ServerAccessModeService.requirePermittedAccount(refreshUser, on: req.db)
 		if session.platformValue == .watchOS {
 			try await requireActiveParent(session, on: req)
 		}
@@ -186,6 +193,7 @@ struct AuthController: RouteCollection {
 	}
 
 	private func issueNewSession(for user: User, platform: ClientPlatform, installationID: String, parentSessionID: UUID? = nil, on req: Request) async throws -> TokenResponse {
+		try await ServerAccessModeService.requirePermittedAccount(user, on: req.db)
 		let session = try UserToken(id: UUID(), tokenHash: "pending", userID: user.requireID(), expiresAt: Date().addingTimeInterval(refreshLifetime(for: platform)), clientPlatform: platform.rawValue, installationID: installationID, parentSessionID: parentSessionID, refreshJTI: UUID())
 		let refresh = try await makeRefreshToken(for: session, jti: session.refreshJTI!, on: req)
 		session.tokenHash = hashToken(refresh)

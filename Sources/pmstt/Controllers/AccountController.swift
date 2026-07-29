@@ -43,6 +43,7 @@ struct AccountController: RouteCollection {
 				throw AppError(.badRequest, code: .invalidRequest, reason: "Invalid email format.", field: "email")
 			}
 			let normalizedEmail = email.lowercased()
+			try await ServerAccessModeService.requirePermittedEmail(normalizedEmail, on: req.db)
 			if normalizedEmail != user.email {
 				let existing = try await User.query(on: req.db)
 					.filter(\.$email == normalizedEmail)

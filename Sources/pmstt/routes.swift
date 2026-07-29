@@ -34,6 +34,7 @@ func routes(_ app: Application) throws {
 	try sharedTimetables.registerPublicRoutes(on: app)
 
 	let api = app.grouped("api")
+	try api.register(collection: ServerAccessModeController())
 	try api.register(collection: AuthController())
 	try api.register(collection: AppleNotificationController())
 	try api.register(collection: AccountController())

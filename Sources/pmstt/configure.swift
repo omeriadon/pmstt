@@ -94,5 +94,6 @@ func pmsttMigrationList() -> [any Migration] {
 		BackfillConfiguredAdministrators(),
 		CreateBroadcastNotificationRecord(),
 		CreateEventTags(),
+		CreateServerAccessMode(),
 	]
 }
