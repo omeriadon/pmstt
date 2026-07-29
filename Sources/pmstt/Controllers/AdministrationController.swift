@@ -12,6 +12,7 @@ struct AdministrationController: RouteCollection {
 		admin.delete("users", ":userID", use: deleteUser)
 		admin.put("users", ":userID", "authority", use: updateAuthority)
 		admin.post("broadcast-notification", use: broadcastNotification)
+		admin.get("broadcast-notifications", use: broadcastNotifications)
 		admin.get("event-tags", use: eventTags)
 		admin.post("event-tags", use: createEventTag)
 		admin.put("event-tags", ":tagID", use: updateEventTag)
@@ -180,6 +181,14 @@ struct AdministrationController: RouteCollection {
 			sender: sender,
 			on: req
 		)
+	}
+
+	private func broadcastNotifications(req: Request) async throws -> [BroadcastNotificationHistoryResponse] {
+		_ = try await requireAdministrator(req)
+		return try await BroadcastNotificationRecord.query(on: req.db)
+			.sort(\.$createdAt, .descending)
+			.all()
+			.map(BroadcastNotificationHistoryResponse.init)
 	}
 
 	private func eventTags(req: Request) async throws -> AdministrationEventTagCatalogueResponse {
@@ -507,6 +516,38 @@ private struct AdministrationUserResponse: Content {
 }
 private struct AdministrationEventTagCatalogueResponse: Content {
 	let sections: [AdministrationEventTagSectionResponse]
+}
+
+private struct BroadcastNotificationHistoryResponse: Content {
+	let id: UUID
+	let senderEmail: String
+	let senderAuthority: AccountAuthority
+	let title: String
+	let subtitle: String?
+	let body: String?
+	let eligibleDeviceCount: Int
+	let deliveredDeviceCount: Int
+	let invalidatedDeviceCount: Int
+	let failedDeviceCount: Int
+	let deliveryState: BroadcastNotificationDeliveryState
+	let failureSummary: String?
+	let createdAt: Date?
+
+	init(_ record: BroadcastNotificationRecord) throws {
+		id = try record.requireID()
+		senderEmail = record.senderEmail
+		senderAuthority = record.senderAuthority
+		title = record.title
+		subtitle = record.subtitle
+		body = record.body
+		eligibleDeviceCount = record.eligibleDeviceCount
+		deliveredDeviceCount = record.deliveredDeviceCount
+		invalidatedDeviceCount = record.invalidatedDeviceCount
+		failedDeviceCount = record.failedDeviceCount
+		deliveryState = record.deliveryState
+		failureSummary = record.failureSummary
+		createdAt = record.createdAt
+	}
 }
 
 private struct AdministrationEventTagSectionResponse: Content {
