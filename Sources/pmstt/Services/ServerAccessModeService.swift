@@ -20,7 +20,7 @@ enum ServerAccessModeService {
 			throw AppError(
 				.forbidden,
 				code: .developmentAccessRestricted,
-				reason: "This server is currently restricted to development accounts."
+				reason: "Server is being maintained. Please try again later."
 			)
 		}
 	}
