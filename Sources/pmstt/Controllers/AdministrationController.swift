@@ -10,6 +10,7 @@ struct AdministrationController: RouteCollection {
 		admin.post("users", use: createUser)
 		admin.put("users", ":userID", use: updateUser)
 		admin.delete("users", ":userID", use: deleteUser)
+		admin.put("users", ":userID", "authority", use: updateAuthority)
 		admin.post("broadcast-notification", use: broadcastNotification)
 		admin.get("calendar", use: calendar)
 		admin.post("calendar", use: createCalendarEntry)
@@ -18,18 +19,25 @@ struct AdministrationController: RouteCollection {
 	}
 
 	private func dashboard(req: Request) async throws -> AdministrationDashboardResponse {
-		try await requireAdmin(req)
-		return AdministrationDashboardResponse(isAdmin: true)
+		let user = try await requireAdministrator(req)
+		return AdministrationDashboardResponse(
+			isAdmin: true,
+			authority: user.resolvedAccountAuthority
+		)
 	}
 
 	private func users(req: Request) async throws -> [AdministrationUserResponse] {
-		try await requireAdmin(req)
-		return try await User.query(on: req.db).sort(\.$displayName).all().map(AdministrationUserResponse.init)
+		try await requireAdministrator(req)
+		return try await User.query(on: req.db)
+			.sort(\.$displayName)
+			.all()
+			.map(AdministrationUserResponse.init)
 	}
 
 	private func updateUser(req: Request) async throws -> AdministrationUserResponse {
-		try await requireAdmin(req)
+		try await requireAdministrator(req)
 		guard let id = req.parameters.get("userID", as: UUID.self), let user = try await User.find(id, on: req.db) else { throw Abort(.notFound) }
+		try preventChangingSystemOwner(user)
 		let update = try req.content.decode(AdministrationUserUpdateRequest.self)
 		let displayName = update.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
 		guard !displayName.isEmpty else { throw Abort(.badRequest) }
@@ -48,8 +56,30 @@ struct AdministrationController: RouteCollection {
 		return try AdministrationUserResponse(user)
 	}
 
+	private func updateAuthority(req: Request) async throws -> AdministrationUserResponse {
+		let systemOwner = try await requireSystemOwner(req)
+		guard let id = req.parameters.get("userID", as: UUID.self), let user = try await User.find(id, on: req.db) else {
+			throw Abort(.notFound)
+		}
+
+		let request = try req.content.decode(AdministrationUserAuthorityUpdateRequest.self)
+		guard request.authority == .user || request.authority == .administrator else {
+			throw Abort(.badRequest)
+		}
+		guard user.resolvedAccountAuthority != .systemOwner else {
+			throw Abort(.forbidden)
+		}
+		guard systemOwner.resolvedAccountAuthority == .systemOwner else {
+			throw Abort(.forbidden)
+		}
+
+		user.accountAuthority = request.authority
+		try await user.update(on: req.db)
+		return try AdministrationUserResponse(user)
+	}
+
 	private func createUser(req: Request) async throws -> AdministrationUserResponse {
-		try await requireAdmin(req)
+		try await requireAdministrator(req)
 		let create = try req.content.decode(AdministrationUserCreateRequest.self)
 		let displayName = create.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
 		let email = create.email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -72,16 +102,17 @@ struct AdministrationController: RouteCollection {
 	}
 
 	private func deleteUser(req: Request) async throws -> HTTPStatus {
-		try await requireAdmin(req)
+		try await requireAdministrator(req)
 		guard let id = req.parameters.get("userID", as: UUID.self), let user = try await User.find(id, on: req.db) else {
 			throw Abort(.notFound)
 		}
+		try preventChangingSystemOwner(user)
 		try await user.delete(on: req.db)
 		return .noContent
 	}
 
 	private func userDetail(req: Request) async throws -> AdministrationUserDetailResponse {
-		try await requireAdmin(req)
+		try await requireAdministrator(req)
 		guard let id = req.parameters.get("userID", as: UUID.self), let user = try await User.find(id, on: req.db) else {
 			throw Abort(.notFound)
 		}
@@ -112,7 +143,7 @@ struct AdministrationController: RouteCollection {
 	}
 
 	private func broadcastNotification(req: Request) async throws -> BroadcastNotificationResponse {
-		try await requireAdmin(req)
+		try await requireAdministrator(req)
 		let request = try req.content.decode(BroadcastNotificationRequest.self)
 		let title = request.title.trimmingCharacters(in: .whitespacesAndNewlines)
 		let subtitle = request.subtitle.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -134,32 +165,58 @@ struct AdministrationController: RouteCollection {
 	}
 
 	private func calendar(req: Request) async throws -> [AdministrationCalendarEntryResponse] {
-		try await requireAdmin(req)
+		try await requireAdministrator(req)
 		return try await SchoolCalendarEntry.query(on: req.db).all().map(AdministrationCalendarEntryResponse.init)
 	}
 
 	private func createCalendarEntry(req: Request) async throws -> [AdministrationCalendarEntryResponse] {
-		try await requireAdmin(req); let request = try req.content.decode(AdministrationCalendarEntryRequest.self); try validate(request)
+		try await requireAdministrator(req)
+		let request = try req.content.decode(AdministrationCalendarEntryRequest.self)
+		try validate(request)
 		try await SchoolCalendarEntry(kind: request.kind, label: request.label, startDate: request.startDate.storageValue, endDate: request.endDate?.storageValue).create(on: req.db)
 		return try await calendar(req: req)
 	}
 
 	private func updateCalendarEntry(req: Request) async throws -> [AdministrationCalendarEntryResponse] {
-		try await requireAdmin(req); let request = try req.content.decode(AdministrationCalendarEntryRequest.self); try validate(request)
+		try await requireAdministrator(req)
+		let request = try req.content.decode(AdministrationCalendarEntryRequest.self)
+		try validate(request)
 		guard let id = req.parameters.get("entryID", as: UUID.self), let entry = try await SchoolCalendarEntry.find(id, on: req.db) else { throw Abort(.notFound) }
 		entry.kind = request.kind; entry.label = request.label; entry.startDate = request.startDate.storageValue; entry.endDate = request.endDate?.storageValue
 		try await entry.update(on: req.db); return try await calendar(req: req)
 	}
 
 	private func deleteCalendarEntry(req: Request) async throws -> [AdministrationCalendarEntryResponse] {
-		try await requireAdmin(req); guard let id = req.parameters.get("entryID", as: UUID.self), let entry = try await SchoolCalendarEntry.find(id, on: req.db) else { throw Abort(.notFound) }
+		try await requireAdministrator(req)
+		guard let id = req.parameters.get("entryID", as: UUID.self), let entry = try await SchoolCalendarEntry.find(id, on: req.db) else {
+			throw Abort(.notFound)
+		}
 		try await entry.delete(on: req.db); return try await calendar(req: req)
 	}
 
-	private func requireAdmin(_ req: Request) async throws {
-		let payload = try req.auth.require(UserPayload.self); guard let user = try await User.find(payload.sub, on: req.db) else { throw Abort(.notFound) }
-		let emails = Set((Environment.get("TIMETABLE_EVENT_ADMIN_EMAILS") ?? "").split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() })
-		guard let email = user.email?.lowercased(), emails.contains(email) else { throw Abort(.forbidden) }
+	private func requireAdministrator(_ req: Request) async throws -> User {
+		let payload = try req.auth.require(UserPayload.self)
+		guard let user = try await User.find(payload.sub, on: req.db) else {
+			throw Abort(.notFound)
+		}
+		guard user.resolvedAccountAuthority.isAdministrator else {
+			throw Abort(.forbidden)
+		}
+		return user
+	}
+
+	private func requireSystemOwner(_ req: Request) async throws -> User {
+		let user = try await requireAdministrator(req)
+		guard user.resolvedAccountAuthority == .systemOwner else {
+			throw Abort(.forbidden)
+		}
+		return user
+	}
+
+	private func preventChangingSystemOwner(_ target: User) throws {
+		guard target.resolvedAccountAuthority != .systemOwner else {
+			throw Abort(.forbidden)
+		}
 	}
 
 	private func validate(_ request: AdministrationCalendarEntryRequest) throws {
@@ -167,21 +224,44 @@ struct AdministrationController: RouteCollection {
 	}
 }
 
-private struct AdministrationDashboardResponse: Content { let isAdmin: Bool }
+private struct AdministrationDashboardResponse: Content {
+	let isAdmin: Bool
+	let authority: AccountAuthority
+}
 private struct AdministrationUserCreateRequest: Content {
 	let displayName: String
 	let email: String
 	let password: String
 }
 
-private struct AdministrationUserUpdateRequest: Content { let displayName: String; let email: String; let password: String? }
+private struct AdministrationUserUpdateRequest: Content {
+	let displayName: String
+	let email: String
+	let password: String?
+}
+
+private struct AdministrationUserAuthorityUpdateRequest: Content {
+	let authority: AccountAuthority
+}
 private struct AdministrationUserDetailResponse: Content {
 	let rawData: String
 }
 
-private struct AdministrationUserResponse: Content { let id: UUID; let displayName: String; let email: String?; let createdAt: Date?; init(_ user: User) throws {
-	id = try user.requireID(); displayName = user.displayName; email = user.email; createdAt = user.createdAt
-} }
+private struct AdministrationUserResponse: Content {
+	let id: UUID
+	let displayName: String
+	let email: String?
+	let createdAt: Date?
+	let authority: AccountAuthority
+
+	init(_ user: User) throws {
+		id = try user.requireID()
+		displayName = user.displayName
+		email = user.email
+		createdAt = user.createdAt
+		authority = user.resolvedAccountAuthority
+	}
+}
 private struct AdministrationRawAccount: Content {
 	let id: UUID
 	let email: String?

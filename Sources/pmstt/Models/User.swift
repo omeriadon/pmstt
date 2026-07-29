@@ -70,4 +70,8 @@ final class User: Model, Content, @unchecked Sendable {
 		self.profileAppearanceData = profileAppearanceData
 		self.accountAuthority = accountAuthority
 	}
+
+	var resolvedAccountAuthority: AccountAuthority {
+		AccountAuthority.resolved(for: email, storedAuthority: accountAuthority)
+	}
 }

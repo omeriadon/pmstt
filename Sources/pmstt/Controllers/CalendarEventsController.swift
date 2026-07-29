@@ -46,7 +46,7 @@ struct CalendarEventsController: RouteCollection {
 
 	private func createGlobal(req: Request) async throws -> CalendarEventsResponse {
 		let user = try await authenticatedUser(req)
-		try requireGlobalEventAuthority(user, req: req)
+		try requireGlobalEventAuthority(user)
 		let request = try req.content.decode(CreateCalendarEventRequest.self)
 		try validate(request)
 		try await CalendarEvent(
@@ -58,7 +58,7 @@ struct CalendarEventsController: RouteCollection {
 
 	private func deleteGlobal(req: Request) async throws -> CalendarEventsResponse {
 		let user = try await authenticatedUser(req)
-		try requireGlobalEventAuthority(user, req: req)
+		try requireGlobalEventAuthority(user)
 		let event = try await ownedEvent(req: req, user: user, globally: true, requiresOwner: false)
 		try await event.delete(on: req.db)
 		return try await response(for: user, on: req)
@@ -66,7 +66,7 @@ struct CalendarEventsController: RouteCollection {
 
 	private func updateGlobal(req: Request) async throws -> CalendarEventsResponse {
 		let user = try await authenticatedUser(req)
-		try requireGlobalEventAuthority(user, req: req)
+		try requireGlobalEventAuthority(user)
 		let event = try await ownedEvent(req: req, user: user, globally: true, requiresOwner: false)
 		try update(event, with: req)
 		try await event.update(on: req.db)
@@ -80,7 +80,7 @@ struct CalendarEventsController: RouteCollection {
 		return try CalendarEventsResponse(
 			globalEvents: globalEvents.map(CalendarEventResponse.init),
 			privateEvents: privateEvents.map(CalendarEventResponse.init),
-			canManageGlobalEvents: canManageGlobalEvents(user, req: req)
+			canManageGlobalEvents: canManageGlobalEvents(user)
 		)
 	}
 
@@ -102,15 +102,14 @@ struct CalendarEventsController: RouteCollection {
 		return user
 	}
 
-	private func requireGlobalEventAuthority(_ user: User, req: Request) throws {
-		guard canManageGlobalEvents(user, req: req) else { throw Abort(.forbidden) }
+	private func requireGlobalEventAuthority(_ user: User) throws {
+		guard canManageGlobalEvents(user) else {
+			throw Abort(.forbidden)
+		}
 	}
 
-	private func canManageGlobalEvents(_ user: User, req _: Request) -> Bool {
-		let allowedEmails = Set((Environment.get("TIMETABLE_EVENT_ADMIN_EMAILS") ?? "")
-			.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() })
-		guard let email = user.email?.lowercased() else { return false }
-		return allowedEmails.contains(email)
+	private func canManageGlobalEvents(_ user: User) -> Bool {
+		user.resolvedAccountAuthority.isAdministrator
 	}
 
 	private func validate(_ request: CreateCalendarEventRequest) throws {
