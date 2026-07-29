@@ -100,5 +100,6 @@ func pmsttMigrationList() -> [any Migration] {
 		CreateAuthorityAuditRecord(),
 		CreateProfileMedia(),
 		RemoveAppleAccounts(),
+		CreateSyncMutationReceipt(),
 	]
 }
