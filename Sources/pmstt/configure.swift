@@ -93,5 +93,6 @@ func pmsttMigrationList() -> [any Migration] {
 		AddUserAccountAuthority(),
 		BackfillConfiguredAdministrators(),
 		CreateBroadcastNotificationRecord(),
+		CreateEventTags(),
 	]
 }

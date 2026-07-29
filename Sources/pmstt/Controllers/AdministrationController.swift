@@ -97,7 +97,13 @@ struct AdministrationController: RouteCollection {
 			selfPassSerialNumber: UUID().uuidString,
 			settingsData: JSONEncoder().encode(AccountSettings.default)
 		)
-		try await user.create(on: req.db)
+		try await req.db.transaction { database in
+			try await user.create(on: database)
+			try await EventTagSubscriptionService.subscribeNewAccount(
+				user.requireID(),
+				on: database
+			)
+		}
 		return try AdministrationUserResponse(user)
 	}
 

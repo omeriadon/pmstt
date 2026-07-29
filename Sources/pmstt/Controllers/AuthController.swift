@@ -27,7 +27,13 @@ struct AuthController: RouteCollection {
 			throw AppError(.conflict, code: .emailAlreadyExists, reason: "Email is already registered.", field: "email")
 		}
 		let user = try User(email: body.email, passwordHash: req.password.hash(body.password), appleSubject: nil, displayName: body.displayName ?? "User", selfPassSerialNumber: UUID().uuidString, settingsData: JSONEncoder().encode(AccountSettings.default))
-		try await user.save(on: req.db)
+		try await req.db.transaction { database in
+			try await user.save(on: database)
+			try await EventTagSubscriptionService.subscribeNewAccount(
+				user.requireID(),
+				on: database
+			)
+		}
 		return try await issueNewSession(for: user, platform: platform, installationID: normalizedInstallationID(body.installationID), on: req)
 	}
 
