@@ -195,7 +195,17 @@ struct AuthController: RouteCollection {
 		} else {
 			try await makeRefreshToken(for: session, jti: session.refreshJTI!, on: req)
 		}
-		return try TokenResponse(accessToken: access, refreshToken: refresh, user: UserAccountResponse(id: user.requireID(), email: user.email, displayName: user.displayName, createdAt: user.createdAt))
+		return try TokenResponse(
+			accessToken: access,
+			refreshToken: refresh,
+			user: UserAccountResponse(
+				id: user.requireID(),
+				email: user.email,
+				displayName: user.displayName,
+				createdAt: user.createdAt,
+				authority: AccountAuthority.resolved(for: user.email, storedAuthority: user.accountAuthority)
+			)
+		)
 	}
 
 	private func makeRefreshToken(for session: UserToken, jti: UUID, on req: Request) async throws -> String {

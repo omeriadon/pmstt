@@ -57,6 +57,7 @@ struct UserAccountResponse: Content {
 	let email: String?
 	let displayName: String
 	let createdAt: Date?
+	let authority: AccountAuthority
 }
 
 struct UpdateAccountRequest: Content {

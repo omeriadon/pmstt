@@ -21,7 +21,8 @@ struct AccountController: RouteCollection {
 			id: user.requireID(),
 			email: user.email,
 			displayName: user.displayName,
-			createdAt: user.createdAt
+			createdAt: user.createdAt,
+			authority: AccountAuthority.resolved(for: user.email, storedAuthority: user.accountAuthority)
 		)
 	}
 
@@ -59,7 +60,8 @@ struct AccountController: RouteCollection {
 			id: user.requireID(),
 			email: user.email,
 			displayName: user.displayName,
-			createdAt: user.createdAt
+			createdAt: user.createdAt,
+			authority: AccountAuthority.resolved(for: user.email, storedAuthority: user.accountAuthority)
 		)
 	}
 

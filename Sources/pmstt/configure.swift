@@ -90,5 +90,6 @@ func pmsttMigrationList() -> [any Migration] {
 		CreateTimetableShareAlias(),
 		CreateCalendarEvent(),
 		CreateSchoolCalendarEntry(),
+		AddUserAccountAuthority(),
 	]
 }

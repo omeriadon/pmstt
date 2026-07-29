@@ -34,6 +34,9 @@ final class User: Model, Content, @unchecked Sendable {
 	@OptionalField(key: "profile_appearance_data")
 	var profileAppearanceData: Data?
 
+	@Field(key: "account_authority")
+	var accountAuthority: AccountAuthority
+
 	@Timestamp(key: "created_at", on: .create)
 	var createdAt: Date?
 
@@ -52,7 +55,8 @@ final class User: Model, Content, @unchecked Sendable {
 		displayName: String,
 		selfPassSerialNumber: String,
 		settingsData: Data,
-		profileAppearanceData: Data? = nil
+		profileAppearanceData: Data? = nil,
+		accountAuthority: AccountAuthority = .user
 	) {
 		self.id = id
 		self.email = email?.lowercased()
@@ -64,5 +68,6 @@ final class User: Model, Content, @unchecked Sendable {
 		self.selfPassSerialNumber = selfPassSerialNumber
 		self.settingsData = settingsData
 		self.profileAppearanceData = profileAppearanceData
+		self.accountAuthority = accountAuthority
 	}
 }
