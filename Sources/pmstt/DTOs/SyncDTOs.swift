@@ -3,6 +3,7 @@ import Vapor
 
 enum SyncRecordType: String, Content {
 	case ownerTimetable
+	case privateCalendarEvent
 }
 
 enum SyncMutationOperation: String, Content {

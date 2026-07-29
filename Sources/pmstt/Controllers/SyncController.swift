@@ -96,6 +96,13 @@ struct SyncController: RouteCollection {
 					database: database,
 					logger: logger
 				)
+			case .privateCalendarEvent:
+				result(
+					for: mutation,
+					outcome: .validationRejected,
+					revision: mutation.baseRevision,
+					message: "Private calendar event envelope mutations are not supported."
+				)
 		}
 	}
 

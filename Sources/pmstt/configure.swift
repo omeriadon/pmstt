@@ -104,5 +104,6 @@ func pmsttMigrationList() -> [any Migration] {
 		EnforceUniqueEventTagNames(),
 		AddProfileStorageReconciliation(),
 		CreateSyncRecordTombstone(),
+		AddCalendarEventRevision(),
 	]
 }

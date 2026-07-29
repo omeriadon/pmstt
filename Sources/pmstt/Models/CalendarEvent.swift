@@ -11,17 +11,29 @@ final class CalendarEvent: Model, Content, @unchecked Sendable {
 	@Field(key: "symbol") var symbol: String
 	@Field(key: "event_date") var eventDate: String
 	@Field(key: "is_global") var isGlobal: Bool
+	@Field(key: "revision") var revision: Int
 	@Timestamp(key: "created_at", on: .create) var createdAt: Date?
 	@Timestamp(key: "updated_at", on: .update) var updatedAt: Date?
 
 	init() {}
 
-	init(userID: UUID?, title: String, notes: String?, symbol: String, eventDate: String, isGlobal: Bool) {
+	init(
+		id: UUID? = nil,
+		userID: UUID?,
+		title: String,
+		notes: String?,
+		symbol: String,
+		eventDate: String,
+		isGlobal: Bool,
+		revision: Int = 1
+	) {
+		self.id = id
 		$user.id = userID
 		self.title = title
 		self.notes = notes
 		self.symbol = symbol
 		self.eventDate = eventDate
 		self.isGlobal = isGlobal
+		self.revision = revision
 	}
 }

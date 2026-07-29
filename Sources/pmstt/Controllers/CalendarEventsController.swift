@@ -23,8 +23,13 @@ struct CalendarEventsController: RouteCollection {
 		let request = try req.content.decode(CreateCalendarEventRequest.self)
 		try validate(request)
 		let event = CalendarEvent(
-			userID: user.requireID(), title: request.title, notes: request.notes,
-			symbol: request.symbol, eventDate: request.date.storageValue, isGlobal: false
+			id: request.id,
+			userID: user.requireID(),
+			title: request.title,
+			notes: request.notes,
+			symbol: request.symbol,
+			eventDate: request.date.storageValue,
+			isGlobal: false
 		)
 		try await req.db.transaction { database in
 			try await event.create(on: database)
@@ -36,7 +41,20 @@ struct CalendarEventsController: RouteCollection {
 	private func deletePrivate(req: Request) async throws -> CalendarEventsResponse {
 		let user = try await authenticatedUser(req)
 		let event = try await ownedEvent(req: req, user: user, globally: false)
-		try await event.delete(on: req.db)
+		try requireMatchingRevision(
+			req.query[Int.self, at: "baseRevision"],
+			for: event
+		)
+		let eventID = try event.requireID()
+		try await req.db.transaction { database in
+			try await event.delete(on: database)
+			try await SyncRecordTombstone(
+				userID: user.requireID(),
+				recordType: .privateCalendarEvent,
+				recordID: eventID,
+				revision: event.revision + 1
+			).create(on: database)
+		}
 		return try await response(for: user, on: req)
 	}
 
@@ -44,7 +62,9 @@ struct CalendarEventsController: RouteCollection {
 		let user = try await authenticatedUser(req)
 		let event = try await ownedEvent(req: req, user: user, globally: false)
 		let request = try req.content.decode(CreateCalendarEventRequest.self)
+		try requireMatchingRevision(request.baseRevision, for: event)
 		try update(event, with: request)
+		event.revision += 1
 		try await req.db.transaction { database in
 			try await event.update(on: database)
 			try await replaceTagAssociations(request.tagIDs, for: event, isGlobal: false, on: database)
@@ -58,8 +78,13 @@ struct CalendarEventsController: RouteCollection {
 		let request = try req.content.decode(CreateCalendarEventRequest.self)
 		try validate(request)
 		let event = CalendarEvent(
-			userID: user.requireID(), title: request.title, notes: request.notes,
-			symbol: request.symbol, eventDate: request.date.storageValue, isGlobal: true
+			id: request.id,
+			userID: user.requireID(),
+			title: request.title,
+			notes: request.notes,
+			symbol: request.symbol,
+			eventDate: request.date.storageValue,
+			isGlobal: true
 		)
 		try await req.db.transaction { database in
 			try await event.create(on: database)
@@ -81,7 +106,9 @@ struct CalendarEventsController: RouteCollection {
 		try requireGlobalEventAuthority(user)
 		let event = try await ownedEvent(req: req, user: user, globally: true, requiresOwner: false)
 		let request = try req.content.decode(CreateCalendarEventRequest.self)
+		try requireMatchingRevision(request.baseRevision, for: event)
 		try update(event, with: request)
+		event.revision += 1
 		try await req.db.transaction { database in
 			try await event.update(on: database)
 			try await replaceTagAssociations(request.tagIDs, for: event, isGlobal: true, on: database)
@@ -140,6 +167,21 @@ struct CalendarEventsController: RouteCollection {
 		event.notes = request.notes
 		event.symbol = request.symbol
 		event.eventDate = request.date.storageValue
+	}
+
+	private func requireMatchingRevision(
+		_ baseRevision: Int?,
+		for event: CalendarEvent
+	) throws {
+		guard let baseRevision else {
+			return
+		}
+		guard baseRevision == event.revision else {
+			throw Abort(
+				.conflict,
+				reason: "The calendar event has changed on the server."
+			)
+		}
 	}
 
 	private func replaceTagAssociations(
@@ -212,11 +254,13 @@ struct CalendarEventsController: RouteCollection {
 }
 
 private struct CreateCalendarEventRequest: Content {
+	let id: UUID?
 	let title: String
 	let notes: String?
 	let symbol: String
 	let date: SchoolCalendarDate
 	let tagIDs: [UUID]
+	let baseRevision: Int?
 }
 
 private struct CalendarEventsResponse: Content {
@@ -233,6 +277,8 @@ private struct CalendarEventResponse: Content {
 	let date: SchoolCalendarDate
 	let isGlobal: Bool
 	let tagIDs: [UUID]
+	let revision: Int
+	let updatedAt: Date?
 
 	init(_ event: CalendarEvent, on database: any Database) async throws {
 		id = try event.requireID()
@@ -242,6 +288,8 @@ private struct CalendarEventResponse: Content {
 		date = try SchoolCalendarDate(storageValue: event.eventDate)
 		isGlobal = event.isGlobal
 		tagIDs = try await CalendarEventsController().tags(for: event, on: database).compactMap(\.id)
+		revision = event.revision
+		updatedAt = event.updatedAt
 	}
 }
 
