@@ -9,6 +9,7 @@ struct AuthController: RouteCollection {
 		let auth = routes.grouped("v1", "auth").grouped(AuthRateLimitMiddleware())
 		auth.post("register", use: register)
 		auth.post("request-code", use: requestVerificationCode)
+		auth.post("verify-code-register", use: verifyCodeAndRegister)
 		auth.post("login", use: login)
 		auth.post("apple", use: signInWithApple)
 		auth.post("refresh", use: refresh)
@@ -57,6 +58,42 @@ struct AuthController: RouteCollection {
 		}
 		try await sendVerificationEmail(code: code, to: email, req: req)
 		return .accepted
+	}
+
+	func verifyCodeAndRegister(req: Request) async throws -> TokenResponse {
+		let body = try req.content.decode(VerificationRegistrationRequest.self)
+		let platform = try validatedClient(platform: body.platform, installationID: body.installationID)
+		let email = body.email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+		guard email.hasSuffix("@student.education.wa.edu.au"), body.code.count == 6, body.password.count >= 8 else {
+			throw Abort(.badRequest)
+		}
+		guard try await User.query(on: req.db).filter(\.$email == email).first() == nil else {
+			throw AppError(.conflict, code: .emailAlreadyExists, reason: "Email is already registered.", field: "email")
+		}
+
+		let now = Date()
+		let user = try await req.db.transaction { database -> User in
+			guard let challenge = try await EmailVerificationChallenge.query(on: database)
+				.filter(\.$normalizedEmail == email)
+				.filter(\.$installationID == body.installationID)
+				.filter(\.$usedAt == nil)
+				.sort(\.$createdAt, .descending)
+				.first(), challenge.expiresAt > now, challenge.failedAttemptCount < 5
+			else { throw Abort(.unauthorized) }
+			challenge.lastAttemptAt = now
+			guard challenge.codeHash == body.code.sha256Digest else {
+				challenge.failedAttemptCount += 1
+				try await challenge.save(on: database)
+				throw Abort(.unauthorized)
+			}
+			challenge.usedAt = now
+			try await challenge.save(on: database)
+			let user = try User(email: email, passwordHash: req.password.hash(body.password), displayName: derivedDisplayName(from: email), selfPassSerialNumber: UUID().uuidString, settingsData: JSONEncoder().encode(AccountSettings.default))
+			try await user.save(on: database)
+			try await EventTagSubscriptionService.subscribeNewAccount(user.requireID(), on: database)
+			return user
+		}
+		return try await issueNewSession(for: user, platform: platform, installationID: normalizedInstallationID(body.installationID), on: req)
 	}
 
 	func login(req: Request) async throws -> TokenResponse {
@@ -312,10 +349,31 @@ struct AuthController: RouteCollection {
 			return String(prefix)
 		}; return "User"
 	}
+
+	private func derivedDisplayName(from email: String) -> String {
+		let parts = email.split(separator: "@", maxSplits: 1).first?.split(separator: ".") ?? []
+		guard parts.count >= 2 else {
+			return "User"
+		}
+		let firstName = String(parts[0]).capitalized
+		let lastName = String(parts[1]).trimmingCharacters(in: .decimalDigits).capitalized
+		guard !firstName.isEmpty, !lastName.isEmpty else {
+			return "User"
+		}
+		return "\(firstName) \(lastName)"
+	}
 }
 
 private struct VerificationCodeRequest: Content {
 	let email: String
+	let installationID: String
+}
+
+private struct VerificationRegistrationRequest: Content {
+	let email: String
+	let code: String
+	let password: String
+	let platform: String
 	let installationID: String
 }
 
