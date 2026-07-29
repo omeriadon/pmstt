@@ -22,7 +22,10 @@ struct EventTagsController: RouteCollection {
 				.filter(\.$isArchived == false)
 				.sort(\.$sortOrder)
 				.all()
-			return try EventTagSectionResponse(section, tags: tags)
+			let tagResponses = try await tags.asyncMap { tag in
+				try await EventTagResponse(tag, on: req.db)
+			}
+			return try EventTagSectionResponse(section, tags: tagResponses)
 		})
 	}
 
@@ -118,11 +121,11 @@ private struct EventTagSectionResponse: Content {
 	let displayName: String
 	let tags: [EventTagResponse]
 
-	init(_ section: EventTagSection, tags: [EventTag]) throws {
+	init(_ section: EventTagSection, tags: [EventTagResponse]) throws {
 		id = try section.requireID()
 		category = section.category
 		displayName = section.displayName
-		self.tags = try tags.map(EventTagResponse.init)
+		self.tags = tags
 	}
 }
 
@@ -132,13 +135,19 @@ private struct EventTagResponse: Content {
 	let category: EventTagCategory
 	let symbol: String?
 	let colorHex: String?
+	let associatedNames: [String]
 
-	init(_ tag: EventTag) throws {
+	init(_ tag: EventTag, on database: any Database) async throws {
 		id = try tag.requireID()
 		displayName = tag.displayName
 		category = tag.category
 		symbol = tag.symbol
 		colorHex = tag.colorHex
+		associatedNames = try await EventTagAssociatedName.query(on: database)
+			.filter(\.$eventTag.$id == tag.requireID())
+			.sort(\.$displayName)
+			.all()
+			.map(\.displayName)
 	}
 }
 
@@ -151,7 +160,12 @@ private struct EventTagSubscriptionUpdateRequest: Content {
 }
 
 private extension Array {
-	func asyncMap<T>(_ transform: (Element) throws -> T) rethrows -> [T] {
-		try map(transform)
+	func asyncMap<T>(_ transform: (Element) async throws -> T) async rethrows -> [T] {
+		var results: [T] = []
+		results.reserveCapacity(count)
+		for element in self {
+			results.append(try await transform(element))
+		}
+		return results
 	}
 }
