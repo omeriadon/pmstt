@@ -8,6 +8,7 @@ struct AuthController: RouteCollection {
 	func boot(routes: any RoutesBuilder) throws {
 		let auth = routes.grouped("v1", "auth").grouped(AuthRateLimitMiddleware())
 		auth.post("register", use: register)
+		auth.post("request-code", use: requestVerificationCode)
 		auth.post("login", use: login)
 		auth.post("apple", use: signInWithApple)
 		auth.post("refresh", use: refresh)
@@ -36,6 +37,26 @@ struct AuthController: RouteCollection {
 			)
 		}
 		return try await issueNewSession(for: user, platform: platform, installationID: normalizedInstallationID(body.installationID), on: req)
+	}
+
+	func requestVerificationCode(req: Request) async throws -> HTTPStatus {
+		let body = try req.content.decode(VerificationCodeRequest.self)
+		let email = body.email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+		guard email.hasSuffix("@student.education.wa.edu.au") else { throw Abort(.badRequest) }
+		guard try await User.query(on: req.db).filter(\.$email == email).first() == nil else { throw Abort(.conflict) }
+		let code = String(format: "%06d", Int.random(in: 0 ... 999_999))
+		let now = Date()
+		try await req.db.transaction { database in
+			try await EmailVerificationChallenge.query(on: database)
+				.filter(\.$normalizedEmail == email)
+				.filter(\.$usedAt == nil)
+				.set(\.$usedAt, to: now)
+				.update()
+			let challenge = EmailVerificationChallenge(normalizedEmail: email, codeHash: code.sha256Digest, installationID: body.installationID, sourceIP: req.remoteAddress?.ipAddress ?? "unknown", expiresAt: now.addingTimeInterval(600), resendAvailableAt: now.addingTimeInterval(120))
+			try await challenge.create(on: database)
+		}
+		try await sendVerificationEmail(code: code, to: email, req: req)
+		return .accepted
 	}
 
 	func login(req: Request) async throws -> TokenResponse {
@@ -290,6 +311,17 @@ struct AuthController: RouteCollection {
 		}; if let email = fallbackEmail, let prefix = email.split(separator: "@").first {
 			return String(prefix)
 		}; return "User"
+	}
+}
+
+private struct VerificationCodeRequest: Content {
+	let email: String
+	let installationID: String
+}
+
+private extension String {
+	var sha256Digest: String {
+		SHA256.hash(data: Data(utf8)).map { String(format: "%02x", $0) }.joined()
 	}
 }
 
