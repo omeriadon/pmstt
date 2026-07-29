@@ -36,6 +36,8 @@ struct CreateEventTags: AsyncMigration {
 			.field("event_tag_id", .uuid, .required, .references(EventTag.schema, "id", onDelete: .cascade))
 			.field("display_name", .string, .required)
 			.field("normalized_name", .string, .required)
+			.field("category", .string, .required)
+			.field("is_active", .bool, .required)
 			.field("created_at", .datetime)
 			.unique(on: "event_tag_id", "normalized_name")
 			.create()
@@ -101,7 +103,9 @@ struct CreateEventTags: AsyncMigration {
 			try await EventTagAssociatedName(
 				eventTagID: eventTag.requireID(),
 				displayName: "Year \(tag.2)",
-				normalizedName: "year \(tag.2)"
+				normalizedName: "year \(tag.2)",
+				category: .yearGroup,
+				isActive: true
 			).create(on: database)
 		}
 
@@ -116,7 +120,9 @@ struct CreateEventTags: AsyncMigration {
 		try await EventTagAssociatedName(
 			eventTagID: generalTag.requireID(),
 			displayName: "General",
-			normalizedName: "general"
+			normalizedName: "general",
+			category: .general,
+			isActive: true
 		).create(on: database)
 
 		let users = try await User.query(on: database).all()

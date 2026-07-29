@@ -101,5 +101,6 @@ func pmsttMigrationList() -> [any Migration] {
 		CreateProfileMedia(),
 		RemoveAppleAccounts(),
 		CreateSyncMutationReceipt(),
+		EnforceUniqueEventTagNames(),
 	]
 }

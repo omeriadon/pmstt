@@ -280,6 +280,12 @@ struct AdministrationController: RouteCollection {
 		}
 
 		let request = try req.content.decode(AdministrationEventTagSectionUpdateRequest.self)
+		guard section.category != .yearGroup || !request.isArchived else {
+			throw Abort(
+				.badRequest,
+				reason: "The canonical year-group section cannot be archived."
+			)
+		}
 		section.displayName = try validatedDisplayName(request.displayName)
 		section.sortOrder = request.sortOrder
 		section.isArchived = request.isArchived
@@ -294,6 +300,10 @@ struct AdministrationController: RouteCollection {
 					tag.isArchived = true
 					tag.revision += 1
 					try await tag.update(on: database)
+					try await EventTagAssociatedName.query(on: database)
+						.filter(\.$eventTag.$id == tag.requireID())
+						.set(\.$isActive, to: false)
+						.update()
 					try await removeAssociations(
 						for: tag.requireID(),
 						on: database
@@ -481,7 +491,9 @@ struct AdministrationController: RouteCollection {
 			try await EventTagAssociatedName(
 				eventTagID: tag.requireID(),
 				displayName: name.displayName,
-				normalizedName: name.normalizedName
+				normalizedName: name.normalizedName,
+				category: tag.category,
+				isActive: !tag.isArchived
 			).create(on: database)
 		}
 	}

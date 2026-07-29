@@ -135,6 +135,12 @@ final class EventTagAssociatedName: Model, Content, @unchecked Sendable {
 	@Field(key: "normalized_name")
 	var normalizedName: String
 
+	@Field(key: "category")
+	var category: EventTagCategory
+
+	@Field(key: "is_active")
+	var isActive: Bool
+
 	@Timestamp(key: "created_at", on: .create)
 	var createdAt: Date?
 
@@ -144,12 +150,16 @@ final class EventTagAssociatedName: Model, Content, @unchecked Sendable {
 		id: UUID? = nil,
 		eventTagID: UUID,
 		displayName: String,
-		normalizedName: String
+		normalizedName: String,
+		category: EventTagCategory,
+		isActive: Bool
 	) {
 		self.id = id
 		$eventTag.id = eventTagID
 		self.displayName = displayName
 		self.normalizedName = normalizedName
+		self.category = category
+		self.isActive = isActive
 	}
 }
 
