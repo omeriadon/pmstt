@@ -78,8 +78,18 @@ struct AdministrationController: RouteCollection {
 			throw Abort(.forbidden)
 		}
 
-		user.accountAuthority = request.authority
-		try await user.update(on: req.db)
+		let oldAuthority = user.resolvedAccountAuthority
+		try await req.db.transaction { database in
+			user.accountAuthority = request.authority
+			try await user.update(on: database)
+			let auditRecord = AuthorityAuditRecord(
+				actorUserID: systemOwner.requireID(),
+				targetUserID: user.requireID(),
+				oldAuthority: oldAuthority,
+				newAuthority: request.authority
+			)
+			try await auditRecord.create(on: database)
+		}
 		return try AdministrationUserResponse(user)
 	}
 

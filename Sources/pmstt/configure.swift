@@ -96,5 +96,6 @@ func pmsttMigrationList() -> [any Migration] {
 		CreateServerAccessMode(),
 		AddFriendshipOrder(),
 		CreateEmailVerificationChallenge(),
+		CreateAuthorityAuditRecord(),
 	]
 }
