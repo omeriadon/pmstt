@@ -250,6 +250,9 @@ struct AdministrationController: RouteCollection {
 			tag.revision += 1
 			try await tag.update(on: database)
 			try await replaceAssociatedNames(request.associatedNames, for: tag, on: database)
+			if tag.isArchived {
+				try await removeAssociations(for: tagID, on: database)
+			}
 		}
 		return try await eventTagCatalogue(on: req.db)
 	}
@@ -281,7 +284,23 @@ struct AdministrationController: RouteCollection {
 		section.sortOrder = request.sortOrder
 		section.isArchived = request.isArchived
 		section.revision += 1
-		try await section.update(on: req.db)
+		try await req.db.transaction { database in
+			try await section.update(on: database)
+			if section.isArchived {
+				let tags = try await EventTag.query(on: database)
+					.filter(\.$section.$id == sectionID)
+					.all()
+				for tag in tags {
+					tag.isArchived = true
+					tag.revision += 1
+					try await tag.update(on: database)
+					try await removeAssociations(
+						for: tag.requireID(),
+						on: database
+					)
+				}
+			}
+		}
 		return try await eventTagCatalogue(on: req.db)
 	}
 
@@ -465,6 +484,18 @@ struct AdministrationController: RouteCollection {
 				normalizedName: name.normalizedName
 			).create(on: database)
 		}
+	}
+
+	private func removeAssociations(
+		for tagID: UUID,
+		on database: any Database
+	) async throws {
+		try await AccountEventTagSubscription.query(on: database)
+			.filter(\.$eventTag.$id == tagID)
+			.delete()
+		try await CalendarEventTag.query(on: database)
+			.filter(\.$eventTag.$id == tagID)
+			.delete()
 	}
 
 	private func normalizedAssociatedNames(

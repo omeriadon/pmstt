@@ -31,7 +31,10 @@ struct EventTagsController: RouteCollection {
 
 	private func subscriptions(req: Request) async throws -> EventTagSubscriptionResponse {
 		let user = try await user(req)
-		return try await EventTagSubscriptionResponse(tagIDs: subscriptionIDs(for: user, on: req.db))
+		return try await EventTagSubscriptionResponse(
+			tagIDs: subscriptionIDs(for: user, on: req.db),
+			droppedTagIDs: []
+		)
 	}
 
 	private func replaceSubscriptions(req: Request) async throws -> EventTagSubscriptionResponse {
@@ -48,6 +51,7 @@ struct EventTagsController: RouteCollection {
 				.all()
 		}
 		let tagIDs = try tags.map(\.requireID)
+		let droppedTagIDs = requestedTagIDs.filter { !tagIDs.contains($0) }
 
 		try await req.db.transaction { database in
 			try await AccountEventTagSubscription.query(on: database)
@@ -57,7 +61,10 @@ struct EventTagsController: RouteCollection {
 				try await AccountEventTagSubscription(accountID: user.requireID(), eventTagID: tagID).create(on: database)
 			}
 		}
-		return EventTagSubscriptionResponse(tagIDs: tagIDs)
+		return EventTagSubscriptionResponse(
+			tagIDs: tagIDs,
+			droppedTagIDs: droppedTagIDs
+		)
 	}
 
 	private func replaceSubjectSubscriptions(req: Request) async throws -> EventTagSubscriptionResponse {
@@ -92,7 +99,14 @@ struct EventTagsController: RouteCollection {
 				).create(on: database)
 			}
 		}
-		return try await EventTagSubscriptionResponse(tagIDs: subscriptionIDs(for: user, on: req.db))
+		let acceptedSubjectTagIDs = try subjectTags.map(\.requireID)
+		let droppedTagIDs = requestedTagIDs.filter {
+			!acceptedSubjectTagIDs.contains($0)
+		}
+		return try await EventTagSubscriptionResponse(
+			tagIDs: subscriptionIDs(for: user, on: req.db),
+			droppedTagIDs: droppedTagIDs
+		)
 	}
 
 	private func user(_ req: Request) async throws -> User {
@@ -153,6 +167,7 @@ private struct EventTagResponse: Content {
 
 private struct EventTagSubscriptionResponse: Content {
 	let tagIDs: [UUID]
+	let droppedTagIDs: [UUID]
 }
 
 private struct EventTagSubscriptionUpdateRequest: Content {
