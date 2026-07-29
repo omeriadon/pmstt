@@ -7,6 +7,7 @@ struct EventTagsController: RouteCollection {
 		tags.get(use: catalogue)
 		tags.get("subscriptions", use: subscriptions)
 		tags.put("subscriptions", use: replaceSubscriptions)
+		tags.put("subscriptions", "subjects", use: replaceSubjectSubscriptions)
 	}
 
 	private func catalogue(req: Request) async throws -> EventTagCatalogueResponse {
@@ -54,6 +55,41 @@ struct EventTagsController: RouteCollection {
 			}
 		}
 		return EventTagSubscriptionResponse(tagIDs: tagIDs)
+	}
+
+	private func replaceSubjectSubscriptions(req: Request) async throws -> EventTagSubscriptionResponse {
+		let user = try await user(req)
+		let request = try req.content.decode(EventTagSubscriptionUpdateRequest.self)
+		let requestedTagIDs = Array(Set(request.tagIDs))
+		let subjectTags: [EventTag]
+		if requestedTagIDs.isEmpty {
+			subjectTags = []
+		} else {
+			subjectTags = try await EventTag.query(on: req.db)
+				.filter(\.$id ~~ requestedTagIDs)
+				.filter(\.$category == .subject)
+				.filter(\.$isArchived == false)
+				.all()
+		}
+
+		try await req.db.transaction { database in
+			let existingSubscriptions = try await AccountEventTagSubscription.query(on: database)
+				.filter(\.$account.$id == user.requireID())
+				.all()
+			for subscription in existingSubscriptions {
+				guard let tag = try await EventTag.find(subscription.$eventTag.id, on: database), tag.category == .subject else {
+					continue
+				}
+				try await subscription.delete(on: database)
+			}
+			for tag in subjectTags {
+				try await AccountEventTagSubscription(
+					accountID: user.requireID(),
+					eventTagID: try tag.requireID()
+				).create(on: database)
+			}
+		}
+		return try await EventTagSubscriptionResponse(tagIDs: subscriptionIDs(for: user, on: req.db))
 	}
 
 	private func user(_ req: Request) async throws -> User {
