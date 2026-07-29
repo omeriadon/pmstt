@@ -35,13 +35,6 @@ struct RefreshRequest: Content {
 	let refreshToken: String
 }
 
-struct AppleSignInRequest: Content {
-	let identityToken: String
-	let displayName: String?
-	let platform: ClientPlatform.RawValue
-	let installationID: String
-}
-
 struct TokenResponse: Content {
 	let accessToken: String
 	let refreshToken: String
