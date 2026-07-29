@@ -243,7 +243,11 @@ struct FriendController: RouteCollection {
 			state: .reserved
 		)
 
-		try await quota.reserveUpload(bytes: validated.data.count, on: req.db)
+		try await quota.reserveUpload(
+			bytes: validated.data.count,
+			on: req.db,
+			logger: req.logger
+		)
 		try await storageObject.create(on: req.db)
 		try await quota.reserveOperation(.mutation, on: req.db, logger: req.logger)
 

@@ -6,6 +6,16 @@ enum ProfileStorageOperationKind {
 	case mutation
 }
 
+private actor ProfileStorageQuotaCoordinator {
+	static let shared = ProfileStorageQuotaCoordinator()
+
+	func perform<T: Sendable>(
+		_ operation: @Sendable () async throws -> T
+	) async rethrows -> T {
+		try await operation()
+	}
+}
+
 struct ProfileStorageQuotaSnapshot: Content {
 	let storedBytes: Int64
 	let reservedBytes: Int64
@@ -23,44 +33,62 @@ struct ProfileStorageQuotaService {
 		self.configuration = configuration
 	}
 
-	func reserveUpload(bytes: Int, on database: any Database) async throws {
-		try await database.transaction { transaction in
-			let quota = try await quota(on: transaction)
-			guard !quota.writesDisabled else {
-				throw writeBudgetError()
-			}
-			let projected = quota.storedBytes + quota.reservedBytes + Int64(bytes)
-			guard projected <= configuration.storageLimitBytes else {
-				throw AppError(
-					.insufficientStorage,
-					code: .profileStorageCapacityReached,
-					reason: "Profile photo storage is currently full."
+	func reserveUpload(
+		bytes: Int,
+		on database: any Database,
+		logger: Logger
+	) async throws {
+		try await ProfileStorageQuotaCoordinator.shared.perform {
+			try await database.transaction { transaction in
+				let quota = try await quota(on: transaction)
+				guard !quota.writesDisabled else {
+					throw writeBudgetError()
+				}
+				let projected = quota.storedBytes + quota.reservedBytes + Int64(bytes)
+				guard projected <= configuration.storageLimitBytes else {
+					throw AppError(
+						.insufficientStorage,
+						code: .profileStorageCapacityReached,
+						reason: "Profile photo storage is currently full."
+					)
+				}
+				quota.reservedBytes += Int64(bytes)
+				try await quota.save(on: transaction)
+				logThresholds(
+					Int(projected),
+					limit: Int(configuration.storageLimitBytes),
+					label: "byte",
+					logger: logger
 				)
 			}
-			quota.reservedBytes += Int64(bytes)
-			try await quota.save(on: transaction)
 		}
 	}
 
 	func finalizeUpload(bytes: Int, on database: any Database) async throws {
-		try await database.transaction { transaction in
-			let quota = try await quota(on: transaction)
-			quota.reservedBytes = max(0, quota.reservedBytes - Int64(bytes))
-			quota.storedBytes += Int64(bytes)
-			try await quota.save(on: transaction)
+		try await ProfileStorageQuotaCoordinator.shared.perform {
+			try await database.transaction { transaction in
+				let quota = try await quota(on: transaction)
+				quota.reservedBytes = max(0, quota.reservedBytes - Int64(bytes))
+				quota.storedBytes += Int64(bytes)
+				try await quota.save(on: transaction)
+			}
 		}
 	}
 
 	func releaseReservation(bytes: Int, on database: any Database) async throws {
-		let quota = try await quota(on: database)
-		quota.reservedBytes = max(0, quota.reservedBytes - Int64(bytes))
-		try await quota.save(on: database)
+		try await ProfileStorageQuotaCoordinator.shared.perform {
+			let quota = try await quota(on: database)
+			quota.reservedBytes = max(0, quota.reservedBytes - Int64(bytes))
+			try await quota.save(on: database)
+		}
 	}
 
 	func releaseStoredBytes(_ bytes: Int, on database: any Database) async throws {
-		let quota = try await quota(on: database)
-		quota.storedBytes = max(0, quota.storedBytes - Int64(bytes))
-		try await quota.save(on: database)
+		try await ProfileStorageQuotaCoordinator.shared.perform {
+			let quota = try await quota(on: database)
+			quota.storedBytes = max(0, quota.storedBytes - Int64(bytes))
+			try await quota.save(on: database)
+		}
 	}
 
 	func reserveOperation(
@@ -69,22 +97,29 @@ struct ProfileStorageQuotaService {
 		logger: Logger
 	) async throws {
 		let yearMonth = Self.currentYearMonth
-		try await database.transaction { transaction in
-			let counter = try await ProfileStorageOperationMonth.query(on: transaction)
-				.filter(\.$yearMonth == yearMonth)
-				.first()
-				?? ProfileStorageOperationMonth(yearMonth: yearMonth)
+		try await ProfileStorageQuotaCoordinator.shared.perform {
+			try await database.transaction { transaction in
+				let counter = try await ProfileStorageOperationMonth.query(on: transaction)
+					.filter(\.$yearMonth == yearMonth)
+					.first()
+					?? ProfileStorageOperationMonth(yearMonth: yearMonth)
 
-			if kind == .mutation, counter.reservedOperations >= configuration.monthlyWriteCutoff {
-				throw writeBudgetError()
-			}
-			guard counter.reservedOperations < configuration.monthlyOperationLimit else {
-				throw operationBudgetError()
-			}
+				if kind == .mutation, counter.reservedOperations >= configuration.monthlyWriteCutoff {
+					throw writeBudgetError()
+				}
+				guard counter.reservedOperations < configuration.monthlyOperationLimit else {
+					throw operationBudgetError()
+				}
 
-			counter.reservedOperations += 1
-			try await counter.save(on: transaction)
-			logThresholds(counter.reservedOperations, limit: configuration.monthlyOperationLimit, logger: logger)
+				counter.reservedOperations += 1
+				try await counter.save(on: transaction)
+				logThresholds(
+					counter.reservedOperations,
+					limit: configuration.monthlyOperationLimit,
+					label: "operation",
+					logger: logger
+				)
+			}
 		}
 	}
 
@@ -138,14 +173,19 @@ struct ProfileStorageQuotaService {
 		return headers
 	}
 
-	private func logThresholds(_ usage: Int, limit: Int, logger: Logger) {
+	private func logThresholds(
+		_ usage: Int,
+		limit: Int,
+		label: String,
+		logger: Logger
+	) {
 		let percentage = Double(usage) / Double(limit)
 		if percentage >= 0.95 {
-			logger.warning("Profile storage operation quota is at least 95% consumed")
+			logger.warning("Profile storage \(label) quota is at least 95% consumed")
 		} else if percentage >= 0.90 {
-			logger.warning("Profile storage operation quota is at least 90% consumed")
+			logger.warning("Profile storage \(label) quota is at least 90% consumed")
 		} else if percentage >= 0.80 {
-			logger.warning("Profile storage operation quota is at least 80% consumed")
+			logger.warning("Profile storage \(label) quota is at least 80% consumed")
 		}
 	}
 
@@ -153,7 +193,9 @@ struct ProfileStorageQuotaService {
 		var calendar = Calendar(identifier: .gregorian)
 		calendar.timeZone = .gmt
 		let components = calendar.dateComponents([.year, .month], from: .now)
-		return "\(components.year ?? 0)-\(String(format: "%02d", components.month ?? 0))"
+		let month = components.month ?? 0
+		let paddedMonth = month < 10 ? "0\(month)" : "\(month)"
+		return "\(components.year ?? 0)-\(paddedMonth)"
 	}
 
 	private static var secondsUntilNextUTCMonth: Int {
