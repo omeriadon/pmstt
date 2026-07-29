@@ -103,5 +103,6 @@ func pmsttMigrationList() -> [any Migration] {
 		CreateSyncMutationReceipt(),
 		EnforceUniqueEventTagNames(),
 		AddProfileStorageReconciliation(),
+		CreateSyncRecordTombstone(),
 	]
 }

@@ -37,6 +37,7 @@ struct SyncEnvelopeRequest: Content {
 	let requestID: UUID
 	let installationID: String
 	let mutations: [SyncRecordMutation]
+	let cursor: String?
 }
 
 struct SyncMutationResult: Content {

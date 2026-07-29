@@ -34,13 +34,18 @@ struct SyncController: RouteCollection {
 			results.append(result)
 		}
 
+		let tombstonePage = try await tombstones(
+			for: userID,
+			after: envelope.cursor,
+			on: req.db
+		)
 		return SyncEnvelopeResponse(
 			serverTime: .now,
 			requestID: envelope.requestID,
 			installationID: envelope.installationID,
 			results: results,
-			tombstones: [],
-			nextCursor: nil
+			tombstones: tombstonePage.records,
+			nextCursor: tombstonePage.nextCursor
 		)
 	}
 
@@ -85,7 +90,7 @@ struct SyncController: RouteCollection {
 	) async throws -> SyncMutationResult {
 		switch mutation.recordType {
 			case .ownerTimetable:
-				return try await applyOwnerTimetable(
+				try await applyOwnerTimetable(
 					mutation,
 					userID: userID,
 					database: database,
@@ -100,8 +105,17 @@ struct SyncController: RouteCollection {
 		database: any Database,
 		logger: Logger
 	) async throws -> SyncMutationResult {
+		if mutation.operation == .delete {
+			return try await deleteOwnerTimetable(
+				mutation,
+				userID: userID,
+				database: database,
+				logger: logger
+			)
+		}
+
 		guard mutation.operation == .upsert,
-			  let payload = mutation.ownerTimetable
+		      let payload = mutation.ownerTimetable
 		else {
 			return result(
 				for: mutation,
@@ -168,13 +182,75 @@ struct SyncController: RouteCollection {
 			record = created
 		}
 
+		return try SyncMutationResult(
+			mutationID: mutation.mutationID,
+			recordType: mutation.recordType,
+			recordID: record.requireID(),
+			outcome: .accepted,
+			serverRevision: record.revision,
+			ownerTimetable: ownerResponse(record),
+			droppedReferenceIDs: [],
+			message: nil
+		)
+	}
+
+	private func deleteOwnerTimetable(
+		_ mutation: SyncRecordMutation,
+		userID: UUID,
+		database: any Database,
+		logger: Logger
+	) async throws -> SyncMutationResult {
+		let existing = try await OwnerTimetable.query(on: database)
+			.filter(\.$user.$id == userID)
+			.first()
+		guard let existing else {
+			return result(
+				for: mutation,
+				outcome: .deletedOnServer,
+				revision: mutation.baseRevision,
+				message: "The owner timetable is already deleted."
+			)
+		}
+
+		let currentRevision = existing.revision
+		guard mutation.baseRevision == currentRevision else {
+			logger.info(
+				"Record sync delete conflict",
+				metadata: [
+					"record_type": .string(mutation.recordType.rawValue),
+					"mutation_id": .string(mutation.mutationID.uuidString),
+					"client_revision": .string(String(mutation.baseRevision)),
+					"server_revision": .string(String(currentRevision)),
+				]
+			)
+			return try SyncMutationResult(
+				mutationID: mutation.mutationID,
+				recordType: mutation.recordType,
+				recordID: existing.requireID(),
+				outcome: .serverRecordNewer,
+				serverRevision: currentRevision,
+				ownerTimetable: ownerResponse(existing),
+				droppedReferenceIDs: [],
+				message: "The server record is newer."
+			)
+		}
+
+		let recordID = try existing.requireID()
+		let deletedRevision = currentRevision + 1
+		try await existing.delete(on: database)
+		try await SyncRecordTombstone(
+			userID: userID,
+			recordType: .ownerTimetable,
+			recordID: recordID,
+			revision: deletedRevision
+		).create(on: database)
 		return SyncMutationResult(
 			mutationID: mutation.mutationID,
 			recordType: mutation.recordType,
-			recordID: try record.requireID(),
-			outcome: .accepted,
-			serverRevision: record.revision,
-			ownerTimetable: try ownerResponse(record),
+			recordID: recordID,
+			outcome: .deletedOnServer,
+			serverRevision: deletedRevision,
+			ownerTimetable: nil,
 			droppedReferenceIDs: [],
 			message: nil
 		)
@@ -201,9 +277,9 @@ struct SyncController: RouteCollection {
 	private func ownerResponse(
 		_ timetable: OwnerTimetable
 	) throws -> OwnerTimetableResponse {
-		OwnerTimetableResponse(
-			id: try timetable.requireID(),
-			subjects: try JSONDecoder().decode(
+		try OwnerTimetableResponse(
+			id: timetable.requireID(),
+			subjects: JSONDecoder().decode(
 				[TimetableSubjectDTO].self,
 				from: timetable.subjectsData
 			),
@@ -225,8 +301,8 @@ struct SyncController: RouteCollection {
 				in: .whitespacesAndNewlines
 			)
 			guard (1 ..< 100).contains(identifier.count),
-				  (1 ..< 100).contains(subject.symbol.count),
-				  subjectIDs.insert(identifier).inserted
+			      (1 ..< 100).contains(subject.symbol.count),
+			      subjectIDs.insert(identifier).inserted
 			else {
 				throw Abort(.badRequest, reason: "Timetable subjects are invalid.")
 			}
@@ -248,12 +324,51 @@ struct SyncController: RouteCollection {
 
 			for slot in subject.slots {
 				guard (0 ... 4).contains(slot.day),
-					  (0 ... 7).contains(slot.session),
-					  occupiedSlots.insert(slot).inserted
+				      (0 ... 7).contains(slot.session),
+				      occupiedSlots.insert(slot).inserted
 				else {
 					throw Abort(.badRequest, reason: "Timetable slots are invalid.")
 				}
 			}
 		}
+	}
+
+	private func tombstones(
+		for userID: UUID,
+		after cursor: String?,
+		on database: any Database
+	) async throws -> (
+		records: [SyncTombstone],
+		nextCursor: String?
+	) {
+		let retentionCutoff = Date.now.addingTimeInterval(-90 * 24 * 60 * 60)
+		try await SyncRecordTombstone.query(on: database)
+			.filter(\.$deletedAt < retentionCutoff)
+			.delete()
+
+		let query = SyncRecordTombstone.query(on: database)
+			.filter(\.$user.$id == userID)
+			.sort(\.$deletedAt)
+			.limit(500)
+		if let cursor,
+		   let cursorDate = ISO8601DateFormatter().date(from: cursor)
+		{
+			query.filter(\.$deletedAt > cursorDate)
+		}
+
+		let stored = try await query.all()
+		let records = stored.map { tombstone in
+			SyncTombstone(
+				recordType: tombstone.recordType,
+				recordID: tombstone.recordID,
+				revision: tombstone.revision,
+				deletedAt: tombstone.deletedAt ?? .distantPast
+			)
+		}
+		let nextCursor = stored.last?
+			.deletedAt
+			.map(ISO8601DateFormatter().string)
+			?? cursor
+		return (records, nextCursor)
 	}
 }
