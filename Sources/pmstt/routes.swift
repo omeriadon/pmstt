@@ -36,7 +36,6 @@ func routes(_ app: Application) throws {
 	let api = app.grouped("api")
 	try api.register(collection: ServerAccessModeController())
 	try api.register(collection: AuthController())
-	try api.register(collection: AppleNotificationController())
 	try api.register(collection: AccountController())
 	try api.register(collection: OwnerTimetableController())
 	try api.register(collection: SettingsController())

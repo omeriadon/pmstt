@@ -11,7 +11,6 @@ struct AuthController: RouteCollection {
 		auth.post("request-code", use: requestVerificationCode)
 		auth.post("verify-code-register", use: verifyCodeAndRegister)
 		auth.post("login", use: login)
-		auth.post("apple", use: signInWithApple)
 		auth.post("refresh", use: refresh)
 
 		let protected = auth.grouped(SessionAuthenticator(), UserPayload.guardMiddleware(), CapabilityMiddleware())
@@ -107,39 +106,6 @@ struct AuthController: RouteCollection {
 		return try await issueNewSession(for: user, platform: platform, installationID: normalizedInstallationID(body.installationID), on: req)
 	}
 
-	func signInWithApple(req: Request) async throws -> TokenResponse {
-		let body = try req.content.decode(AppleSignInRequest.self)
-		let platform = try validatedSessionClient(platform: body.platform, installationID: body.installationID)
-		let token: AppleIdentityToken
-		do { token = try await req.jwt.apple.verify(body.identityToken) }
-		catch { throw AppError(.unauthorized, code: .invalidAppleIdentityToken, reason: "The Apple identity token is invalid.") }
-
-		let appleSubject = token.subject.value
-		if let existing = try await User.query(on: req.db).filter(\.$appleSubject == appleSubject).first() {
-			try await ServerAccessModeService.requirePermittedAccount(existing, on: req.db)
-			existing.appleAuthorizationRevokedAt = nil
-			try await existing.save(on: req.db)
-			return try await issueNewSession(for: existing, platform: platform, installationID: normalizedInstallationID(body.installationID), on: req)
-		}
-		let email = token.email?.lowercased()
-		if let email, let existing = try await User.query(on: req.db).filter(\.$email == email).first() {
-			try await ServerAccessModeService.requirePermittedAccount(existing, on: req.db)
-			guard platform.appleAccountCreationAllowed else {
-				throw AppError(.forbidden, code: .invalidRequest, reason: "This client can only sign in to an Apple-linked account.", field: "platform")
-			}
-			existing.appleSubject = appleSubject
-			existing.appleAuthorizationRevokedAt = nil
-			try await existing.save(on: req.db)
-			return try await issueNewSession(for: existing, platform: platform, installationID: normalizedInstallationID(body.installationID), on: req)
-		}
-		guard platform.appleAccountCreationAllowed else {
-			throw AppError(.forbidden, code: .invalidRequest, reason: "This platform cannot create an Apple account.", field: "platform")
-		}
-		try await ServerAccessModeService.requirePermittedEmail(email, on: req.db)
-		let user = try User(email: email, passwordHash: nil, appleSubject: appleSubject, displayName: resolvedDisplayName(body.displayName, fallbackEmail: email), selfPassSerialNumber: UUID().uuidString, settingsData: JSONEncoder().encode(AccountSettings.default))
-		try await user.save(on: req.db)
-		return try await issueNewSession(for: user, platform: platform, installationID: normalizedInstallationID(body.installationID), on: req)
-	}
 
 	func refresh(req: Request) async throws -> TokenResponse {
 		let body = try req.content.decode(RefreshRequest.self)
@@ -340,14 +306,6 @@ struct AuthController: RouteCollection {
 
 	private func hashToken(_ token: String) -> String {
 		SHA256.hash(data: Data(token.utf8)).map { String(format: "%02x", $0) }.joined()
-	}
-
-	private func resolvedDisplayName(_ value: String?, fallbackEmail: String?) -> String {
-		let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""; if !trimmed.isEmpty {
-			return trimmed
-		}; if let email = fallbackEmail, let prefix = email.split(separator: "@").first {
-			return String(prefix)
-		}; return "User"
 	}
 
 	private func derivedDisplayName(from email: String) -> String {
