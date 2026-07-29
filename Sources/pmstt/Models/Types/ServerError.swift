@@ -4,7 +4,6 @@ enum ServerErrorCode: String, Codable {
 	case accountNotFound
 	case invalidRequest
 	case invalidCredentials
-	case invalidAppleIdentityToken
 	case notFound
 	case unauthorized
 	case emailAlreadyExists

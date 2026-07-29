@@ -659,9 +659,6 @@ private struct AdministrationEventTagSectionUpdateRequest: Content {
 private struct AdministrationRawAccount: Content {
 	let id: UUID
 	let email: String?
-	let appleSubject: String?
-	let appleEmailForwardingEnabled: Bool?
-	let appleAuthorizationRevokedAt: Date?
 	let displayName: String
 	let selfPassSerialNumber: String
 	let settingsData: Data
@@ -671,9 +668,6 @@ private struct AdministrationRawAccount: Content {
 	init(_ user: User) throws {
 		id = try user.requireID()
 		email = user.email
-		appleSubject = user.appleSubject
-		appleEmailForwardingEnabled = user.appleEmailForwardingEnabled
-		appleAuthorizationRevokedAt = user.appleAuthorizationRevokedAt
 		displayName = user.displayName
 		selfPassSerialNumber = user.selfPassSerialNumber
 		settingsData = user.settingsData

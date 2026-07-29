@@ -13,15 +13,6 @@ final class User: Model, Content, @unchecked Sendable {
 	@Field(key: "password_hash")
 	var passwordHash: String?
 
-	@Field(key: "apple_subject")
-	var appleSubject: String?
-
-	@Field(key: "apple_email_forwarding_enabled")
-	var appleEmailForwardingEnabled: Bool?
-
-	@Field(key: "apple_authorization_revoked_at")
-	var appleAuthorizationRevokedAt: Date?
-
 	@Field(key: "display_name")
 	var displayName: String
 
@@ -49,9 +40,6 @@ final class User: Model, Content, @unchecked Sendable {
 		id: UUID? = nil,
 		email: String? = nil,
 		passwordHash: String? = nil,
-		appleSubject: String? = nil,
-		appleEmailForwardingEnabled: Bool? = nil,
-		appleAuthorizationRevokedAt: Date? = nil,
 		displayName: String,
 		selfPassSerialNumber: String,
 		settingsData: Data,
@@ -61,9 +49,6 @@ final class User: Model, Content, @unchecked Sendable {
 		self.id = id
 		self.email = email?.lowercased()
 		self.passwordHash = passwordHash
-		self.appleSubject = appleSubject
-		self.appleEmailForwardingEnabled = appleEmailForwardingEnabled
-		self.appleAuthorizationRevokedAt = appleAuthorizationRevokedAt
 		self.displayName = displayName
 		self.selfPassSerialNumber = selfPassSerialNumber
 		self.settingsData = settingsData

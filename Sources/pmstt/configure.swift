@@ -99,5 +99,6 @@ func pmsttMigrationList() -> [any Migration] {
 		CreateEmailVerificationChallenge(),
 		CreateAuthorityAuditRecord(),
 		CreateProfileMedia(),
+		RemoveAppleAccounts(),
 	]
 }

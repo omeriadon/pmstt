@@ -35,12 +35,6 @@ enum ClientPlatform: String, Codable, Sendable {
 		}
 	}
 
-	var appleAccountCreationAllowed: Bool {
-		switch self {
-			case .iOS, .iPadOS, .macOS: true
-			case .watchOS, .legacy: false
-		}
-	}
 }
 
 enum SessionAuthority: String, Codable, Sendable {
