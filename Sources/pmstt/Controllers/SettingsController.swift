@@ -26,8 +26,12 @@ struct SettingsController: RouteCollection {
 		try validate(settings)
 
 		let user = try await authenticatedUser(req)
+		try requireMatchingRevision(settings.serverRevision, for: user)
 		let previousSettings = try decodeSettings(for: user)
-		user.settingsData = try JSONEncoder().encode(settings.accountSettings)
+		user.settingsRevision += 1
+		var updatedSettings = settings.accountSettings
+		updatedSettings.serverRevision = user.settingsRevision
+		user.settingsData = try JSONEncoder().encode(updatedSettings)
 		try await user.save(on: req.db)
 		if previousSettings.liveActivitiesEnabled, !settings.liveActivitiesEnabled {
 			try await SchoolDayActivityCoordinator().endActivities(forUserID: user.requireID(), database: req.db, logger: req.logger)
@@ -42,12 +46,15 @@ struct SettingsController: RouteCollection {
 	func updateNotificationSettings(req: Request) async throws -> AccountSettings {
 		let update = try req.content.decode(NotificationSettingsUpdateRequest.self)
 		let user = try await authenticatedUser(req)
+		try requireMatchingRevision(update.serverRevision, for: user)
 		var settings = try decodeSettings(for: user)
 		settings.notificationsEnabled = update.notificationsEnabled
 		settings.broadcastNotificationsEnabled = update.broadcastNotificationsEnabled
 		settings.notificationLeadTimes = update.notificationLeadTimes
 		settings.breakToPeriodNotificationLeadTimes = update.breakToPeriodNotificationLeadTimes
 		settings.eventNotificationSchedules = update.eventNotificationSchedules
+		user.settingsRevision += 1
+		settings.serverRevision = user.settingsRevision
 		user.settingsData = try JSONEncoder().encode(settings)
 		try await user.save(on: req.db)
 		return settings
@@ -63,7 +70,12 @@ struct SettingsController: RouteCollection {
 
 	private func decodeSettings(for user: User) throws -> AccountSettings {
 		do {
-			return try JSONDecoder().decode(AccountSettings.self, from: user.settingsData)
+			var settings = try JSONDecoder().decode(
+				AccountSettings.self,
+				from: user.settingsData
+			)
+			settings.serverRevision = user.settingsRevision
+			return settings
 		} catch {
 			throw AppError(
 				.internalServerError,
@@ -75,5 +87,20 @@ struct SettingsController: RouteCollection {
 
 	private func validate(_ settings: UpdateSettingsRequest) throws {
 		_ = settings
+	}
+
+	private func requireMatchingRevision(
+		_ baseRevision: Int?,
+		for user: User
+	) throws {
+		guard let baseRevision else {
+			return
+		}
+		guard baseRevision == user.settingsRevision else {
+			throw Abort(
+				.conflict,
+				reason: "Account settings have changed on the server."
+			)
+		}
 	}
 }

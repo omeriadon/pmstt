@@ -69,6 +69,7 @@ struct UpdateSettingsRequest: Content {
 	var notificationLeadTimes: Set<NotificationLeadTime>
 	var breakToPeriodNotificationLeadTimes: Set<NotificationLeadTime>
 	var eventNotificationSchedules: Set<EventNotificationSchedule>
+	var serverRevision: Int?
 
 	static let `default` = UpdateSettingsRequest(
 		liveActivitiesEnabled: true,
@@ -77,7 +78,8 @@ struct UpdateSettingsRequest: Content {
 		broadcastNotificationsEnabled: true,
 		notificationLeadTimes: [.zero],
 		breakToPeriodNotificationLeadTimes: [.zero],
-		eventNotificationSchedules: []
+		eventNotificationSchedules: [],
+		serverRevision: nil
 	)
 
 	var accountSettings: AccountSettings {
@@ -88,7 +90,8 @@ struct UpdateSettingsRequest: Content {
 			broadcastNotificationsEnabled: broadcastNotificationsEnabled,
 			notificationLeadTimes: notificationLeadTimes,
 			breakToPeriodNotificationLeadTimes: breakToPeriodNotificationLeadTimes,
-			eventNotificationSchedules: eventNotificationSchedules
+			eventNotificationSchedules: eventNotificationSchedules,
+			serverRevision: serverRevision ?? 0
 		)
 	}
 }
@@ -99,6 +102,7 @@ struct NotificationSettingsUpdateRequest: Content {
 	let notificationLeadTimes: Set<NotificationLeadTime>
 	let breakToPeriodNotificationLeadTimes: Set<NotificationLeadTime>
 	let eventNotificationSchedules: Set<EventNotificationSchedule>
+	let serverRevision: Int?
 }
 
 extension NotificationSettingsUpdateRequest {
@@ -119,6 +123,7 @@ extension NotificationSettingsUpdateRequest {
 		}
 		breakToPeriodNotificationLeadTimes = try container.decodeIfPresent(Set<NotificationLeadTime>.self, forKey: .breakToPeriodNotificationLeadTimes) ?? AccountSettings.default.breakToPeriodNotificationLeadTimes
 		eventNotificationSchedules = try container.decodeIfPresent(Set<EventNotificationSchedule>.self, forKey: .eventNotificationSchedules) ?? AccountSettings.default.eventNotificationSchedules
+		serverRevision = try container.decodeIfPresent(Int.self, forKey: .serverRevision)
 	}
 }
 
@@ -148,6 +153,7 @@ extension UpdateSettingsRequest {
 		}
 		breakToPeriodNotificationLeadTimes = try container.decodeIfPresent(Set<NotificationLeadTime>.self, forKey: .breakToPeriodNotificationLeadTimes) ?? defaults.breakToPeriodNotificationLeadTimes
 		eventNotificationSchedules = try container.decodeIfPresent(Set<EventNotificationSchedule>.self, forKey: .eventNotificationSchedules) ?? defaults.eventNotificationSchedules
+		serverRevision = try container.decodeIfPresent(Int.self, forKey: .serverRevision)
 	}
 }
 
