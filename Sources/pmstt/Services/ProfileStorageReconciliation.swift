@@ -45,6 +45,33 @@ private struct R2AnalyticsResponse: Content {
 	}
 }
 
+private struct R2ObjectListResponse: Content {
+	let result: [Object]
+	let success: Bool
+	let resultInfo: ResultInfo?
+
+	enum CodingKeys: String, CodingKey {
+		case result
+		case success
+		case resultInfo = "result_info"
+	}
+
+	struct Object: Content {
+		let key: String?
+		let size: Int64?
+	}
+
+	struct ResultInfo: Content {
+		let cursor: String?
+		let isTruncated: Bool?
+
+		enum CodingKeys: String, CodingKey {
+			case cursor
+			case isTruncated = "is_truncated"
+		}
+	}
+}
+
 struct ProfileStorageReconciliation {
 	private static let query = """
 	query ProfileStorageAudit(
@@ -133,14 +160,20 @@ struct ProfileStorageReconciliation {
 				return
 			}
 
+			let listedBytes = try await listedObjectBytes(
+				configuration: configuration,
+				token: token,
+				application: application
+			)
 			let quota = try await ProfileStorageQuota.find(
 				ProfileStorageQuota.singletonID,
 				on: application.db
 			) ?? ProfileStorageQuota()
 			let trackedBytes = quota.storedBytes + quota.reservedBytes
-			let warning = remoteBytes > trackedBytes
+			let auditedBytes = listedBytes
+			let warning = auditedBytes > trackedBytes
 
-			quota.reconciledStoredBytes = remoteBytes
+			quota.reconciledStoredBytes = auditedBytes
 			quota.reconciledAt = .now
 			quota.reconciliationWarning = warning
 			quota.writesDisabled = warning
@@ -152,6 +185,7 @@ struct ProfileStorageReconciliation {
 					metadata: [
 						"tracked_bytes": .string(String(trackedBytes)),
 						"remote_bytes": .string(String(remoteBytes)),
+						"listed_bytes": .string(String(listedBytes)),
 						"remote_objects": .string(String(remote.objectCount ?? 0)),
 						"remote_uploads": .string(String(remote.uploadCount ?? 0)),
 					]
@@ -162,6 +196,7 @@ struct ProfileStorageReconciliation {
 					metadata: [
 						"tracked_bytes": .string(String(trackedBytes)),
 						"remote_bytes": .string(String(remoteBytes)),
+						"listed_bytes": .string(String(listedBytes)),
 					]
 				)
 			}
@@ -171,5 +206,76 @@ struct ProfileStorageReconciliation {
 				metadata: ["error": .string(error.localizedDescription)]
 			)
 		}
+	}
+
+	private func listedObjectBytes(
+		configuration: ProfileStorageConfiguration,
+		token: String,
+		application: Application
+	) async throws -> Int64 {
+		let quota = ProfileStorageQuotaService(configuration: configuration)
+		var cursor: String?
+		var totalBytes: Int64 = 0
+		var pageCount = 0
+
+		repeat {
+			pageCount += 1
+			guard pageCount <= 100 else {
+				throw Abort(
+					.badGateway,
+					reason: "Cloudflare object listing exceeded the audit page limit."
+				)
+			}
+			try await quota.reserveOperation(
+				.read,
+				on: application.db,
+				logger: application.logger
+			)
+
+			let accountID = configuration.accountID.addingPercentEncoding(
+				withAllowedCharacters: .urlPathAllowed
+			) ?? configuration.accountID
+			let bucketName = configuration.bucketName.addingPercentEncoding(
+				withAllowedCharacters: .urlPathAllowed
+			) ?? configuration.bucketName
+			var components = URLComponents(
+				string: "https://api.cloudflare.com/client/v4/accounts/\(accountID)/r2/buckets/\(bucketName)/objects"
+			)
+			var queryItems = [
+				URLQueryItem(name: "prefix", value: "avatars/"),
+				URLQueryItem(name: "per_page", value: "1000"),
+			]
+			if let cursor {
+				queryItems.append(URLQueryItem(name: "cursor", value: cursor))
+			}
+			components?.queryItems = queryItems
+			guard let url = components?.url else {
+				throw Abort(.internalServerError)
+			}
+
+			let response = try await application.client.get(
+				URI(string: url.absoluteString),
+				headers: ["Authorization": "Bearer \(token)"]
+			)
+			guard response.status == .ok else {
+				throw Abort(
+					.badGateway,
+					reason: "Cloudflare object listing returned \(response.status.code)."
+				)
+			}
+
+			let page = try response.content.decode(R2ObjectListResponse.self)
+			guard page.success else {
+				throw Abort(.badGateway, reason: "Cloudflare object listing failed.")
+			}
+			totalBytes += page.result.reduce(into: Int64(0)) { total, object in
+				total += object.size ?? 0
+			}
+			cursor = page.resultInfo?.isTruncated == true
+				? page.resultInfo?.cursor
+				: nil
+		} while cursor != nil
+
+		return totalBytes
 	}
 }
