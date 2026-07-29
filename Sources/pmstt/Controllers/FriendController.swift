@@ -180,7 +180,7 @@ struct FriendController: RouteCollection {
 	func profileAppearance(req: Request) async throws -> FriendProfileDTO {
 		let userID = try req.auth.require(UserPayload.self).sub
 		guard let user = try await User.find(userID, on: req.db) else { throw Abort(.notFound) }
-		return profile(for: user)
+		return profile(for: user, includesEmail: true)
 	}
 
 	func updateProfileAppearance(req: Request) async throws -> FriendProfileDTO {
@@ -192,7 +192,7 @@ struct FriendController: RouteCollection {
 		guard let user = try await User.find(userID, on: req.db) else { throw Abort(.notFound) }
 		user.profileAppearanceData = body.appearanceData
 		try await user.save(on: req.db)
-		return profile(for: user)
+		return profile(for: user, includesEmail: true)
 	}
 
 	func acceptRequest(req: Request) async throws -> FriendSummaryDTO {
@@ -273,8 +273,13 @@ struct FriendController: RouteCollection {
 		)
 	}
 
-	private func profile(for user: User) -> FriendProfileDTO {
-		FriendProfileDTO(userID: user.id!, displayName: user.displayName, email: user.email, appearanceData: user.profileAppearanceData)
+	private func profile(for user: User, includesEmail: Bool = false) -> FriendProfileDTO {
+		FriendProfileDTO(
+			userID: user.id!,
+			displayName: user.displayName,
+			email: includesEmail ? user.email : nil,
+			appearanceData: user.profileAppearanceData
+		)
 	}
 
 	private func relationshipState(for friendship: Friendship, viewerID: UUID?) -> FriendRelationshipState {
