@@ -138,6 +138,10 @@ struct AdministrationController: RouteCollection {
 			try container.encode(String(data: data, encoding: .utf8) ?? data.base64EncodedString())
 		}
 
+		let devices = try await UserDevice.query(on: req.db)
+			.filter(\.$user.$id == id)
+			.all()
+
 		let rawData = try await AdministrationUserRawData(
 			account: AdministrationRawAccount(user),
 			ownerTimetables: OwnerTimetable.query(on: req.db).filter(\.$user.$id == id).all(),
@@ -145,10 +149,9 @@ struct AdministrationController: RouteCollection {
 			receivedTimetableImports: ReceivedTimetableImport.query(on: req.db).filter(\.$user.$id == id).all(),
 			receivedPassMirrors: ReceivedPassMirror.query(on: req.db).filter(\.$user.$id == id).all(),
 			receivedNameOverrides: ReceivedNameOverride.query(on: req.db).filter(\.$user.$id == id).all(),
-			devices: UserDevice.query(on: req.db).filter(\.$user.$id == id).all(),
+			devices: devices.compactMap(AdministrationRawDevice.init),
 			calendarEvents: CalendarEvent.query(on: req.db).filter(\.$user.$id == id).all(),
-			schoolNotificationDeliveries: SchoolNotificationDelivery.query(on: req.db).filter(\.$user.$id == id).all(),
-			sessions: UserToken.query(on: req.db).filter(\.$user.$id == id).all()
+			schoolNotificationDeliveries: SchoolNotificationDelivery.query(on: req.db).filter(\.$user.$id == id).all()
 		)
 
 		let data = try encoder.encode(rawData)
@@ -652,6 +655,28 @@ private struct AdministrationRawAccount: Content {
 	}
 }
 
+private struct AdministrationRawDevice: Content {
+	let id: UUID
+	let platform: String
+	let isDebug: Bool
+	let lastSeenAt: Date
+	let createdAt: Date?
+	let updatedAt: Date?
+
+	init?(_ device: UserDevice) {
+		guard let id = device.id else {
+			return nil
+		}
+
+		self.id = id
+		platform = device.platform
+		isDebug = device.isDebug
+		lastSeenAt = device.lastSeenAt
+		createdAt = device.createdAt
+		updatedAt = device.updatedAt
+	}
+}
+
 private struct AdministrationUserRawData: Content {
 	let account: AdministrationRawAccount
 	let ownerTimetables: [OwnerTimetable]
@@ -659,10 +684,9 @@ private struct AdministrationUserRawData: Content {
 	let receivedTimetableImports: [ReceivedTimetableImport]
 	let receivedPassMirrors: [ReceivedPassMirror]
 	let receivedNameOverrides: [ReceivedNameOverride]
-	let devices: [UserDevice]
+	let devices: [AdministrationRawDevice]
 	let calendarEvents: [CalendarEvent]
 	let schoolNotificationDeliveries: [SchoolNotificationDelivery]
-	let sessions: [UserToken]
 }
 
 private struct AdministrationCalendarEntryRequest: Content { let kind: String; let label: String; let startDate: SchoolCalendarDate; let endDate: SchoolCalendarDate? }
