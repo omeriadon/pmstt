@@ -25,6 +25,12 @@ final class Friendship: Model, Content, @unchecked Sendable {
 	@OptionalField(key: "accepted_at")
 	var acceptedAt: Date?
 
+	@Field(key: "requester_sort_order")
+	var requesterSortOrder: Int
+
+	@Field(key: "recipient_sort_order")
+	var recipientSortOrder: Int
+
 	@Timestamp(key: "created_at", on: .create)
 	var createdAt: Date?
 
@@ -45,5 +51,7 @@ final class Friendship: Model, Content, @unchecked Sendable {
 		$recipient.id = recipientID
 		self.status = status
 		self.acceptedAt = acceptedAt
+		requesterSortOrder = 0
+		recipientSortOrder = 0
 	}
 }

@@ -14,6 +14,7 @@ struct FriendController: RouteCollection {
 		protected.put("profile", use: updateProfileAppearance)
 		protected.post("requests", use: createRequest)
 		protected.post("requests", ":relationshipID", "accept", use: acceptRequest)
+		protected.put("order", use: reorder)
 		protected.get(":friendID", use: detail)
 		protected.delete(":friendID", use: removeFriend)
 		protected.post(":friendID", "block", use: blockFriend)
@@ -31,12 +32,49 @@ struct FriendController: RouteCollection {
 			.with(\.$recipient)
 			.sort(\.$acceptedAt, .descending)
 			.all()
+		let orderedRelationships = relationships.sorted {
+			friendOrder(for: $0, viewerID: userID) < friendOrder(for: $1, viewerID: userID)
+		}
 		var summaries: [FriendSummaryDTO] = []
-		for relationship in relationships {
+		for relationship in orderedRelationships {
 			let summary = try await summary(for: relationship, viewerID: userID, on: req.db)
 			summaries.append(summary)
 		}
 		return summaries
+	}
+
+	func reorder(req: Request) async throws -> [FriendSummaryDTO] {
+		let userID = try req.auth.require(UserPayload.self).sub
+		let request = try req.content.decode(FriendOrderUpdateRequest.self)
+		let relationships = try await Friendship.query(on: req.db)
+			.group(.or) { group in
+				group.filter(\.$requester.$id == userID)
+				group.filter(\.$recipient.$id == userID)
+			}
+			.filter(\.$status == .accepted)
+			.all()
+		let relationshipByFriendID = Dictionary(uniqueKeysWithValues: relationships.map { relationship in
+			let friendID = relationship.$requester.id == userID ? relationship.$recipient.id : relationship.$requester.id
+			return (friendID, relationship)
+		})
+		guard Set(request.friendIDs) == Set(relationshipByFriendID.keys), request.friendIDs.count == relationshipByFriendID.count else {
+			throw Abort(.badRequest)
+		}
+
+		try await req.db.transaction { database in
+			for (index, friendID) in request.friendIDs.enumerated() {
+				guard let relationship = relationshipByFriendID[friendID] else {
+					throw Abort(.badRequest)
+				}
+				if relationship.$requester.id == userID {
+					relationship.requesterSortOrder = index
+				} else {
+					relationship.recipientSortOrder = index
+				}
+				try await relationship.update(on: database)
+			}
+		}
+		return try await list(req: req)
 	}
 
 	func incomingRequests(req: Request) async throws -> [FriendSummaryDTO] {
@@ -247,6 +285,10 @@ struct FriendController: RouteCollection {
 		}
 	}
 
+	private func friendOrder(for friendship: Friendship, viewerID: UUID) -> Int {
+		friendship.$requester.id == viewerID ? friendship.requesterSortOrder : friendship.recipientSortOrder
+	}
+
 	private func relationship(between first: UUID, and second: UUID, on database: any Database) async throws -> Friendship? {
 		try await Friendship.query(on: database)
 			.group(.or) { group in
@@ -267,4 +309,8 @@ struct FriendController: RouteCollection {
 		guard let raw = req.parameters.get("friendID"), let value = UUID(uuidString: raw) else { throw Abort(.notFound) }
 		return value
 	}
+}
+
+private struct FriendOrderUpdateRequest: Content {
+	let friendIDs: [UUID]
 }

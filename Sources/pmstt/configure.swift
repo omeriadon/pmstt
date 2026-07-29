@@ -95,5 +95,6 @@ func pmsttMigrationList() -> [any Migration] {
 		CreateBroadcastNotificationRecord(),
 		CreateEventTags(),
 		CreateServerAccessMode(),
+		AddFriendshipOrder(),
 	]
 }
