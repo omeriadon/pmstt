@@ -49,6 +49,7 @@ public func configure(_ app: Application) async throws {
 	registerMigrations(on: app)
 	app.lifecycle.use(SchoolNotificationSchedulerLifecycle())
 	app.lifecycle.use(SchoolDayActivitySchedulerLifecycle())
+	app.lifecycle.use(ProfileStorageCleanupLifecycle())
 
 	try routes(app)
 	app.logger.info("pmstt configuration complete")
@@ -97,5 +98,6 @@ func pmsttMigrationList() -> [any Migration] {
 		AddFriendshipOrder(),
 		CreateEmailVerificationChallenge(),
 		CreateAuthorityAuditRecord(),
+		CreateProfileMedia(),
 	]
 }

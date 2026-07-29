@@ -11,6 +11,9 @@ struct FriendProfileDTO: Content {
 	let displayName: String
 	let email: String?
 	let appearanceData: Data?
+	let appearance: ProfileAppearanceDTO
+	let photo: ProfilePhotoMetadataDTO?
+	let badges: [ProfileBadgeDTO]
 }
 
 struct FriendSummaryDTO: Content {
@@ -45,5 +48,5 @@ struct CreateFriendRequest: Content {
 }
 
 struct FriendProfileAppearanceUpdateRequest: Content {
-	let appearanceData: Data
+	let appearance: ProfileAppearanceDTO
 }

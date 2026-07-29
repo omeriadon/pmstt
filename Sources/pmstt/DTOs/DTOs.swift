@@ -51,6 +51,9 @@ struct UserAccountResponse: Content {
 	let displayName: String
 	let createdAt: Date?
 	let authority: AccountAuthority
+	let appearance: ProfileAppearanceDTO
+	let photo: ProfilePhotoMetadataDTO?
+	let badges: [ProfileBadgeDTO]
 }
 
 struct UpdateAccountRequest: Content {

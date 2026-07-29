@@ -258,13 +258,7 @@ struct AuthController: RouteCollection {
 		return try TokenResponse(
 			accessToken: access,
 			refreshToken: refresh,
-			user: UserAccountResponse(
-				id: user.requireID(),
-				email: user.email,
-				displayName: user.displayName,
-				createdAt: user.createdAt,
-				authority: AccountAuthority.resolved(for: user.email, storedAuthority: user.accountAuthority)
-			)
+			user: try await UserAccountResponse(user: user, on: req.db)
 		)
 	}
 

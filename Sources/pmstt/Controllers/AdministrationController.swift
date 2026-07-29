@@ -13,6 +13,7 @@ struct AdministrationController: RouteCollection {
 		admin.put("users", ":userID", "authority", use: updateAuthority)
 		admin.post("broadcast-notification", use: broadcastNotification)
 		admin.get("broadcast-notifications", use: broadcastNotifications)
+		admin.get("profile-storage-quota", use: profileStorageQuota)
 		admin.get("event-tags", use: eventTags)
 		admin.post("event-tags", use: createEventTag)
 		admin.put("event-tags", ":tagID", use: updateEventTag)
@@ -22,6 +23,12 @@ struct AdministrationController: RouteCollection {
 		admin.post("calendar", use: createCalendarEntry)
 		admin.put("calendar", ":entryID", use: updateCalendarEntry)
 		admin.delete("calendar", ":entryID", use: deleteCalendarEntry)
+	}
+
+	private func profileStorageQuota(req: Request) async throws -> ProfileStorageQuotaSnapshot {
+		_ = try await requireAdministrator(req)
+		let configuration = try ProfileStorageConfiguration.load()
+		return try await ProfileStorageQuotaService(configuration: configuration).snapshot(on: req.db)
 	}
 
 	private func dashboard(req: Request) async throws -> AdministrationDashboardResponse {
@@ -34,10 +41,15 @@ struct AdministrationController: RouteCollection {
 
 	private func users(req: Request) async throws -> [AdministrationUserResponse] {
 		_ = try await requireAdministrator(req)
-		return try await User.query(on: req.db)
+		let users = try await User.query(on: req.db)
 			.sort(\.$displayName)
 			.all()
-			.map(AdministrationUserResponse.init)
+		var responses: [AdministrationUserResponse] = []
+		responses.reserveCapacity(users.count)
+		for user in users {
+			responses.append(try await AdministrationUserResponse(user, on: req.db))
+		}
+		return responses
 	}
 
 	private func updateUser(req: Request) async throws -> AdministrationUserResponse {
@@ -58,7 +70,7 @@ struct AdministrationController: RouteCollection {
 			user.passwordHash = try req.password.hash(password)
 		}
 		try await user.update(on: req.db)
-		return try AdministrationUserResponse(user)
+		return try await AdministrationUserResponse(user, on: req.db)
 	}
 
 	private func updateAuthority(req: Request) async throws -> AdministrationUserResponse {
@@ -90,7 +102,7 @@ struct AdministrationController: RouteCollection {
 			)
 			try await auditRecord.create(on: database)
 		}
-		return try AdministrationUserResponse(user)
+		return try await AdministrationUserResponse(user, on: req.db)
 	}
 
 	private func createUser(req: Request) async throws -> AdministrationUserResponse {
@@ -120,7 +132,7 @@ struct AdministrationController: RouteCollection {
 				on: database
 			)
 		}
-		return try AdministrationUserResponse(user)
+		return try await AdministrationUserResponse(user, on: req.db)
 	}
 
 	private func deleteUser(req: Request) async throws -> HTTPStatus {
@@ -517,13 +529,19 @@ private struct AdministrationUserResponse: Content {
 	let email: String?
 	let createdAt: Date?
 	let authority: AccountAuthority
+	let appearance: ProfileAppearanceDTO
+	let photo: ProfilePhotoMetadataDTO?
+	let badges: [ProfileBadgeDTO]
 
-	init(_ user: User) throws {
+	init(_ user: User, on database: any Database) async throws {
 		id = try user.requireID()
 		displayName = user.displayName
 		email = user.email
 		createdAt = user.createdAt
 		authority = user.resolvedAccountAuthority
+		appearance = user.decodedProfileAppearance
+		photo = try await user.profilePhotoMetadata(on: database)
+		badges = user.profileBadges
 	}
 }
 private struct AdministrationEventTagCatalogueResponse: Content {

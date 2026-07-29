@@ -12,6 +12,9 @@ struct FriendController: RouteCollection {
 		protected.get("search", use: search)
 		protected.get("profile", use: profileAppearance)
 		protected.put("profile", use: updateProfileAppearance)
+		protected.put("profile", "photo", use: uploadProfilePhoto)
+		protected.delete("profile", "photo", use: deleteProfilePhoto)
+		protected.get("profile", "photo", ":userID", use: profilePhoto)
 		protected.post("requests", use: createRequest)
 		protected.post("requests", ":relationshipID", "accept", use: acceptRequest)
 		protected.put("order", use: reorder)
@@ -116,16 +119,21 @@ struct FriendController: RouteCollection {
 			}
 			.all()
 
-		return matches.compactMap { user in
-			guard let userID = user.id else { return nil }
+		var results: [FriendSearchResultDTO] = []
+		for user in matches {
+			guard let userID = user.id else {
+				continue
+			}
 			let relationship = relationships.first {
 				$0.$requester.id == userID || $0.$recipient.id == userID
 			}
-			return FriendSearchResultDTO(
-				profile: profile(for: user),
+			let profile = try await profile(for: user, on: req.db)
+			results.append(FriendSearchResultDTO(
+				profile: profile,
 				relationship: relationship.map { relationshipState(for: $0, viewerID: viewerID) }
-			)
+			))
 		}
+		return results
 	}
 
 	func createRequest(req: Request) async throws -> FriendSummaryDTO {
@@ -180,19 +188,204 @@ struct FriendController: RouteCollection {
 	func profileAppearance(req: Request) async throws -> FriendProfileDTO {
 		let userID = try req.auth.require(UserPayload.self).sub
 		guard let user = try await User.find(userID, on: req.db) else { throw Abort(.notFound) }
-		return profile(for: user, includesEmail: true)
+		return try await profile(for: user, includesEmail: true, on: req.db)
 	}
 
 	func updateProfileAppearance(req: Request) async throws -> FriendProfileDTO {
 		let userID = try req.auth.require(UserPayload.self).sub
 		let body = try req.content.decode(FriendProfileAppearanceUpdateRequest.self)
-		guard body.appearanceData.count <= 16 * 1024 else {
+		let appearance = try body.appearance.validated()
+		let appearanceData = try JSONEncoder().encode(appearance)
+		guard appearanceData.count <= 16 * 1024 else {
 			throw AppError(.badRequest, code: .invalidRequest, reason: "Profile appearance data is too large.", field: "appearanceData")
 		}
 		guard let user = try await User.find(userID, on: req.db) else { throw Abort(.notFound) }
-		user.profileAppearanceData = body.appearanceData
+		if appearance.contentKind == .photo {
+			guard try await ProfileMedia.query(on: req.db)
+				.filter(\.$user.$id == userID)
+				.first() != nil
+			else {
+				throw AppError(
+					.conflict,
+					code: .invalidRequest,
+					reason: "Upload a profile photo before selecting photo mode.",
+					field: "contentKind"
+				)
+			}
+		}
+		user.profileAppearanceData = appearanceData
 		try await user.save(on: req.db)
-		return profile(for: user, includesEmail: true)
+		return try await profile(for: user, includesEmail: true, on: req.db)
+	}
+
+	func uploadProfilePhoto(req: Request) async throws -> FriendProfileDTO {
+		let userID = try req.auth.require(UserPayload.self).sub
+		guard req.headers.contentType == .jpeg else {
+			throw AppError(.unsupportedMediaType, code: .invalidRequest, reason: "Only JPEG profile photos are supported.")
+		}
+		guard let buffer = req.body.data else {
+			throw AppError(.badRequest, code: .invalidRequest, reason: "The profile photo body is empty.")
+		}
+		let validated = try ProfileJPEGValidator.validateAndSanitize(Data(buffer.readableBytesView))
+		let configuration = try ProfileStorageConfiguration.load()
+		let quota = ProfileStorageQuotaService(configuration: configuration)
+		let objectStore = R2ProfileObjectStore(configuration: configuration)
+		let previousMedia = try await ProfileMedia.query(on: req.db)
+			.filter(\.$user.$id == userID)
+			.first()
+		let previousByteSize = previousMedia?.byteSize
+		let revision = (previousMedia?.revision ?? 0) + 1
+		let objectKey = "avatars/\(userID.uuidString.lowercased())/\(revision).jpg"
+		let storageObject = ProfileStorageObject(
+			userID: userID,
+			objectKey: objectKey,
+			byteSize: validated.data.count,
+			state: .reserved
+		)
+
+		try await quota.reserveUpload(bytes: validated.data.count, on: req.db)
+		try await storageObject.create(on: req.db)
+		try await quota.reserveOperation(.mutation, on: req.db, logger: req.logger)
+
+		let storedObject: R2StoredObject
+		do {
+			storedObject = try await objectStore.put(
+				key: objectKey,
+				data: validated.data,
+				contentType: "image/jpeg",
+				client: req.client
+			)
+		} catch {
+			storageObject.state = .orphaned
+			try? await storageObject.save(on: req.db)
+			try? await quota.finalizeUpload(bytes: validated.data.count, on: req.db)
+			throw error
+		}
+
+		let media = previousMedia ?? ProfileMedia(
+			userID: userID,
+			objectKey: objectKey,
+			contentType: "image/jpeg",
+			byteSize: validated.data.count,
+			width: validated.width,
+			height: validated.height,
+			checksum: validated.checksum,
+			revision: revision,
+			etag: storedObject.etag
+		)
+		let previousObjectKey = previousMedia?.objectKey
+
+		media.objectKey = objectKey
+		media.contentType = "image/jpeg"
+		media.byteSize = validated.data.count
+		media.width = validated.width
+		media.height = validated.height
+		media.checksum = validated.checksum
+		media.revision = revision
+		media.etag = storedObject.etag
+
+		try await req.db.transaction { database in
+			try await media.save(on: database)
+			storageObject.state = .active
+			try await storageObject.save(on: database)
+			if let previousObjectKey,
+			   let previousObject = try await ProfileStorageObject.query(on: database)
+				.filter(\.$objectKey == previousObjectKey)
+				.first()
+			{
+				previousObject.state = .superseded
+				try await previousObject.save(on: database)
+			}
+		}
+		try await quota.finalizeUpload(bytes: validated.data.count, on: req.db)
+
+		if let previousObjectKey,
+		   previousObjectKey != objectKey,
+		   let previousByteSize
+		{
+			await deleteStoredObject(
+				key: previousObjectKey,
+				byteSize: previousByteSize,
+				quota: quota,
+				objectStore: objectStore,
+				req: req
+			)
+		}
+
+		guard let user = try await User.find(userID, on: req.db) else {
+			throw Abort(.notFound)
+		}
+		return try await profile(for: user, includesEmail: true, on: req.db)
+	}
+
+	func profilePhoto(req: Request) async throws -> Response {
+		let viewerID = try req.auth.require(UserPayload.self).sub
+		guard let rawUserID = req.parameters.get("userID"),
+			  let userID = UUID(uuidString: rawUserID)
+		else {
+			throw Abort(.notFound)
+		}
+		guard viewerID == userID || (try await relationship(between: viewerID, and: userID, on: req.db))?.status == .accepted else {
+			throw Abort(.notFound)
+		}
+		guard let media = try await ProfileMedia.query(on: req.db)
+			.filter(\.$user.$id == userID)
+			.first()
+		else {
+			throw Abort(.notFound)
+		}
+
+		if req.headers[.ifNoneMatch].contains(media.etag)
+			|| req.headers[.ifNoneMatch].contains("\"\(media.etag)\"")
+		{
+			let response = Response(status: .notModified)
+			response.headers.replaceOrAdd(name: .eTag, value: media.etag)
+			return response
+		}
+
+		let configuration = try ProfileStorageConfiguration.load()
+		let quota = ProfileStorageQuotaService(configuration: configuration)
+		try await quota.reserveOperation(.read, on: req.db, logger: req.logger)
+		let stored = try await R2ProfileObjectStore(configuration: configuration).get(
+			key: media.objectKey,
+			client: req.client
+		)
+		var response = Response(status: .ok)
+		response.headers.contentType = .jpeg
+		response.headers.replaceOrAdd(name: .eTag, value: media.etag)
+		response.headers.replaceOrAdd(name: .cacheControl, value: "private, max-age=86400")
+		response.body = stored.body.map { .init(buffer: $0) } ?? .empty
+		return response
+	}
+
+	func deleteProfilePhoto(req: Request) async throws -> HTTPStatus {
+		let userID = try req.auth.require(UserPayload.self).sub
+		guard let media = try await ProfileMedia.query(on: req.db)
+			.filter(\.$user.$id == userID)
+			.first()
+		else {
+			return .noContent
+		}
+		let objectKey = media.objectKey
+		let byteSize = media.byteSize
+		try await media.delete(on: req.db)
+		if let object = try await ProfileStorageObject.query(on: req.db)
+			.filter(\.$objectKey == objectKey)
+			.first()
+		{
+			object.state = .superseded
+			try await object.save(on: req.db)
+		}
+
+		let configuration = try ProfileStorageConfiguration.load()
+		await deleteStoredObject(
+			key: objectKey,
+			byteSize: byteSize,
+			quota: ProfileStorageQuotaService(configuration: configuration),
+			objectStore: R2ProfileObjectStore(configuration: configuration),
+			req: req
+		)
+		return .noContent
 	}
 
 	func acceptRequest(req: Request) async throws -> FriendSummaryDTO {
@@ -220,11 +413,13 @@ struct FriendController: RouteCollection {
 		}
 		let friend = friendship.$requester.id == userID ? friendship.$recipient.id : friendship.$requester.id
 		guard let user = try await User.find(friend, on: req.db), let acceptedAt = friendship.acceptedAt else { throw Abort(.notFound) }
-		return try await FriendDetailDTO(
+		let friendProfile = try await profile(for: user, on: req.db)
+		let friendTimetable = try await timetable(for: friend, on: req.db)
+		return FriendDetailDTO(
 			relationshipID: friendship.requireID(),
-			friend: profile(for: user),
+			friend: friendProfile,
 			acceptedAt: acceptedAt,
-			timetable: timetable(for: friend, on: req.db)
+			timetable: friendTimetable
 		)
 	}
 
@@ -253,13 +448,20 @@ struct FriendController: RouteCollection {
 
 	private func summary(for friendship: Friendship, viewerID: UUID, on database: any Database) async throws -> FriendSummaryDTO {
 		let friend = friendship.$requester.id == viewerID ? friendship.recipient : friendship.requester
-		return try await FriendSummaryDTO(
+		let friendProfile = try await profile(for: friend, on: database)
+		let friendTimetable: FriendTimetableDTO?
+		if friendship.status == .accepted {
+			friendTimetable = try await timetable(for: friend.requireID(), on: database)
+		} else {
+			friendTimetable = nil
+		}
+		return FriendSummaryDTO(
 			relationshipID: friendship.requireID(),
-			friend: profile(for: friend),
+			friend: friendProfile,
 			state: relationshipState(for: friendship, viewerID: viewerID),
 			requestedAt: friendship.createdAt ?? .now,
 			acceptedAt: friendship.acceptedAt,
-			timetable: friendship.status == .accepted ? timetable(for: friend.requireID(), on: database) : nil
+			timetable: friendTimetable
 		)
 	}
 
@@ -273,13 +475,43 @@ struct FriendController: RouteCollection {
 		)
 	}
 
-	private func profile(for user: User, includesEmail: Bool = false) -> FriendProfileDTO {
-		FriendProfileDTO(
-			userID: user.id!,
+	private func profile(
+		for user: User,
+		includesEmail: Bool = false,
+		on database: any Database
+	) async throws -> FriendProfileDTO {
+		let photo = try await user.profilePhotoMetadata(on: database)
+		return try FriendProfileDTO(
+			userID: user.requireID(),
 			displayName: user.displayName,
 			email: includesEmail ? user.email : nil,
-			appearanceData: user.profileAppearanceData
+			appearanceData: user.profileAppearanceData,
+			appearance: user.decodedProfileAppearance,
+			photo: photo,
+			badges: user.profileBadges
 		)
+	}
+
+	private func deleteStoredObject(
+		key: String,
+		byteSize: Int,
+		quota: ProfileStorageQuotaService,
+		objectStore: R2ProfileObjectStore,
+		req: Request
+	) async {
+		do {
+			try await quota.reserveOperation(.mutation, on: req.db, logger: req.logger)
+			try await objectStore.delete(key: key, client: req.client)
+			try await ProfileStorageObject.query(on: req.db)
+				.filter(\.$objectKey == key)
+				.delete()
+			try await quota.releaseStoredBytes(byteSize, on: req.db)
+		} catch {
+			req.logger.warning(
+				"Profile storage object deletion deferred",
+				metadata: ["object_key": .string(key), "error": .string(error.localizedDescription)]
+			)
+		}
 	}
 
 	private func relationshipState(for friendship: Friendship, viewerID: UUID?) -> FriendRelationshipState {

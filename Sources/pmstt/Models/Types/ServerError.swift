@@ -18,6 +18,9 @@ enum ServerErrorCode: String, Codable {
 	case aliasTaken
 	case rateLimited
 	case developmentAccessRestricted
+	case profileStorageCapacityReached
+	case profileStorageWriteBudgetReached
+	case profileStorageOperationBudgetReached
 	case internalServerError
 }
 
@@ -25,6 +28,7 @@ struct ServerErrorResponse: Content {
 	let code: ServerErrorCode
 	let message: String
 	let field: String?
+	let headers: HTTPHeaders
 	let requestID: String
 }
 
@@ -42,11 +46,13 @@ struct AppError: AbortError, DebuggableError {
 		_ status: HTTPResponseStatus,
 		code: ServerErrorCode,
 		reason: String,
-		field: String? = nil
+		field: String? = nil,
+		headers: HTTPHeaders = [:]
 	) {
 		self.status = status
 		self.code = code
 		self.reason = reason
 		self.field = field
+		self.headers = headers
 	}
 }

@@ -17,13 +17,7 @@ struct AccountController: RouteCollection {
 			throw AppError(.notFound, code: .accountNotFound, reason: "User not found.")
 		}
 
-		return try UserAccountResponse(
-			id: user.requireID(),
-			email: user.email,
-			displayName: user.displayName,
-			createdAt: user.createdAt,
-			authority: AccountAuthority.resolved(for: user.email, storedAuthority: user.accountAuthority)
-		)
+		return try await UserAccountResponse(user: user, on: req.db)
 	}
 
 	func updateAccount(req: Request) async throws -> UserAccountResponse {
@@ -54,13 +48,7 @@ struct AccountController: RouteCollection {
 
 		try await user.save(on: req.db)
 
-		return try UserAccountResponse(
-			id: user.requireID(),
-			email: user.email,
-			displayName: user.displayName,
-			createdAt: user.createdAt,
-			authority: AccountAuthority.resolved(for: user.email, storedAuthority: user.accountAuthority)
-		)
+		return try await UserAccountResponse(user: user, on: req.db)
 	}
 
 	func deleteAccount(req: Request) async throws -> HTTPStatus {
