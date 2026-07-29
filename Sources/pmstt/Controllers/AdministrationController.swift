@@ -12,6 +12,11 @@ struct AdministrationController: RouteCollection {
 		admin.delete("users", ":userID", use: deleteUser)
 		admin.put("users", ":userID", "authority", use: updateAuthority)
 		admin.post("broadcast-notification", use: broadcastNotification)
+		admin.get("event-tags", use: eventTags)
+		admin.post("event-tags", use: createEventTag)
+		admin.put("event-tags", ":tagID", use: updateEventTag)
+		admin.post("event-tags", "sections", use: createEventTagSection)
+		admin.put("event-tags", "sections", ":sectionID", use: updateEventTagSection)
 		admin.get("calendar", use: calendar)
 		admin.post("calendar", use: createCalendarEntry)
 		admin.put("calendar", ":entryID", use: updateCalendarEntry)
@@ -177,6 +182,73 @@ struct AdministrationController: RouteCollection {
 		)
 	}
 
+	private func eventTags(req: Request) async throws -> AdministrationEventTagCatalogueResponse {
+		_ = try await requireAdministrator(req)
+		return try await eventTagCatalogue(on: req.db)
+	}
+
+	private func createEventTag(req: Request) async throws -> AdministrationEventTagCatalogueResponse {
+		_ = try await requireAdministrator(req)
+		let request = try req.content.decode(AdministrationEventTagRequest.self)
+		try await req.db.transaction { database in
+			let section = try await eventTagSection(id: request.sectionID, on: database)
+			let tag = try eventTag(from: request, section: section)
+			try await validateTag(tag, aliases: request.associatedNames, excluding: nil, on: database)
+			try await tag.create(on: database)
+			try await replaceAssociatedNames(request.associatedNames, for: tag, on: database)
+		}
+		return try await eventTagCatalogue(on: req.db)
+	}
+
+	private func updateEventTag(req: Request) async throws -> AdministrationEventTagCatalogueResponse {
+		_ = try await requireAdministrator(req)
+		guard let tagID = req.parameters.get("tagID", as: UUID.self), let tag = try await EventTag.find(tagID, on: req.db) else {
+			throw Abort(.notFound)
+		}
+
+		let request = try req.content.decode(AdministrationEventTagRequest.self)
+		try await req.db.transaction { database in
+			let section = try await eventTagSection(id: request.sectionID, on: database)
+			try apply(request, to: tag, section: section)
+			try await validateTag(tag, aliases: request.associatedNames, excluding: tagID, on: database)
+			tag.revision += 1
+			try await tag.update(on: database)
+			try await replaceAssociatedNames(request.associatedNames, for: tag, on: database)
+		}
+		return try await eventTagCatalogue(on: req.db)
+	}
+
+	private func createEventTagSection(req: Request) async throws -> AdministrationEventTagCatalogueResponse {
+		_ = try await requireAdministrator(req)
+		let request = try req.content.decode(AdministrationEventTagSectionCreateRequest.self)
+		let displayName = try validatedDisplayName(request.displayName)
+		guard try await EventTagSection.query(on: req.db).filter(\.$category == request.category).first() == nil else {
+			throw Abort(.conflict)
+		}
+
+		try await EventTagSection(
+			category: request.category,
+			displayName: displayName,
+			sortOrder: request.sortOrder
+		).create(on: req.db)
+		return try await eventTagCatalogue(on: req.db)
+	}
+
+	private func updateEventTagSection(req: Request) async throws -> AdministrationEventTagCatalogueResponse {
+		_ = try await requireAdministrator(req)
+		guard let sectionID = req.parameters.get("sectionID", as: UUID.self), let section = try await EventTagSection.find(sectionID, on: req.db) else {
+			throw Abort(.notFound)
+		}
+
+		let request = try req.content.decode(AdministrationEventTagSectionUpdateRequest.self)
+		section.displayName = try validatedDisplayName(request.displayName)
+		section.sortOrder = request.sortOrder
+		section.isArchived = request.isArchived
+		section.revision += 1
+		try await section.update(on: req.db)
+		return try await eventTagCatalogue(on: req.db)
+	}
+
 	private func calendar(req: Request) async throws -> [AdministrationCalendarEntryResponse] {
 		_ = try await requireAdministrator(req)
 		return try await SchoolCalendarEntry.query(on: req.db).all().map(AdministrationCalendarEntryResponse.init)
@@ -235,11 +307,163 @@ struct AdministrationController: RouteCollection {
 	private func validate(_ request: AdministrationCalendarEntryRequest) throws {
 		guard ["term", "noSchool"].contains(request.kind), !request.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, request.label.count <= 120, request.kind == "noSchool" || request.endDate != nil else { throw Abort(.badRequest) }
 	}
+
+	private func eventTagCatalogue(on database: any Database) async throws -> AdministrationEventTagCatalogueResponse {
+		let sections = try await EventTagSection.query(on: database)
+			.sort(\.$sortOrder)
+			.sort(\.$displayName)
+			.all()
+
+		let responseSections = try await sections.asyncMap { section in
+			let tags = try await EventTag.query(on: database)
+				.filter(\.$section.$id == section.requireID())
+				.sort(\.$sortOrder)
+				.sort(\.$displayName)
+				.all()
+			return try await AdministrationEventTagSectionResponse(section, tags: tags, on: database)
+		}
+		return AdministrationEventTagCatalogueResponse(sections: responseSections)
+	}
+
+	private func eventTagSection(id: UUID, on database: any Database) async throws -> EventTagSection {
+		guard let section = try await EventTagSection.find(id, on: database) else {
+			throw Abort(.notFound)
+		}
+		return section
+	}
+
+	private func eventTag(from request: AdministrationEventTagRequest, section: EventTagSection) throws -> EventTag {
+		EventTag(
+			sectionID: try section.requireID(),
+			slug: try validatedSlug(request.slug),
+			displayName: try validatedDisplayName(request.displayName),
+			category: section.category,
+			symbol: request.symbol?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
+			colorHex: request.colorHex?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
+			sortOrder: request.sortOrder,
+			isArchived: request.isArchived
+		)
+	}
+
+	private func apply(_ request: AdministrationEventTagRequest, to tag: EventTag, section: EventTagSection) throws {
+		tag.$section.id = try section.requireID()
+		tag.slug = try validatedSlug(request.slug)
+		tag.displayName = try validatedDisplayName(request.displayName)
+		tag.category = section.category
+		tag.symbol = request.symbol?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+		tag.colorHex = request.colorHex?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+		tag.sortOrder = request.sortOrder
+		tag.isArchived = request.isArchived
+	}
+
+	private func validateTag(
+		_ tag: EventTag,
+		aliases: [String],
+		excluding tagID: UUID?,
+		on database: any Database
+	) async throws {
+		let existingTag = try await EventTag.query(on: database)
+			.filter(\.$slug == tag.slug)
+			.first()
+		guard existingTag?.id == tagID || existingTag == nil else {
+			throw Abort(.conflict)
+		}
+
+		let normalizedAliases = try normalizedAssociatedNames(aliases, displayName: tag.displayName)
+		guard !tag.isArchived else {
+			return
+		}
+
+		let categoryTags = try await EventTag.query(on: database)
+			.filter(\.$category == tag.category)
+			.filter(\.$isArchived == false)
+			.all()
+
+		for candidate in categoryTags where candidate.id != tagID {
+			let candidateNames = try await EventTagAssociatedName.query(on: database)
+				.filter(\.$eventTag.$id == candidate.requireID())
+				.all()
+			guard Set(candidateNames.map(\.normalizedName)).isDisjoint(with: normalizedAliases.map(\.normalizedName)) else {
+				throw Abort(.conflict)
+			}
+		}
+	}
+
+	private func replaceAssociatedNames(
+		_ aliases: [String],
+		for tag: EventTag,
+		on database: any Database
+	) async throws {
+		let names = try normalizedAssociatedNames(aliases, displayName: tag.displayName)
+		try await EventTagAssociatedName.query(on: database)
+			.filter(\.$eventTag.$id == tag.requireID())
+			.delete()
+		for name in names {
+			try await EventTagAssociatedName(
+				eventTagID: tag.requireID(),
+				displayName: name.displayName,
+				normalizedName: name.normalizedName
+			).create(on: database)
+		}
+	}
+
+	private func normalizedAssociatedNames(
+		_ aliases: [String],
+		displayName: String
+	) throws -> [(displayName: String, normalizedName: String)] {
+		let names = aliases + [displayName]
+		var normalizedNames: Set<String> = []
+		var result: [(displayName: String, normalizedName: String)] = []
+
+		for name in names {
+			let displayName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+			guard !displayName.isEmpty, displayName.count <= 120 else {
+				throw Abort(.badRequest)
+			}
+			let normalizedName = displayName
+				.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
+				.lowercased()
+				.split(whereSeparator: \.isWhitespace)
+				.joined(separator: " ")
+			guard normalizedNames.insert(normalizedName).inserted else {
+				continue
+			}
+			result.append((displayName, normalizedName))
+		}
+
+		return result
+	}
+
+	private func validatedDisplayName(_ value: String) throws -> String {
+		let displayName = value.trimmingCharacters(in: .whitespacesAndNewlines)
+		guard !displayName.isEmpty, displayName.count <= 120 else {
+			throw Abort(.badRequest)
+		}
+		return displayName
+	}
+
+	private func validatedSlug(_ value: String) throws -> String {
+		let slug = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+		guard !slug.isEmpty, slug.count <= 120, slug.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "-" }) else {
+			throw Abort(.badRequest)
+		}
+		return slug
+	}
 }
 
 private extension String {
 	var nilIfEmpty: String? {
 		isEmpty ? nil : self
+	}
+}
+
+private extension Array {
+	func asyncMap<T>(_ transform: (Element) async throws -> T) async rethrows -> [T] {
+		var result: [T] = []
+		for element in self {
+			try await result.append(transform(element))
+		}
+		return result
 	}
 }
 
@@ -280,6 +504,86 @@ private struct AdministrationUserResponse: Content {
 		createdAt = user.createdAt
 		authority = user.resolvedAccountAuthority
 	}
+}
+private struct AdministrationEventTagCatalogueResponse: Content {
+	let sections: [AdministrationEventTagSectionResponse]
+}
+
+private struct AdministrationEventTagSectionResponse: Content {
+	let id: UUID
+	let category: EventTagCategory
+	let displayName: String
+	let sortOrder: Int
+	let isArchived: Bool
+	let revision: Int
+	let tags: [AdministrationEventTagResponse]
+
+	init(_ section: EventTagSection, tags: [EventTag], on database: any Database) async throws {
+		id = try section.requireID()
+		category = section.category
+		displayName = section.displayName
+		sortOrder = section.sortOrder
+		isArchived = section.isArchived
+		revision = section.revision
+		self.tags = try await tags.asyncMap { tag in
+			try await AdministrationEventTagResponse(tag, on: database)
+		}
+	}
+}
+
+private struct AdministrationEventTagResponse: Content {
+	let id: UUID
+	let sectionID: UUID
+	let slug: String
+	let displayName: String
+	let category: EventTagCategory
+	let symbol: String?
+	let colorHex: String?
+	let sortOrder: Int
+	let isArchived: Bool
+	let revision: Int
+	let associatedNames: [String]
+
+	init(_ tag: EventTag, on database: any Database) async throws {
+		id = try tag.requireID()
+		sectionID = tag.$section.id
+		slug = tag.slug
+		displayName = tag.displayName
+		category = tag.category
+		symbol = tag.symbol
+		colorHex = tag.colorHex
+		sortOrder = tag.sortOrder
+		isArchived = tag.isArchived
+		revision = tag.revision
+		associatedNames = try await EventTagAssociatedName.query(on: database)
+			.filter(\.$eventTag.$id == id)
+			.sort(\.$displayName)
+			.all()
+			.map(\.displayName)
+	}
+}
+
+private struct AdministrationEventTagRequest: Content {
+	let sectionID: UUID
+	let slug: String
+	let displayName: String
+	let symbol: String?
+	let colorHex: String?
+	let sortOrder: Int
+	let isArchived: Bool
+	let associatedNames: [String]
+}
+
+private struct AdministrationEventTagSectionCreateRequest: Content {
+	let category: EventTagCategory
+	let displayName: String
+	let sortOrder: Int
+}
+
+private struct AdministrationEventTagSectionUpdateRequest: Content {
+	let displayName: String
+	let sortOrder: Int
+	let isArchived: Bool
 }
 private struct AdministrationRawAccount: Content {
 	let id: UUID
