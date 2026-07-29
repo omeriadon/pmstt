@@ -24,3 +24,16 @@ Tests:
 ```bash
 swift test
 ```
+
+## Production log timestamps
+
+pmstt uses SwiftLog's standard stream handler. Each application log line begins
+with a timestamp containing the local UTC offset, followed by its log level and
+logger label:
+
+```text
+2026-07-29T21:50:13+0800 info codes.vapor.application:
+```
+
+PM2 must leave timestamp prefixing disabled and must not be started with a
+separate timestamp option because that would add a second, conflicting prefix.
