@@ -1,4 +1,5 @@
 import Fluent
+import Foundation
 
 struct CreateEventTags: AsyncMigration {
 	func prepare(on database: any Database) async throws {
@@ -90,10 +91,10 @@ struct CreateEventTags: AsyncMigration {
 
 		for (index, tag) in yearTags.enumerated() {
 			let eventTag = EventTag(
-				sectionID: sectionsByCategory[.yearGroup]!,
+				sectionID: sectionsByCategory[EventTagCategory.yearGroup]!,
 				slug: tag.0,
 				displayName: tag.1,
-				category: .yearGroup,
+				category: EventTagCategory.yearGroup,
 				sortOrder: index
 			)
 			try await eventTag.create(on: database)
@@ -105,10 +106,10 @@ struct CreateEventTags: AsyncMigration {
 		}
 
 		let generalTag = EventTag(
-			sectionID: sectionsByCategory[.general]!,
+			sectionID: sectionsByCategory[EventTagCategory.general]!,
 			slug: "general",
 			displayName: "General",
-			category: .general,
+			category: EventTagCategory.general,
 			sortOrder: 0
 		)
 		try await generalTag.create(on: database)

@@ -27,7 +27,7 @@ struct AdministrationController: RouteCollection {
 	}
 
 	private func users(req: Request) async throws -> [AdministrationUserResponse] {
-		try await requireAdministrator(req)
+		_ = try await requireAdministrator(req)
 		return try await User.query(on: req.db)
 			.sort(\.$displayName)
 			.all()
@@ -35,7 +35,7 @@ struct AdministrationController: RouteCollection {
 	}
 
 	private func updateUser(req: Request) async throws -> AdministrationUserResponse {
-		try await requireAdministrator(req)
+		_ = try await requireAdministrator(req)
 		guard let id = req.parameters.get("userID", as: UUID.self), let user = try await User.find(id, on: req.db) else { throw Abort(.notFound) }
 		try preventChangingSystemOwner(user)
 		let update = try req.content.decode(AdministrationUserUpdateRequest.self)
@@ -79,7 +79,7 @@ struct AdministrationController: RouteCollection {
 	}
 
 	private func createUser(req: Request) async throws -> AdministrationUserResponse {
-		try await requireAdministrator(req)
+		_ = try await requireAdministrator(req)
 		let create = try req.content.decode(AdministrationUserCreateRequest.self)
 		let displayName = create.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
 		let email = create.email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -109,7 +109,7 @@ struct AdministrationController: RouteCollection {
 	}
 
 	private func deleteUser(req: Request) async throws -> HTTPStatus {
-		try await requireAdministrator(req)
+		_ = try await requireAdministrator(req)
 		guard let id = req.parameters.get("userID", as: UUID.self), let user = try await User.find(id, on: req.db) else {
 			throw Abort(.notFound)
 		}
@@ -119,7 +119,7 @@ struct AdministrationController: RouteCollection {
 	}
 
 	private func userDetail(req: Request) async throws -> AdministrationUserDetailResponse {
-		try await requireAdministrator(req)
+		_ = try await requireAdministrator(req)
 		guard let id = req.parameters.get("userID", as: UUID.self), let user = try await User.find(id, on: req.db) else {
 			throw Abort(.notFound)
 		}
@@ -178,12 +178,12 @@ struct AdministrationController: RouteCollection {
 	}
 
 	private func calendar(req: Request) async throws -> [AdministrationCalendarEntryResponse] {
-		try await requireAdministrator(req)
+		_ = try await requireAdministrator(req)
 		return try await SchoolCalendarEntry.query(on: req.db).all().map(AdministrationCalendarEntryResponse.init)
 	}
 
 	private func createCalendarEntry(req: Request) async throws -> [AdministrationCalendarEntryResponse] {
-		try await requireAdministrator(req)
+		_ = try await requireAdministrator(req)
 		let request = try req.content.decode(AdministrationCalendarEntryRequest.self)
 		try validate(request)
 		try await SchoolCalendarEntry(kind: request.kind, label: request.label, startDate: request.startDate.storageValue, endDate: request.endDate?.storageValue).create(on: req.db)
@@ -191,7 +191,7 @@ struct AdministrationController: RouteCollection {
 	}
 
 	private func updateCalendarEntry(req: Request) async throws -> [AdministrationCalendarEntryResponse] {
-		try await requireAdministrator(req)
+		_ = try await requireAdministrator(req)
 		let request = try req.content.decode(AdministrationCalendarEntryRequest.self)
 		try validate(request)
 		guard let id = req.parameters.get("entryID", as: UUID.self), let entry = try await SchoolCalendarEntry.find(id, on: req.db) else { throw Abort(.notFound) }
@@ -200,7 +200,7 @@ struct AdministrationController: RouteCollection {
 	}
 
 	private func deleteCalendarEntry(req: Request) async throws -> [AdministrationCalendarEntryResponse] {
-		try await requireAdministrator(req)
+		_ = try await requireAdministrator(req)
 		guard let id = req.parameters.get("entryID", as: UUID.self), let entry = try await SchoolCalendarEntry.find(id, on: req.db) else {
 			throw Abort(.notFound)
 		}
