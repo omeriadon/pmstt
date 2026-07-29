@@ -42,3 +42,26 @@ actor AuthRateLimiter {
 		return true
 	}
 }
+
+extension AuthRateLimiter {
+	func allowVerificationRequest(
+		normalizedEmail: String,
+		installationID: String,
+		sourceIP: String,
+		now: Date = .now
+	) -> Bool {
+		let requests = [
+			("verification-email:\(normalizedEmail)", 3, 600.0),
+			("verification-installation:\(installationID)", 5, 600.0),
+			("verification-ip:\(sourceIP)", 10, 600.0)
+		]
+
+		for (key, limit, window) in requests {
+			guard allow(key: key, limit: limit, window: window, now: now) else {
+				return false
+			}
+		}
+
+		return true
+	}
+}

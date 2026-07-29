@@ -8,6 +8,9 @@ enum ServerErrorCode: String, Codable {
 	case notFound
 	case unauthorized
 	case emailAlreadyExists
+	case verificationCodeInvalid
+	case verificationCodeExpired
+	case verificationCodeUsed
 	case sessionExpired
 	case timetableConflict
 	case invalidTimetable

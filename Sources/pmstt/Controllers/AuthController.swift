@@ -7,7 +7,6 @@ import Vapor
 struct AuthController: RouteCollection {
 	func boot(routes: any RoutesBuilder) throws {
 		let auth = routes.grouped("v1", "auth").grouped(AuthRateLimitMiddleware())
-		auth.post("register", use: register)
 		auth.post("request-code", use: requestVerificationCode)
 		auth.post("verify-code-register", use: verifyCodeAndRegister)
 		auth.post("login", use: login)
@@ -18,53 +17,70 @@ struct AuthController: RouteCollection {
 		protected.post("watch-session", use: createWatchSession)
 	}
 
-	func register(req: Request) async throws -> TokenResponse {
-		try RegisterRequest.validate(content: req)
-		let body = try req.content.decode(RegisterRequest.self)
-		let platform = try validatedClient(platform: body.platform, installationID: body.installationID)
-		guard !body.email.isEmpty, body.email.contains("@") else { throw AppError(.badRequest, code: .invalidRequest, reason: "Invalid email format.", field: "email") }
-		try await ServerAccessModeService.requirePermittedEmail(body.email, on: req.db)
-		guard body.password.count >= 8 else { throw AppError(.badRequest, code: .invalidRequest, reason: "Password must be at least 8 characters long.", field: "password") }
-		guard try await User.query(on: req.db).filter(\.$email == body.email.lowercased()).first() == nil else {
+	func requestVerificationCode(req: Request) async throws -> VerificationCodeResponse {
+		let body = try req.content.decode(VerificationCodeRequest.self)
+		let email = try normalizedSchoolEmail(body.email)
+		let installationID = try normalizedInstallation(body.installationID)
+		let sourceIP = req.remoteAddress?.ipAddress ?? "unknown"
+		guard try await User.query(on: req.db).filter(\.$email == email).first() == nil else {
 			throw AppError(.conflict, code: .emailAlreadyExists, reason: "Email is already registered.", field: "email")
 		}
-		let user = try User(email: body.email, passwordHash: req.password.hash(body.password), appleSubject: nil, displayName: body.displayName ?? "User", selfPassSerialNumber: UUID().uuidString, settingsData: JSONEncoder().encode(AccountSettings.default))
-		try await req.db.transaction { database in
-			try await user.save(on: database)
-			try await EventTagSubscriptionService.subscribeNewAccount(
-				user.requireID(),
-				on: database
-			)
-		}
-		return try await issueNewSession(for: user, platform: platform, installationID: normalizedInstallationID(body.installationID), on: req)
-	}
-
-	func requestVerificationCode(req: Request) async throws -> HTTPStatus {
-		let body = try req.content.decode(VerificationCodeRequest.self)
-		let email = body.email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-		guard email.hasSuffix("@student.education.wa.edu.au") else { throw Abort(.badRequest) }
-		guard try await User.query(on: req.db).filter(\.$email == email).first() == nil else { throw Abort(.conflict) }
-		let code = String(format: "%06d", Int.random(in: 0 ... 999_999))
 		let now = Date()
+		guard await AuthRateLimiter.shared.allowVerificationRequest(
+			normalizedEmail: email,
+			installationID: installationID,
+			sourceIP: sourceIP,
+			now: now
+		) else {
+			throw AppError(.tooManyRequests, code: .rateLimited, reason: "Too many verification code requests. Try again later.", field: "email")
+		}
+
+		if let challenge = try await EmailVerificationChallenge.query(on: req.db)
+			.filter(\.$normalizedEmail == email)
+			.filter(\.$installationID == installationID)
+			.filter(\.$usedAt == nil)
+			.sort(\.$createdAt, .descending)
+			.first(), challenge.resendAvailableAt > now
+		{
+			throw AppError(.tooManyRequests, code: .rateLimited, reason: "A code was already sent. Try again after \(challenge.resendAvailableAt.formatted(date: .omitted, time: .shortened)).", field: "email")
+		}
+
+		let code = String(format: "%06d", Int.random(in: 0 ... 999_999))
+		let expiresAt = now.addingTimeInterval(600)
+		let resendAvailableAt = now.addingTimeInterval(120)
 		try await req.db.transaction { database in
+			try await EmailVerificationChallenge.query(on: database)
+				.filter(\.$expiresAt < now)
+				.delete()
 			try await EmailVerificationChallenge.query(on: database)
 				.filter(\.$normalizedEmail == email)
 				.filter(\.$usedAt == nil)
 				.set(\.$usedAt, to: now)
 				.update()
-			let challenge = EmailVerificationChallenge(normalizedEmail: email, codeHash: code.sha256Digest, installationID: body.installationID, sourceIP: req.remoteAddress?.ipAddress ?? "unknown", expiresAt: now.addingTimeInterval(600), resendAvailableAt: now.addingTimeInterval(120))
+			let challenge = EmailVerificationChallenge(
+				normalizedEmail: email,
+				codeHash: code.sha256Digest,
+				installationID: installationID,
+				sourceIP: sourceIP,
+				expiresAt: expiresAt,
+				resendAvailableAt: resendAvailableAt
+			)
 			try await challenge.create(on: database)
 		}
 		try await sendVerificationEmail(code: code, to: email, req: req)
-		return .accepted
+		return VerificationCodeResponse(expiresAt: expiresAt, resendAvailableAt: resendAvailableAt)
 	}
 
 	func verifyCodeAndRegister(req: Request) async throws -> TokenResponse {
 		let body = try req.content.decode(VerificationRegistrationRequest.self)
 		let platform = try validatedClient(platform: body.platform, installationID: body.installationID)
-		let email = body.email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-		guard email.hasSuffix("@student.education.wa.edu.au"), body.code.count == 6, body.password.count >= 8 else {
-			throw Abort(.badRequest)
+		let email = try normalizedSchoolEmail(body.email)
+		let installationID = try normalizedInstallation(body.installationID)
+		guard body.code.count == 6, body.code.allSatisfy(\.isNumber) else {
+			throw AppError(.badRequest, code: .invalidRequest, reason: "Enter the six-digit verification code.", field: "code")
+		}
+		guard body.password.count >= 8 else {
+			throw AppError(.badRequest, code: .invalidRequest, reason: "Password must be at least eight characters long.", field: "password")
 		}
 		guard try await User.query(on: req.db).filter(\.$email == email).first() == nil else {
 			throw AppError(.conflict, code: .emailAlreadyExists, reason: "Email is already registered.", field: "email")
@@ -74,16 +90,22 @@ struct AuthController: RouteCollection {
 		let user = try await req.db.transaction { database -> User in
 			guard let challenge = try await EmailVerificationChallenge.query(on: database)
 				.filter(\.$normalizedEmail == email)
-				.filter(\.$installationID == body.installationID)
+				.filter(\.$installationID == installationID)
 				.filter(\.$usedAt == nil)
 				.sort(\.$createdAt, .descending)
-				.first(), challenge.expiresAt > now, challenge.failedAttemptCount < 5
-			else { throw Abort(.unauthorized) }
+				.first()
+			else { throw AppError(.unauthorized, code: .verificationCodeUsed, reason: "This verification code has already been used or replaced.", field: "code") }
+			guard challenge.expiresAt > now else {
+				throw AppError(.unauthorized, code: .verificationCodeExpired, reason: "This verification code has expired. Request a new code.", field: "code")
+			}
+			guard challenge.failedAttemptCount < 5 else {
+				throw AppError(.tooManyRequests, code: .rateLimited, reason: "Too many incorrect code attempts. Request a new code.", field: "code")
+			}
 			challenge.lastAttemptAt = now
 			guard challenge.codeHash == body.code.sha256Digest else {
 				challenge.failedAttemptCount += 1
 				try await challenge.save(on: database)
-				throw Abort(.unauthorized)
+				throw AppError(.unauthorized, code: .verificationCodeInvalid, reason: "That verification code is incorrect.", field: "code")
 			}
 			challenge.usedAt = now
 			try await challenge.save(on: database)
@@ -301,7 +323,11 @@ struct AuthController: RouteCollection {
 	}
 
 	private func normalizedInstallation(_ value: String) throws -> String {
-		let result = normalizedInstallationID(value); guard !result.isEmpty, result.count <= 200 else { throw AppError(.badRequest, code: .invalidRequest, reason: "The installation identifier is invalid.", field: "installationID") }; return result
+		let result = normalizedInstallationID(value)
+		guard !result.isEmpty, result.count <= 200 else {
+			throw AppError(.badRequest, code: .invalidRequest, reason: "The installation identifier is invalid.", field: "installationID")
+		}
+		return result
 	}
 
 	private func hashToken(_ token: String) -> String {
@@ -327,6 +353,11 @@ private struct VerificationCodeRequest: Content {
 	let installationID: String
 }
 
+private struct VerificationCodeResponse: Content {
+	let expiresAt: Date
+	let resendAvailableAt: Date
+}
+
 private struct VerificationRegistrationRequest: Content {
 	let email: String
 	let code: String
@@ -338,11 +369,5 @@ private struct VerificationRegistrationRequest: Content {
 private extension String {
 	var sha256Digest: String {
 		SHA256.hash(data: Data(utf8)).map { String(format: "%02x", $0) }.joined()
-	}
-}
-
-extension RegisterRequest: Validatable {
-	static func validations(_ validations: inout Validations) {
-		validations.add("email", as: String.self, is: .email); validations.add("password", as: String.self, is: .count(8...))
 	}
 }
