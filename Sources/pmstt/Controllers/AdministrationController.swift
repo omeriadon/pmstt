@@ -225,6 +225,9 @@ struct AdministrationController: RouteCollection {
 		let request = try req.content.decode(AdministrationEventTagRequest.self)
 		try await req.db.transaction { database in
 			let section = try await eventTagSection(id: request.sectionID, on: database)
+			guard section.category != .yearGroup else {
+				throw Abort(.badRequest, reason: "Canonical year-group tags are seeded by the server.")
+			}
 			let tag = try eventTag(from: request, section: section)
 			try await validateTag(tag, aliases: request.associatedNames, excluding: nil, on: database)
 			try await tag.create(on: database)
@@ -300,8 +303,12 @@ struct AdministrationController: RouteCollection {
 		let request = try req.content.decode(AdministrationCalendarEntryRequest.self)
 		try validate(request)
 		guard let id = req.parameters.get("entryID", as: UUID.self), let entry = try await SchoolCalendarEntry.find(id, on: req.db) else { throw Abort(.notFound) }
-		entry.kind = request.kind; entry.label = request.label; entry.startDate = request.startDate.storageValue; entry.endDate = request.endDate?.storageValue
-		try await entry.update(on: req.db); return try await calendar(req: req)
+		entry.kind = request.kind
+		entry.label = request.label
+		entry.startDate = request.startDate.storageValue
+		entry.endDate = request.endDate?.storageValue
+		try await entry.update(on: req.db)
+		return try await calendar(req: req)
 	}
 
 	private func deleteCalendarEntry(req: Request) async throws -> [AdministrationCalendarEntryResponse] {
@@ -309,7 +316,8 @@ struct AdministrationController: RouteCollection {
 		guard let id = req.parameters.get("entryID", as: UUID.self), let entry = try await SchoolCalendarEntry.find(id, on: req.db) else {
 			throw Abort(.notFound)
 		}
-		try await entry.delete(on: req.db); return try await calendar(req: req)
+		try await entry.delete(on: req.db)
+		return try await calendar(req: req)
 	}
 
 	private func requireAdministrator(_ req: Request) async throws -> User {
@@ -379,6 +387,17 @@ struct AdministrationController: RouteCollection {
 	}
 
 	private func apply(_ request: AdministrationEventTagRequest, to tag: EventTag, section: EventTagSection) throws {
+		if tag.category == .yearGroup {
+			guard section.category == .yearGroup, !request.isArchived else {
+				throw Abort(.badRequest, reason: "Canonical year-group tags cannot move category or be archived.")
+			}
+			tag.displayName = try validatedDisplayName(request.displayName)
+			tag.symbol = request.symbol?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+			tag.colorHex = request.colorHex?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+			tag.sortOrder = request.sortOrder
+			return
+		}
+
 		tag.$section.id = try section.requireID()
 		tag.slug = try validatedSlug(request.slug)
 		tag.displayName = try validatedDisplayName(request.displayName)
@@ -427,6 +446,14 @@ struct AdministrationController: RouteCollection {
 		for tag: EventTag,
 		on database: any Database
 	) async throws {
+		if tag.category == .yearGroup,
+		   try await EventTagAssociatedName.query(on: database)
+			.filter(\.$eventTag.$id == tag.requireID())
+			.first() != nil
+		{
+			return
+		}
+
 		let names = try normalizedAssociatedNames(aliases, displayName: tag.displayName)
 		try await EventTagAssociatedName.query(on: database)
 			.filter(\.$eventTag.$id == tag.requireID())
@@ -710,13 +737,43 @@ private struct AdministrationUserRawData: Content {
 	let schoolNotificationDeliveries: [SchoolNotificationDelivery]
 }
 
-private struct AdministrationCalendarEntryRequest: Content { let kind: String; let label: String; let startDate: SchoolCalendarDate; let endDate: SchoolCalendarDate? }
-private struct AdministrationCalendarEntryResponse: Content { let id: UUID; let kind: String; let label: String; let startDate: SchoolCalendarDate; let endDate: SchoolCalendarDate?; init(_ entry: SchoolCalendarEntry) throws {
-	id = try entry.requireID(); kind = entry.kind; label = entry.label; startDate = try SchoolCalendarDate(storageValue: entry.startDate); endDate = try entry.endDate.map(SchoolCalendarDate.init(storageValue:))
-} }
+private struct AdministrationCalendarEntryRequest: Content {
+	let kind: String
+	let label: String
+	let startDate: SchoolCalendarDate
+	let endDate: SchoolCalendarDate?
+}
 
-private extension SchoolCalendarDate { var storageValue: String {
-	String(format: "%04d-%02d-%02d", year, month, day)
-}; init(storageValue: String) throws {
-	let values = storageValue.split(separator: "-").compactMap { Int($0) }; guard values.count == 3 else { throw Abort(.internalServerError) }; year = values[0]; month = values[1]; day = values[2]
-} }
+private struct AdministrationCalendarEntryResponse: Content {
+	let id: UUID
+	let kind: String
+	let label: String
+	let startDate: SchoolCalendarDate
+	let endDate: SchoolCalendarDate?
+
+	init(_ entry: SchoolCalendarEntry) throws {
+		id = try entry.requireID()
+		kind = entry.kind
+		label = entry.label
+		startDate = try SchoolCalendarDate(storageValue: entry.startDate)
+		endDate = try entry.endDate.map(SchoolCalendarDate.init(storageValue:))
+	}
+}
+
+private extension SchoolCalendarDate {
+	var storageValue: String {
+		String(format: "%04d-%02d-%02d", year, month, day)
+	}
+
+	init(storageValue: String) throws {
+		let values = storageValue
+			.split(separator: "-")
+			.compactMap { Int($0) }
+		guard values.count == 3 else {
+			throw Abort(.internalServerError)
+		}
+		year = values[0]
+		month = values[1]
+		day = values[2]
+	}
+}
