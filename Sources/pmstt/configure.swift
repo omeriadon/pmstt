@@ -92,5 +92,6 @@ func pmsttMigrationList() -> [any Migration] {
 		CreateSchoolCalendarEntry(),
 		AddUserAccountAuthority(),
 		BackfillConfiguredAdministrators(),
+		CreateBroadcastNotificationRecord(),
 	]
 }

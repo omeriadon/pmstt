@@ -349,11 +349,12 @@ struct TestNotificationResponse: Content {
 
 struct BroadcastNotificationRequest: Content {
 	let title: String
-	let subtitle: String
-	let body: String
+	let subtitle: String?
+	let body: String?
 }
 
 struct BroadcastNotificationResponse: Content {
+	let id: UUID
 	let eligibleDeviceCount: Int
 	let deliveredDeviceCount: Int
 	let invalidatedDeviceCount: Int

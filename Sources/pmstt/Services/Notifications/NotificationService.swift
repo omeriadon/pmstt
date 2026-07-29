@@ -195,123 +195,132 @@ struct NotificationService {
 
 	func broadcast(
 		title: String,
-		subtitle: String,
-		body: String,
+		subtitle: String?,
+		body: String?,
+		sender: User,
 		threadID: String? = nil,
 		on req: Request
 	) async throws -> BroadcastNotificationResponse {
-		let users = try await User.query(on: req.db).all()
+		let record = BroadcastNotificationRecord(
+			senderAccountID: sender.id,
+			senderEmail: sender.email ?? "unknown",
+			senderAuthority: sender.resolvedAccountAuthority,
+			audience: "broadcastNotificationSubscribers",
+			title: title,
+			subtitle: subtitle,
+			body: body
+		)
+		try await record.create(on: req.db)
 
-		var eligibleUserIDs: [UUID] = []
+		do {
+			let users = try await User.query(on: req.db).all()
+			let eligibleUserIDs = try users.compactMap { user -> UUID? in
+				guard let userID = user.id else {
+					return nil
+				}
 
-		for user in users {
-			guard let userID = user.id else {
-				continue
-			}
-
-			let settings = try JSONDecoder().decode(
-				AccountSettings.self,
-				from: user.settingsData
-			)
-
-			if settings.broadcastNotificationsEnabled {
-				eligibleUserIDs.append(userID)
-			}
-		}
-
-		guard !eligibleUserIDs.isEmpty else {
-			return BroadcastNotificationResponse(
-				eligibleDeviceCount: 0,
-				deliveredDeviceCount: 0,
-				invalidatedDeviceCount: 0,
-				failedDeviceCount: 0
-			)
-		}
-
-		let devices = try await UserDevice.query(on: req.db)
-			.filter(\.$user.$id ~~ eligibleUserIDs)
-			.all()
-
-		let eligibleDevices = devices.filter {
-			$0.apnsToken != nil
-		}
-
-		guard !eligibleDevices.isEmpty else {
-			return BroadcastNotificationResponse(
-				eligibleDeviceCount: 0,
-				deliveredDeviceCount: 0,
-				invalidatedDeviceCount: 0,
-				failedDeviceCount: 0
-			)
-		}
-
-		let config = try configuration()
-		let authorization = try await makeJWT(config: config)
-		let expiration = Self.apnsExpiration(sentAt: Date())
-
-		var deliveredCount = 0
-		var invalidatedCount = 0
-		var failedCount = 0
-		let collapseID = "broadcast-\(UUID().uuidString)"
-
-		for device in eligibleDevices {
-			guard let token = device.apnsToken else {
-				continue
-			}
-
-			do {
-				let status = try await send(
-					title: title,
-					subtitle: subtitle,
-					body: body,
-					threadID: threadID,
-					collapseID: collapseID,
-					token: token,
-					isDebug: device.isDebug,
-					authorization: authorization,
-					config: config,
-					expiration: expiration
+				let settings = try JSONDecoder().decode(
+					AccountSettings.self,
+					from: user.settingsData
 				)
 
-				req.logger.info("APNs broadcast response", metadata: [
-					"device_id": .string(device.id?.uuidString ?? "unknown"),
-					"status": .stringConvertible(status.status.code),
-					"reason": .string(status.reason ?? "none"),
-					"collapse_id": .string(collapseID),
-					"apns_expiration": .stringConvertible(Int(expiration.timeIntervalSince1970)),
-				])
-
-				switch status.status {
-					case .ok:
-						deliveredCount += 1
-
-					case .badRequest, .unauthorized, .forbidden, .notFound, .gone:
-						device.apnsToken = nil
-						try await device.save(on: req.db)
-						invalidatedCount += 1
-
-					default:
-						failedCount += 1
-
-						req.logger.error(
-							"APNs rejected broadcast notification",
-							metadata: [
-								"status": .stringConvertible(status.status.code),
-								"reason": .string(status.reason ?? "none"),
-							]
-						)
-				}
-			} catch {
-				failedCount += 1
-				req.logger.report(error: error)
+				return settings.broadcastNotificationsEnabled ? userID : nil
 			}
-		}
+			let eligibleDevices: [UserDevice]
+			if eligibleUserIDs.isEmpty {
+				eligibleDevices = []
+			} else {
+				let devices = try await UserDevice.query(on: req.db)
+					.filter(\.$user.$id ~~ eligibleUserIDs)
+					.all()
+				eligibleDevices = devices.filter { $0.apnsToken != nil }
+			}
 
-		return BroadcastNotificationResponse(
-			eligibleDeviceCount: eligibleDevices.count,
-			deliveredDeviceCount: deliveredCount,
-			invalidatedDeviceCount: invalidatedCount,
-			failedDeviceCount: failedCount
+			record.eligibleDeviceCount = eligibleDevices.count
+			try await record.update(on: req.db)
+
+			guard !eligibleDevices.isEmpty else {
+				record.deliveryState = .completed
+				try await record.update(on: req.db)
+				return try response(for: record)
+			}
+
+			let config = try configuration()
+			let authorization = try await makeJWT(config: config)
+			let expiration = Self.apnsExpiration(sentAt: Date())
+			let collapseID = "broadcast-\(UUID().uuidString)"
+
+			for device in eligibleDevices {
+				guard let token = device.apnsToken else {
+					continue
+				}
+
+				do {
+					let status = try await send(
+						title: title,
+						subtitle: subtitle,
+						body: body ?? "",
+						threadID: threadID,
+						collapseID: collapseID,
+						token: token,
+						isDebug: device.isDebug,
+						authorization: authorization,
+						config: config,
+						expiration: expiration
+					)
+
+					req.logger.info("APNs broadcast response", metadata: [
+						"device_id": .string(device.id?.uuidString ?? "unknown"),
+						"status": .stringConvertible(status.status.code),
+						"reason": .string(status.reason ?? "none"),
+						"collapse_id": .string(collapseID),
+						"apns_expiration": .stringConvertible(Int(expiration.timeIntervalSince1970)),
+					])
+
+					switch status.status {
+						case .ok:
+							record.deliveredDeviceCount += 1
+
+						case .badRequest, .unauthorized, .forbidden, .notFound, .gone:
+							device.apnsToken = nil
+							try await device.save(on: req.db)
+							record.invalidatedDeviceCount += 1
+
+						default:
+							record.failedDeviceCount += 1
+
+							req.logger.error(
+								"APNs rejected broadcast notification",
+								metadata: [
+									"status": .stringConvertible(status.status.code),
+									"reason": .string(status.reason ?? "none"),
+								]
+							)
+					}
+				} catch {
+					record.failedDeviceCount += 1
+					req.logger.report(error: error)
+				}
+			}
+
+			record.deliveryState = .completed
+			try await record.update(on: req.db)
+			return try response(for: record)
+		} catch {
+			record.deliveryState = .failed
+			record.failureSummary = String(describing: error)
+			try? await record.update(on: req.db)
+			throw error
+		}
+	}
+
+	private func response(for record: BroadcastNotificationRecord) throws -> BroadcastNotificationResponse {
+		BroadcastNotificationResponse(
+			id: try record.requireID(),
+			eligibleDeviceCount: record.eligibleDeviceCount,
+			deliveredDeviceCount: record.deliveredDeviceCount,
+			invalidatedDeviceCount: record.invalidatedDeviceCount,
+			failedDeviceCount: record.failedDeviceCount
 		)
 	}
 

@@ -143,25 +143,31 @@ struct AdministrationController: RouteCollection {
 	}
 
 	private func broadcastNotification(req: Request) async throws -> BroadcastNotificationResponse {
-		try await requireAdministrator(req)
+		let sender = try await requireAdministrator(req)
 		let request = try req.content.decode(BroadcastNotificationRequest.self)
 		let title = request.title.trimmingCharacters(in: .whitespacesAndNewlines)
-		let subtitle = request.subtitle.trimmingCharacters(in: .whitespacesAndNewlines)
-		let body = request.body.trimmingCharacters(in: .whitespacesAndNewlines)
+		let subtitle = request.subtitle?.trimmingCharacters(in: .whitespacesAndNewlines)
+		let body = request.body?.trimmingCharacters(in: .whitespacesAndNewlines)
 
 		guard !title.isEmpty, title.count <= 200 else {
 			throw Abort(.badRequest)
 		}
 
-		guard !subtitle.isEmpty, subtitle.count <= 200 else {
+		guard subtitle?.count ?? 0 <= 200 else {
 			throw Abort(.badRequest)
 		}
 
-		guard !body.isEmpty, body.count <= 2000 else {
+		guard body?.count ?? 0 <= 2000 else {
 			throw Abort(.badRequest)
 		}
 
-		return try await NotificationService().broadcast(title: title, subtitle: subtitle, body: body, on: req)
+		return try await NotificationService().broadcast(
+			title: title,
+			subtitle: subtitle?.nilIfEmpty,
+			body: body?.nilIfEmpty,
+			sender: sender,
+			on: req
+		)
 	}
 
 	private func calendar(req: Request) async throws -> [AdministrationCalendarEntryResponse] {
@@ -221,6 +227,12 @@ struct AdministrationController: RouteCollection {
 
 	private func validate(_ request: AdministrationCalendarEntryRequest) throws {
 		guard ["term", "noSchool"].contains(request.kind), !request.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, request.label.count <= 120, request.kind == "noSchool" || request.endDate != nil else { throw Abort(.badRequest) }
+	}
+}
+
+private extension String {
+	var nilIfEmpty: String? {
+		isEmpty ? nil : self
 	}
 }
 
