@@ -338,8 +338,14 @@ struct FriendController: RouteCollection {
 		else {
 			throw Abort(.notFound)
 		}
-		guard viewerID == userID || (try await relationship(between: viewerID, and: userID, on: req.db))?.status == .accepted else {
-			throw Abort(.notFound)
+		if viewerID != userID {
+			guard let friendship = try await relationship(
+				between: viewerID,
+				and: userID,
+				on: req.db
+			), friendship.status == .accepted else {
+				throw Abort(.notFound)
+			}
 		}
 		guard let media = try await ProfileMedia.query(on: req.db)
 			.filter(\.$user.$id == userID)
@@ -363,7 +369,7 @@ struct FriendController: RouteCollection {
 			key: media.objectKey,
 			client: req.client
 		)
-		var response = Response(status: .ok)
+		let response = Response(status: .ok)
 		response.headers.contentType = .jpeg
 		response.headers.replaceOrAdd(name: .eTag, value: media.etag)
 		response.headers.replaceOrAdd(name: .cacheControl, value: "private, max-age=86400")
@@ -429,7 +435,7 @@ struct FriendController: RouteCollection {
 		let friendProfile = try await profile(for: user, on: req.db)
 		let friendTimetable = try await timetable(for: friend, on: req.db)
 		return FriendDetailDTO(
-			relationshipID: friendship.requireID(),
+			relationshipID: try friendship.requireID(),
 			friend: friendProfile,
 			acceptedAt: acceptedAt,
 			timetable: friendTimetable
@@ -469,7 +475,7 @@ struct FriendController: RouteCollection {
 			friendTimetable = nil
 		}
 		return FriendSummaryDTO(
-			relationshipID: friendship.requireID(),
+			relationshipID: try friendship.requireID(),
 			friend: friendProfile,
 			state: relationshipState(for: friendship, viewerID: viewerID),
 			requestedAt: friendship.createdAt ?? .now,

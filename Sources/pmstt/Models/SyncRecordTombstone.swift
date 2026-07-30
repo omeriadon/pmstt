@@ -1,4 +1,5 @@
 import Fluent
+import Foundation
 
 final class SyncRecordTombstone: Model, @unchecked Sendable {
 	static let schema = "sync_record_tombstones"

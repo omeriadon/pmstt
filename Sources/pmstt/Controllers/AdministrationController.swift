@@ -91,12 +91,14 @@ struct AdministrationController: RouteCollection {
 		}
 
 		let oldAuthority = user.resolvedAccountAuthority
-		try await req.db.transaction { database in
+		let actorUserID = try systemOwner.requireID()
+		let targetUserID = try user.requireID()
+		try await req.db.transaction { database -> Void in
 			user.accountAuthority = request.authority
 			try await user.update(on: database)
 			let auditRecord = AuthorityAuditRecord(
-				actorUserID: systemOwner.requireID(),
-				targetUserID: user.requireID(),
+				actorUserID: actorUserID,
+				targetUserID: targetUserID,
 				oldAuthority: oldAuthority,
 				newAuthority: request.authority
 			)

@@ -31,14 +31,15 @@ struct EventTagsController: RouteCollection {
 
 	private func subscriptions(req: Request) async throws -> EventTagSubscriptionResponse {
 		let user = try await user(req)
-		return try await EventTagSubscriptionResponse(
-			tagIDs: subscriptionIDs(for: user, on: req.db),
+		return EventTagSubscriptionResponse(
+			tagIDs: try await subscriptionIDs(for: user, on: req.db),
 			droppedTagIDs: []
 		)
 	}
 
 	private func replaceSubscriptions(req: Request) async throws -> EventTagSubscriptionResponse {
 		let user = try await user(req)
+		let userID = try user.requireID()
 		let request = try req.content.decode(EventTagSubscriptionUpdateRequest.self)
 		let requestedTagIDs = Array(Set(request.tagIDs))
 		let tags: [EventTag]
@@ -50,15 +51,18 @@ struct EventTagsController: RouteCollection {
 				.filter(\.$isArchived == false)
 				.all()
 		}
-		let tagIDs = try tags.map(\.requireID)
+		let tagIDs = try tags.map { try $0.requireID() }
 		let droppedTagIDs = requestedTagIDs.filter { !tagIDs.contains($0) }
 
 		try await req.db.transaction { database in
 			try await AccountEventTagSubscription.query(on: database)
-				.filter(\.$account.$id == user.requireID())
+				.filter(\.$account.$id == userID)
 				.delete()
 			for tagID in tagIDs {
-				try await AccountEventTagSubscription(accountID: user.requireID(), eventTagID: tagID).create(on: database)
+				try await AccountEventTagSubscription(
+					accountID: userID,
+					eventTagID: tagID
+				).create(on: database)
 			}
 		}
 		return EventTagSubscriptionResponse(
@@ -69,6 +73,7 @@ struct EventTagsController: RouteCollection {
 
 	private func replaceSubjectSubscriptions(req: Request) async throws -> EventTagSubscriptionResponse {
 		let user = try await user(req)
+		let userID = try user.requireID()
 		let request = try req.content.decode(EventTagSubscriptionUpdateRequest.self)
 		let requestedTagIDs = Array(Set(request.tagIDs))
 		let subjectTags: [EventTag]
@@ -84,7 +89,7 @@ struct EventTagsController: RouteCollection {
 
 		try await req.db.transaction { database in
 			let existingSubscriptions = try await AccountEventTagSubscription.query(on: database)
-				.filter(\.$account.$id == user.requireID())
+				.filter(\.$account.$id == userID)
 				.all()
 			for subscription in existingSubscriptions {
 				guard let tag = try await EventTag.find(subscription.$eventTag.id, on: database), tag.category == .subject else {
@@ -94,17 +99,19 @@ struct EventTagsController: RouteCollection {
 			}
 			for tag in subjectTags {
 				try await AccountEventTagSubscription(
-					accountID: user.requireID(),
+					accountID: userID,
 					eventTagID: try tag.requireID()
 				).create(on: database)
 			}
 		}
-		let acceptedSubjectTagIDs = try subjectTags.map(\.requireID)
+		let acceptedSubjectTagIDs = try subjectTags.map {
+			try $0.requireID()
+		}
 		let droppedTagIDs = requestedTagIDs.filter {
 			!acceptedSubjectTagIDs.contains($0)
 		}
-		return try await EventTagSubscriptionResponse(
-			tagIDs: subscriptionIDs(for: user, on: req.db),
+		return EventTagSubscriptionResponse(
+			tagIDs: try await subscriptionIDs(for: user, on: req.db),
 			droppedTagIDs: droppedTagIDs
 		)
 	}
@@ -118,10 +125,11 @@ struct EventTagsController: RouteCollection {
 	}
 
 	private func subscriptionIDs(for user: User, on database: any Database) async throws -> [UUID] {
-		try await AccountEventTagSubscription.query(on: database)
-			.filter(\.$account.$id == user.requireID())
+		let userID = try user.requireID()
+		return try await AccountEventTagSubscription.query(on: database)
+			.filter(\.$account.$id == userID)
 			.all()
-			.compactMap { try? $0.$eventTag.id }
+			.map { $0.$eventTag.id }
 	}
 }
 
@@ -158,7 +166,7 @@ private struct EventTagResponse: Content {
 		symbol = tag.symbol
 		colorHex = tag.colorHex
 		associatedNames = try await EventTagAssociatedName.query(on: database)
-			.filter(\.$eventTag.$id == tag.requireID())
+			.filter(\.$eventTag.$id == id)
 			.sort(\.$displayName)
 			.all()
 			.map(\.displayName)

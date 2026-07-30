@@ -1,4 +1,5 @@
 import Fluent
+import Foundation
 
 struct AddFriendshipOrder: AsyncMigration {
 	func prepare(on database: any Database) async throws {

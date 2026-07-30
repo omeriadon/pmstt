@@ -96,7 +96,7 @@ struct R2ProfileObjectStore {
 			value: "AWS4-HMAC-SHA256 Credential=\(configuration.accessKeyID)/\(scope), SignedHeaders=\(signedHeaderNames), Signature=\(signature)"
 		)
 		if let contentType {
-			headers.contentType = HTTPMediaType.parse(contentType)
+			headers.replaceOrAdd(name: .contentType, value: contentType)
 		}
 
 		let uri = URI(string: "\(configuration.endpoint)\(canonicalURI)")

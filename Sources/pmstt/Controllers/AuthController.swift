@@ -17,7 +17,7 @@ struct AuthController: RouteCollection {
 		protected.post("watch-session", use: createWatchSession)
 	}
 
-	func requestVerificationCode(req: Request) async throws -> VerificationCodeResponse {
+	private func requestVerificationCode(req: Request) async throws -> VerificationCodeResponse {
 		let body = try req.content.decode(VerificationCodeRequest.self)
 		let email = try normalizedSchoolEmail(body.email)
 		let installationID = try normalizedInstallation(body.installationID)
@@ -255,7 +255,7 @@ struct AuthController: RouteCollection {
 		} else {
 			try await makeRefreshToken(for: session, jti: session.refreshJTI!, on: req)
 		}
-		return try TokenResponse(
+		return TokenResponse(
 			accessToken: access,
 			refreshToken: refresh,
 			user: try await UserAccountResponse(user: user, on: req.db)

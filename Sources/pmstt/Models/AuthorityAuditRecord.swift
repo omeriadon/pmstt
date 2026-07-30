@@ -1,4 +1,5 @@
 import Fluent
+import Foundation
 
 final class AuthorityAuditRecord: Model, @unchecked Sendable {
 	static let schema = "authority_audit_records"

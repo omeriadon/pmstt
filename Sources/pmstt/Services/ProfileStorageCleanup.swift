@@ -52,7 +52,7 @@ actor ProfileStorageCleanupLifecycle: LifecycleHandler {
 			while !Task.isCancelled {
 				await cleanup.run(on: application)
 				await reconciliation.run(on: application)
-				try? await Task.sleep(for: .hours(6))
+				try? await Task.sleep(for: .seconds(6 * 60 * 60))
 			}
 		}
 	}

@@ -11,6 +11,7 @@ struct StructuredErrorMiddleware: AsyncMiddleware {
 			let abortError = error as? any AbortError
 			let status = appError?.status ?? abortError?.status ?? .internalServerError
 			let code = appError?.code ?? defaultCode(for: status)
+			let errorHeaders = appError?.headers ?? abortError?.headers ?? [:]
 			let message = appError?.reason
 				?? abortError?.reason
 				?? (environment == .production ? "An unexpected error occurred." : String(describing: error))
@@ -19,6 +20,9 @@ struct StructuredErrorMiddleware: AsyncMiddleware {
 
 			if request.headers.first(name: .accept)?.contains("text/html") == true {
 				let response = Response(status: status)
+				for (name, value) in errorHeaders {
+					response.headers.add(name: name, value: value)
+				}
 				response.headers.contentType = .html
 				response.body = .init(string: """
 				<!doctype html>
@@ -35,6 +39,9 @@ struct StructuredErrorMiddleware: AsyncMiddleware {
 				requestID: request.requestID
 			)
 			let response = Response(status: status)
+			for (name, value) in errorHeaders {
+				response.headers.add(name: name, value: value)
+			}
 			response.headers.contentType = .json
 			response.body = try .init(data: JSONEncoder().encode(payload))
 			response.headers.replaceOrAdd(name: RequestIDMiddleware.headerName, value: request.requestID)

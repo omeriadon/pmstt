@@ -27,7 +27,6 @@ struct ServerErrorResponse: Content {
 	let code: ServerErrorCode
 	let message: String
 	let field: String?
-	let headers: HTTPHeaders
 	let requestID: String
 }
 
@@ -36,6 +35,7 @@ struct AppError: AbortError, DebuggableError {
 	let code: ServerErrorCode
 	let reason: String
 	let field: String?
+	let headers: HTTPHeaders
 
 	var identifier: String {
 		code.rawValue

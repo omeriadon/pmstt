@@ -15,16 +15,18 @@ struct CalendarEventsController: RouteCollection {
 	}
 
 	private func list(req: Request) async throws -> CalendarEventsResponse {
-		try await response(for: authenticatedUser(req), on: req)
+		let user = try await authenticatedUser(req)
+		return try await response(for: user, on: req)
 	}
 
 	private func createPrivate(req: Request) async throws -> CalendarEventsResponse {
 		let user = try await authenticatedUser(req)
+		let userID = try user.requireID()
 		let request = try req.content.decode(CreateCalendarEventRequest.self)
 		try validate(request)
 		let event = CalendarEvent(
 			id: request.id,
-			userID: user.requireID(),
+			userID: userID,
 			title: request.title,
 			notes: request.notes,
 			symbol: request.symbol,
@@ -40,6 +42,7 @@ struct CalendarEventsController: RouteCollection {
 
 	private func deletePrivate(req: Request) async throws -> CalendarEventsResponse {
 		let user = try await authenticatedUser(req)
+		let userID = try user.requireID()
 		let event = try await ownedEvent(req: req, user: user, globally: false)
 		try requireMatchingRevision(
 			req.query[Int.self, at: "baseRevision"],
@@ -49,7 +52,7 @@ struct CalendarEventsController: RouteCollection {
 		try await req.db.transaction { database in
 			try await event.delete(on: database)
 			try await SyncRecordTombstone(
-				userID: user.requireID(),
+				userID: userID,
 				recordType: .privateCalendarEvent,
 				recordID: eventID,
 				revision: event.revision + 1
@@ -74,12 +77,13 @@ struct CalendarEventsController: RouteCollection {
 
 	private func createGlobal(req: Request) async throws -> CalendarEventsResponse {
 		let user = try await authenticatedUser(req)
+		let userID = try user.requireID()
 		try requireGlobalEventAuthority(user)
 		let request = try req.content.decode(CreateCalendarEventRequest.self)
 		try validate(request)
 		let event = CalendarEvent(
 			id: request.id,
-			userID: user.requireID(),
+			userID: userID,
 			title: request.title,
 			notes: request.notes,
 			symbol: request.symbol,
@@ -117,10 +121,13 @@ struct CalendarEventsController: RouteCollection {
 	}
 
 	private func response(for user: User, on req: Request) async throws -> CalendarEventsResponse {
+		let userID = try user.requireID()
 		let globalEvents = try await visibleGlobalEvents(for: user, on: req.db)
 		let privateEvents = try await CalendarEvent.query(on: req.db)
-			.filter(\.$isGlobal == false).filter(\.$user.$id == user.requireID()).all()
-		return try CalendarEventsResponse(
+			.filter(\.$isGlobal == false)
+			.filter(\.$user.$id == userID)
+			.all()
+		return CalendarEventsResponse(
 			globalEvents: try await globalEvents.asyncMap { try await CalendarEventResponse($0, on: req.db) },
 			privateEvents: try await privateEvents.asyncMap { try await CalendarEventResponse($0, on: req.db) },
 			canManageGlobalEvents: canManageGlobalEvents(user)
@@ -132,7 +139,8 @@ struct CalendarEventsController: RouteCollection {
 		      let event = try await CalendarEvent.find(id, on: req.db), event.isGlobal == globally
 		else { throw Abort(.notFound) }
 		if requiresOwner {
-			guard try event.$user.id == user.requireID() else {
+			let userID = try user.requireID()
+			guard event.$user.id == userID else {
 				throw Abort(.forbidden)
 			}
 		}
@@ -204,12 +212,13 @@ struct CalendarEventsController: RouteCollection {
 			throw Abort(.badRequest)
 		}
 
+		let eventID = try event.requireID()
 		try await CalendarEventTag.query(on: database)
-			.filter(\.$calendarEvent.$id == event.requireID())
+			.filter(\.$calendarEvent.$id == eventID)
 			.delete()
 		for tag in tags {
 			try await CalendarEventTag(
-				calendarEventID: event.requireID(),
+				calendarEventID: eventID,
 				eventTagID: try tag.requireID()
 			).create(on: database)
 		}
@@ -223,10 +232,11 @@ struct CalendarEventsController: RouteCollection {
 			return globalEvents
 		}
 
+		let userID = try user.requireID()
 		let subscribedTagIDs = Set(try await AccountEventTagSubscription.query(on: database)
-			.filter(\.$account.$id == user.requireID())
+			.filter(\.$account.$id == userID)
 			.all()
-			.map { try $0.$eventTag.id })
+			.map { $0.$eventTag.id })
 
 		return try await globalEvents.asyncFilter { event in
 			let assignedTags = try await tags(for: event, on: database)
@@ -238,11 +248,15 @@ struct CalendarEventsController: RouteCollection {
 		}
 	}
 
-	private func tags(for event: CalendarEvent, on database: any Database) async throws -> [EventTag] {
+	fileprivate func tags(
+		for event: CalendarEvent,
+		on database: any Database
+	) async throws -> [EventTag] {
+		let eventID = try event.requireID()
 		let associations = try await CalendarEventTag.query(on: database)
-			.filter(\.$calendarEvent.$id == event.requireID())
+			.filter(\.$calendarEvent.$id == eventID)
 			.all()
-		let tagIDs = associations.compactMap { try? $0.$eventTag.id }
+		let tagIDs = associations.map { $0.$eventTag.id }
 		guard !tagIDs.isEmpty else {
 			return []
 		}
@@ -287,7 +301,9 @@ private struct CalendarEventResponse: Content {
 		symbol = event.symbol
 		date = try SchoolCalendarDate(storageValue: event.eventDate)
 		isGlobal = event.isGlobal
-		tagIDs = try await CalendarEventsController().tags(for: event, on: database).compactMap(\.id)
+		tagIDs = try await CalendarEventsController()
+			.tags(for: event, on: database)
+			.compactMap(\.id)
 		revision = event.revision
 		updatedAt = event.updatedAt
 	}

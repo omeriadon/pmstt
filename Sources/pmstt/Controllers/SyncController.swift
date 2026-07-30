@@ -189,13 +189,13 @@ struct SyncController: RouteCollection {
 			record = created
 		}
 
-		return try SyncMutationResult(
+		return SyncMutationResult(
 			mutationID: mutation.mutationID,
 			recordType: mutation.recordType,
-			recordID: record.requireID(),
+			recordID: try record.requireID(),
 			outcome: .accepted,
 			serverRevision: record.revision,
-			ownerTimetable: ownerResponse(record),
+			ownerTimetable: try ownerResponse(record),
 			droppedReferenceIDs: [],
 			message: nil
 		)
@@ -230,13 +230,13 @@ struct SyncController: RouteCollection {
 					"server_revision": .string(String(currentRevision)),
 				]
 			)
-			return try SyncMutationResult(
+			return SyncMutationResult(
 				mutationID: mutation.mutationID,
 				recordType: mutation.recordType,
-				recordID: existing.requireID(),
+				recordID: try existing.requireID(),
 				outcome: .serverRecordNewer,
 				serverRevision: currentRevision,
-				ownerTimetable: ownerResponse(existing),
+				ownerTimetable: try ownerResponse(existing),
 				droppedReferenceIDs: [],
 				message: "The server record is newer."
 			)
@@ -284,9 +284,9 @@ struct SyncController: RouteCollection {
 	private func ownerResponse(
 		_ timetable: OwnerTimetable
 	) throws -> OwnerTimetableResponse {
-		try OwnerTimetableResponse(
-			id: timetable.requireID(),
-			subjects: JSONDecoder().decode(
+		OwnerTimetableResponse(
+			id: try timetable.requireID(),
+			subjects: try JSONDecoder().decode(
 				[TimetableSubjectDTO].self,
 				from: timetable.subjectsData
 			),
