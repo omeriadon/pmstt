@@ -54,11 +54,13 @@ struct UserAccountResponse: Content {
 	let appearance: ProfileAppearanceDTO
 	let photo: ProfilePhotoMetadataDTO?
 	let badges: [ProfileBadgeDTO]
+	let revision: Int
 }
 
 struct UpdateAccountRequest: Content {
 	let displayName: String?
 	let email: String?
+	let baseRevision: Int?
 }
 
 struct UpdateSettingsRequest: Content {

@@ -277,7 +277,8 @@ extension UserAccountResponse {
 			authority: user.resolvedAccountAuthority,
 			appearance: user.decodedProfileAppearance,
 			photo: try await user.profilePhotoMetadata(on: database),
-			badges: user.profileBadges
+			badges: user.profileBadges,
+			revision: user.profileRevision
 		)
 	}
 }

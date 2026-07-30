@@ -28,6 +28,9 @@ final class User: Model, Content, @unchecked Sendable {
 	@OptionalField(key: "profile_appearance_data")
 	var profileAppearanceData: Data?
 
+	@Field(key: "profile_revision")
+	var profileRevision: Int
+
 	@Field(key: "account_authority")
 	var accountAuthority: AccountAuthority
 
@@ -48,6 +51,7 @@ final class User: Model, Content, @unchecked Sendable {
 		settingsData: Data,
 		settingsRevision: Int = 0,
 		profileAppearanceData: Data? = nil,
+		profileRevision: Int = 0,
 		accountAuthority: AccountAuthority = .user
 	) {
 		self.id = id
@@ -58,6 +62,7 @@ final class User: Model, Content, @unchecked Sendable {
 		self.settingsData = settingsData
 		self.settingsRevision = settingsRevision
 		self.profileAppearanceData = profileAppearanceData
+		self.profileRevision = profileRevision
 		self.accountAuthority = accountAuthority
 	}
 

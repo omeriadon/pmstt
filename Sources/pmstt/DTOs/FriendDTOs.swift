@@ -14,6 +14,7 @@ struct FriendProfileDTO: Content {
 	let appearance: ProfileAppearanceDTO
 	let photo: ProfilePhotoMetadataDTO?
 	let badges: [ProfileBadgeDTO]
+	let revision: Int
 }
 
 struct FriendSummaryDTO: Content {
@@ -49,4 +50,5 @@ struct CreateFriendRequest: Content {
 
 struct FriendProfileAppearanceUpdateRequest: Content {
 	let appearance: ProfileAppearanceDTO
+	let baseRevision: Int?
 }

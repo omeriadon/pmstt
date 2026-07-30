@@ -106,5 +106,6 @@ func pmsttMigrationList() -> [any Migration] {
 		CreateSyncRecordTombstone(),
 		AddCalendarEventRevision(),
 		AddUserSettingsRevision(),
+		AddUserProfileRevision(),
 	]
 }

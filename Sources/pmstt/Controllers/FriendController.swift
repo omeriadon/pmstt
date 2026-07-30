@@ -200,6 +200,14 @@ struct FriendController: RouteCollection {
 			throw AppError(.badRequest, code: .invalidRequest, reason: "Profile appearance data is too large.", field: "appearanceData")
 		}
 		guard let user = try await User.find(userID, on: req.db) else { throw Abort(.notFound) }
+		if let baseRevision = body.baseRevision,
+		   baseRevision != user.profileRevision
+		{
+			throw Abort(
+				.conflict,
+				reason: "The account profile has changed on the server."
+			)
+		}
 		if appearance.contentKind == .photo {
 			guard try await ProfileMedia.query(on: req.db)
 				.filter(\.$user.$id == userID)
@@ -214,6 +222,7 @@ struct FriendController: RouteCollection {
 			}
 		}
 		user.profileAppearanceData = appearanceData
+		user.profileRevision += 1
 		try await user.save(on: req.db)
 		return try await profile(for: user, includesEmail: true, on: req.db)
 	}
@@ -492,7 +501,8 @@ struct FriendController: RouteCollection {
 			appearanceData: user.profileAppearanceData,
 			appearance: user.decodedProfileAppearance,
 			photo: photo,
-			badges: user.profileBadges
+			badges: user.profileBadges,
+			revision: user.profileRevision
 		)
 	}
 

@@ -27,8 +27,11 @@ struct AccountController: RouteCollection {
 		guard let user = try await User.find(payload.sub, on: req.db) else {
 			throw AppError(.notFound, code: .accountNotFound, reason: "User not found.")
 		}
+		try requireMatchingRevision(body.baseRevision, for: user)
 
+		var didChangeProfile = false
 		if let displayName = body.displayName, !displayName.isEmpty {
+			didChangeProfile = displayName != user.displayName
 			user.displayName = displayName
 		}
 
@@ -43,9 +46,13 @@ struct AccountController: RouteCollection {
 					throw AppError(.conflict, code: .emailAlreadyExists, reason: "Email is already registered.", field: "email")
 				}
 				user.email = normalizedEmail
+				didChangeProfile = true
 			}
 		}
 
+		if didChangeProfile {
+			user.profileRevision += 1
+		}
 		try await user.save(on: req.db)
 
 		return try await UserAccountResponse(user: user, on: req.db)
@@ -60,5 +67,20 @@ struct AccountController: RouteCollection {
 		await SchoolDayActivityCoordinator().endActivities(forUserID: payload.sub, database: req.db, logger: req.logger)
 		try await user.delete(on: req.db)
 		return .noContent
+	}
+
+	private func requireMatchingRevision(
+		_ baseRevision: Int?,
+		for user: User
+	) throws {
+		guard let baseRevision else {
+			return
+		}
+		guard baseRevision == user.profileRevision else {
+			throw Abort(
+				.conflict,
+				reason: "The account profile has changed on the server."
+			)
+		}
 	}
 }
