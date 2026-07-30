@@ -168,7 +168,12 @@ struct ProfileStorageReconciliation {
 			let quota = try await ProfileStorageQuota.find(
 				ProfileStorageQuota.singletonID,
 				on: application.db
-			) ?? ProfileStorageQuota()
+			) ?? ProfileStorageQuota(
+				storedBytes: 0,
+				reservedBytes: 0,
+				writesDisabled: false,
+				reconciliationWarning: false
+			)
 			let trackedBytes = quota.storedBytes + quota.reservedBytes
 			let auditedBytes = listedBytes
 			let warning = auditedBytes > trackedBytes

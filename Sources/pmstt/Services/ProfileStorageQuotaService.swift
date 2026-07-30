@@ -150,7 +150,12 @@ struct ProfileStorageQuotaService {
 		if let quota = try await ProfileStorageQuota.find(ProfileStorageQuota.singletonID, on: database) {
 			return quota
 		}
-		let quota = ProfileStorageQuota()
+		let quota = ProfileStorageQuota(
+			storedBytes: 0,
+			reservedBytes: 0,
+			writesDisabled: false,
+			reconciliationWarning: false
+		)
 		try await quota.create(on: database)
 		return quota
 	}
