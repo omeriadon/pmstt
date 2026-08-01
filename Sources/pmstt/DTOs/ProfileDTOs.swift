@@ -237,14 +237,14 @@ extension User {
 		)
 	}
 
-	var profileBadges: [ProfileBadgeDTO] {
+	private var builtInProfileBadges: [ProfileBadgeDTO] {
 		switch resolvedAccountAuthority {
 			case .systemOwner:
 				[
 					ProfileBadgeDTO(
 						id: UUID(uuid: (0xE9, 0x3D, 0xD9, 0xC4, 0xA5, 0xB1, 0x46, 0x94, 0x97, 0x95, 0xFD, 0x0D, 0x89, 0xC0, 0x5F, 0xB3)),
-						symbol: "crown.fill",
-						backgroundColor: ProfileColorDTO(red: 0.95, green: 0.65, blue: 0.05, alpha: 1),
+						symbol: "wrench.and.screwdriver",
+						backgroundColor: ProfileColorDTO(red: 1, green: 1, blue: 1, alpha: 1),
 						symbolColor: ProfileColorDTO(red: 1, green: 1, blue: 1, alpha: 1),
 						priority: 100,
 						accessibilityLabel: "Permanent owner"
@@ -254,7 +254,7 @@ extension User {
 				[
 					ProfileBadgeDTO(
 						id: UUID(uuid: (0x0F, 0x6C, 0xD4, 0x52, 0x84, 0xAC, 0x44, 0x82, 0x8C, 0x23, 0xA4, 0x8F, 0x5D, 0x56, 0x14, 0x8A)),
-						symbol: "checkmark.shield.fill",
+						symbol: "book.and.wrench",
 						backgroundColor: ProfileColorDTO(red: 0.16, green: 0.45, blue: 0.95, alpha: 1),
 						symbolColor: ProfileColorDTO(red: 1, green: 1, blue: 1, alpha: 1),
 						priority: 90,
@@ -264,6 +264,23 @@ extension User {
 			case .user:
 				[]
 		}
+	}
+
+	func profileBadges(on database: any Database) async throws -> [ProfileBadgeDTO] {
+		guard let userID = id else {
+			return builtInProfileBadges
+		}
+
+		let assignments = try await UserSpecialProfileBadge.query(on: database)
+			.filter(\.$user.$id == userID)
+			.all()
+		let badgeIDs = assignments.map(\.$badge.id)
+		let customBadges = try await SpecialProfileBadge.query(on: database)
+			.filter(\.$id ~~ badgeIDs)
+			.all()
+
+		return (builtInProfileBadges + customBadges.map(\.profileBadge))
+			.sorted { $0.priority > $1.priority }
 	}
 }
 
@@ -277,7 +294,7 @@ extension UserAccountResponse {
 			authority: user.resolvedAccountAuthority,
 			appearance: user.decodedProfileAppearance,
 			photo: try await user.profilePhotoMetadata(on: database),
-			badges: user.profileBadges,
+			badges: try await user.profileBadges(on: database),
 			revision: user.profileRevision
 		)
 	}

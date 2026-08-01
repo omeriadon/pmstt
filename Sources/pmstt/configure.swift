@@ -107,5 +107,6 @@ func pmsttMigrationList() -> [any Migration] {
 		AddCalendarEventRevision(),
 		AddUserSettingsRevision(),
 		AddUserProfileRevision(),
+		CreateSpecialProfileBadges(),
 	]
 }

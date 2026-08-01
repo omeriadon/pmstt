@@ -507,7 +507,7 @@ struct FriendController: RouteCollection {
 			appearanceData: user.profileAppearanceData,
 			appearance: user.decodedProfileAppearance,
 			photo: photo,
-			badges: user.profileBadges,
+			badges: try await user.profileBadges(on: database),
 			revision: user.profileRevision
 		)
 	}

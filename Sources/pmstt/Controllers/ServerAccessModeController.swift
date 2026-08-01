@@ -2,20 +2,22 @@ import Vapor
 
 struct ServerAccessModeController: RouteCollection {
 	func boot(routes: any RoutesBuilder) throws {
-		let control = routes.grouped("_operations", "server-access-mode")
+		let control = routes
+			.grouped("_operations", "server-access-mode")
+			.grouped(SessionAuthenticator(), UserPayload.guardMiddleware())
 		control.get(use: read)
 		control.put(use: update)
 	}
 
 	private func read(req: Request) async throws -> ServerAccessModeResponse {
-		try requireControlToken(req)
+		try await requireSystemOwner(req)
 		return ServerAccessModeResponse(
 			developmentAccessOnly: try await ServerAccessModeService.developmentAccessOnly(on: req.db)
 		)
 	}
 
 	private func update(req: Request) async throws -> ServerAccessModeResponse {
-		try requireControlToken(req)
+		try await requireSystemOwner(req)
 		let request = try req.content.decode(ServerAccessModeUpdateRequest.self)
 		let mode = try await ServerAccessModeService.update(
 			developmentAccessOnly: request.developmentAccessOnly,
@@ -34,13 +36,12 @@ struct ServerAccessModeController: RouteCollection {
 		)
 	}
 
-	private func requireControlToken(_ req: Request) throws {
-		guard let configuredToken = Environment.get(ServerAccessModeService.controlTokenEnvironmentKey),
-		      !configuredToken.isEmpty,
-		      let submittedToken = req.headers.first(name: "X-PMSTT-Access-Mode-Token"),
-		      submittedToken == configuredToken
+	private func requireSystemOwner(_ req: Request) async throws {
+		let payload = try req.auth.require(UserPayload.self)
+		guard let user = try await User.find(payload.sub, on: req.db),
+			  user.resolvedAccountAuthority == .systemOwner
 		else {
-			throw Abort(.notFound)
+			throw Abort(.forbidden)
 		}
 	}
 }

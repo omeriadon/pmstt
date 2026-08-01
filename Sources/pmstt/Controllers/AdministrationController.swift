@@ -14,6 +14,11 @@ struct AdministrationController: RouteCollection {
 		admin.post("broadcast-notification", use: broadcastNotification)
 		admin.get("broadcast-notifications", use: broadcastNotifications)
 		admin.get("profile-storage-quota", use: profileStorageQuota)
+		admin.get("badges", use: specialBadges)
+		admin.post("badges", use: createSpecialBadge)
+		admin.put("badges", ":badgeID", use: updateSpecialBadge)
+		admin.delete("badges", ":badgeID", use: deleteSpecialBadge)
+		admin.put("badges", ":badgeID", "users", use: replaceSpecialBadgeUsers)
 		admin.get("event-tags", use: eventTags)
 		admin.post("event-tags", use: createEventTag)
 		admin.put("event-tags", ":tagID", use: updateEventTag)
@@ -29,6 +34,91 @@ struct AdministrationController: RouteCollection {
 		_ = try await requireAdministrator(req)
 		let configuration = try ProfileStorageConfiguration.load()
 		return try await ProfileStorageQuotaService(configuration: configuration).snapshot(on: req.db)
+	}
+
+	private func specialBadges(req: Request) async throws -> [AdministrationSpecialBadgeResponse] {
+		_ = try await requireSystemOwner(req)
+		return try await SpecialProfileBadge.query(on: req.db)
+			.sort(\.$priority, .descending)
+			.sort(\.$accessibilityLabel)
+			.all()
+			.asyncMap { try await AdministrationSpecialBadgeResponse($0, on: req.db) }
+	}
+
+	private func createSpecialBadge(req: Request) async throws -> AdministrationSpecialBadgeResponse {
+		_ = try await requireSystemOwner(req)
+		let request = try req.content.decode(AdministrationSpecialBadgeRequest.self)
+		let values = try validatedSpecialBadge(request)
+		let badge = SpecialProfileBadge(
+			symbol: values.symbol,
+			backgroundColorData: try encodeColor(values.backgroundColor),
+			symbolColorData: try encodeColor(values.symbolColor),
+			priority: values.priority,
+			accessibilityLabel: values.accessibilityLabel
+		)
+		try await badge.create(on: req.db)
+		return try await AdministrationSpecialBadgeResponse(badge, on: req.db)
+	}
+
+	private func updateSpecialBadge(req: Request) async throws -> AdministrationSpecialBadgeResponse {
+		_ = try await requireSystemOwner(req)
+		guard let badgeID = req.parameters.get("badgeID", as: UUID.self),
+			  let badge = try await SpecialProfileBadge.find(badgeID, on: req.db)
+		else {
+			throw Abort(.notFound)
+		}
+
+		let request = try req.content.decode(AdministrationSpecialBadgeRequest.self)
+		let values = try validatedSpecialBadge(request)
+		badge.symbol = values.symbol
+		badge.backgroundColorData = try encodeColor(values.backgroundColor)
+		badge.symbolColorData = try encodeColor(values.symbolColor)
+		badge.priority = values.priority
+		badge.accessibilityLabel = values.accessibilityLabel
+		try await badge.update(on: req.db)
+		return try await AdministrationSpecialBadgeResponse(badge, on: req.db)
+	}
+
+	private func deleteSpecialBadge(req: Request) async throws -> HTTPStatus {
+		_ = try await requireSystemOwner(req)
+		guard let badgeID = req.parameters.get("badgeID", as: UUID.self),
+			  let badge = try await SpecialProfileBadge.find(badgeID, on: req.db)
+		else {
+			throw Abort(.notFound)
+		}
+
+		try await badge.delete(on: req.db)
+		return .noContent
+	}
+
+	private func replaceSpecialBadgeUsers(req: Request) async throws -> AdministrationSpecialBadgeResponse {
+		_ = try await requireSystemOwner(req)
+		guard let badgeID = req.parameters.get("badgeID", as: UUID.self),
+			  let badge = try await SpecialProfileBadge.find(badgeID, on: req.db)
+		else {
+			throw Abort(.notFound)
+		}
+
+		let request = try req.content.decode(AdministrationSpecialBadgeAssignmentsRequest.self)
+		let requestedUserIDs = Set(request.userIDs)
+		let existingUsers = try await User.query(on: req.db)
+			.filter(\.$id ~~ requestedUserIDs)
+		.all()
+		guard existingUsers.count == requestedUserIDs.count else {
+			throw Abort(.badRequest)
+		}
+
+		try await req.db.transaction { database in
+			try await UserSpecialProfileBadge.query(on: database)
+				.filter(\.$badge.$id == badgeID)
+				.delete()
+
+			for userID in requestedUserIDs {
+				try await UserSpecialProfileBadge(userID: userID, badgeID: badgeID).create(on: database)
+			}
+		}
+
+		return try await AdministrationSpecialBadgeResponse(badge, on: req.db)
 	}
 
 	private func dashboard(req: Request) async throws -> AdministrationDashboardResponse {
@@ -376,6 +466,39 @@ struct AdministrationController: RouteCollection {
 		}
 	}
 
+	private func validatedSpecialBadge(
+		_ request: AdministrationSpecialBadgeRequest
+	) throws -> (symbol: String, backgroundColor: ProfileColorDTO?, symbolColor: ProfileColorDTO?, priority: Int, accessibilityLabel: String) {
+		let symbol = request.symbol.trimmingCharacters(in: .whitespacesAndNewlines)
+		let accessibilityLabel = request.accessibilityLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+		guard !symbol.isEmpty, symbol.count <= 120,
+			  !accessibilityLabel.isEmpty, accessibilityLabel.count <= 120,
+			  (0 ... 10_000).contains(request.priority),
+			  isValidColor(request.backgroundColor),
+			  isValidColor(request.symbolColor)
+		else {
+			throw Abort(.badRequest)
+		}
+
+		return (symbol, request.backgroundColor, request.symbolColor, request.priority, accessibilityLabel)
+	}
+
+	private func isValidColor(_ color: ProfileColorDTO?) -> Bool {
+		guard let color else {
+			return true
+		}
+
+		return [color.red, color.green, color.blue, color.alpha].allSatisfy { (0 ... 1).contains($0) }
+	}
+
+	private func encodeColor(_ color: ProfileColorDTO?) throws -> Data? {
+		guard let color else {
+			return nil
+		}
+
+		return try JSONEncoder().encode(color)
+	}
+
 	private func validate(_ request: AdministrationCalendarEntryRequest) throws {
 		guard ["term", "noSchool"].contains(request.kind), !request.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, request.label.count <= 120, request.kind == "noSchool" || request.endDate != nil else { throw Abort(.badRequest) }
 	}
@@ -562,6 +685,42 @@ private extension String {
 	}
 }
 
+private struct AdministrationSpecialBadgeResponse: Content {
+	let id: UUID
+	let symbol: String
+	let backgroundColor: ProfileColorDTO?
+	let symbolColor: ProfileColorDTO?
+	let priority: Int
+	let accessibilityLabel: String
+	let assignedUserIDs: [UUID]
+
+	init(_ badge: SpecialProfileBadge, on database: any Database) async throws {
+		id = try badge.requireID()
+		let profileBadge = badge.profileBadge
+		symbol = profileBadge.symbol
+		backgroundColor = profileBadge.backgroundColor
+		symbolColor = profileBadge.symbolColor
+		priority = profileBadge.priority
+		accessibilityLabel = profileBadge.accessibilityLabel
+		assignedUserIDs = try await UserSpecialProfileBadge.query(on: database)
+			.filter(\.$badge.$id == id)
+			.all()
+			.map(\.$user.id)
+	}
+}
+
+private struct AdministrationSpecialBadgeRequest: Content {
+	let symbol: String
+	let backgroundColor: ProfileColorDTO?
+	let symbolColor: ProfileColorDTO?
+	let priority: Int
+	let accessibilityLabel: String
+}
+
+private struct AdministrationSpecialBadgeAssignmentsRequest: Content {
+	let userIDs: [UUID]
+}
+
 private extension Array {
 	func asyncMap<T>(_ transform: (Element) async throws -> T) async rethrows -> [T] {
 		var result: [T] = []
@@ -613,7 +772,7 @@ private struct AdministrationUserResponse: Content {
 		authority = user.resolvedAccountAuthority
 		appearance = user.decodedProfileAppearance
 		photo = try await user.profilePhotoMetadata(on: database)
-		badges = user.profileBadges
+		badges = try await user.profileBadges(on: database)
 	}
 }
 private struct AdministrationEventTagCatalogueResponse: Content {

@@ -2,8 +2,6 @@ import Fluent
 import Vapor
 
 enum ServerAccessModeService {
-	static let controlTokenEnvironmentKey = "SERVER_ACCESS_MODE_CONTROL_TOKEN"
-
 	static func requirePermittedAccount(_ user: User, on database: any Database) async throws {
 		try await requirePermittedEmail(user.email, on: database)
 	}
