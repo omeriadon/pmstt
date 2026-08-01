@@ -86,7 +86,6 @@ func pmsttMigrationList() -> [any Migration] {
 		CreateReceivedTimetableImport(),
 		BackfillReceivedTimetableImports(),
 		CreateFriendship(),
-		BackfillFriendshipsFromReceivedTimetables(),
 		CreateTimetableShareAlias(),
 		CreateCalendarEvent(),
 		CreateSchoolCalendarEntry(),
@@ -109,5 +108,6 @@ func pmsttMigrationList() -> [any Migration] {
 		AddUserSettingsRevision(),
 		AddUserProfileRevision(),
 		CreateSpecialProfileBadges(),
+		RemoveBackfilledFriendships(),
 	]
 }
