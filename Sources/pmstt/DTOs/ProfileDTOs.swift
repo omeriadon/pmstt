@@ -242,7 +242,32 @@ extension User {
 	}
 
 	private var builtInProfileBadges: [ProfileBadgeDTO] {
-		[]
+		switch resolvedAccountAuthority {
+			case .systemOwner:
+				[
+					ProfileBadgeDTO(
+						id: UUID(uuidString: "E93DD9C4-A5B1-4694-9795-FD0D89C05FB3")!,
+						symbol: "wrench.and.screwdriver",
+						backgroundColor: ProfileColorDTO(red: 1, green: 1, blue: 1, alpha: 1),
+						symbolColor: ProfileColorDTO(red: 1, green: 1, blue: 1, alpha: 1),
+						priority: 100,
+						accessibilityLabel: "System Administrator"
+					),
+				]
+			case .administrator:
+				[
+					ProfileBadgeDTO(
+						id: UUID(uuidString: "0F6CD452-84AC-4482-8C23-A48F5D56148A")!,
+						symbol: "book.and.wrench",
+						backgroundColor: ProfileColorDTO(red: 0.16, green: 0.45, blue: 0.95, alpha: 1),
+						symbolColor: ProfileColorDTO(red: 1, green: 1, blue: 1, alpha: 1),
+						priority: 90,
+						accessibilityLabel: "Administrator"
+					),
+				]
+			case .user:
+				[]
+		}
 	}
 
 	func profileBadges(on database: any Database) async throws -> [ProfileBadgeDTO] {
