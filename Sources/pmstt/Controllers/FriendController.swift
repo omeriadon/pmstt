@@ -12,7 +12,13 @@ struct FriendController: RouteCollection {
 		protected.get("search", use: search)
 		protected.get("profile", use: profileAppearance)
 		protected.put("profile", use: updateProfileAppearance)
-		protected.put("profile", "photo", use: uploadProfilePhoto)
+		protected.on(
+			.PUT,
+			"profile",
+			"photo",
+			body: .collect(maxSize: "64mb"),
+			use: uploadProfilePhoto
+		)
 		protected.delete("profile", "photo", use: deleteProfilePhoto)
 		protected.get("profile", "photo", ":userID", use: profilePhoto)
 		protected.post("requests", use: createRequest)
