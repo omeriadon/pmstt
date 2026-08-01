@@ -16,11 +16,15 @@ enum ProfileFontDesign: String, Content {
 }
 
 enum ProfileFontWeight: String, Content {
+	case ultraLight
+	case thin
+	case light
 	case regular
 	case medium
 	case semibold
 	case bold
 	case heavy
+	case black
 }
 
 struct ProfileColorDTO: Content {
