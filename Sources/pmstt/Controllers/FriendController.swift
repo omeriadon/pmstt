@@ -183,7 +183,7 @@ struct FriendController: RouteCollection {
 		if let existing = try await relationship(between: requesterID, and: recipientID, on: req.db) {
 			switch existing.status {
 				case .accepted:
-					throw AppError(.conflict, code: .invalidRequest, reason: "You are already friends.")
+					return try await summary(for: existing, viewerID: requesterID, on: req.db)
 				case .blocked:
 					throw AppError(.forbidden, code: .invalidRequest, reason: "This friend relationship is unavailable.")
 				case .pending:
