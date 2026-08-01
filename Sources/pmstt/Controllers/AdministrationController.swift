@@ -256,6 +256,16 @@ struct AdministrationController: RouteCollection {
 			.filter(\.$user.$id == id)
 			.all()
 
+		let friendships = try await Friendship.query(on: req.db)
+			.group(.or) { group in
+				group.filter(\.$requester.$id == id)
+				group.filter(\.$recipient.$id == id)
+			}
+			.with(\.$requester)
+			.with(\.$recipient)
+			.sort(\.$createdAt, .descending)
+			.all()
+
 		let rawData = try await AdministrationUserRawData(
 			account: AdministrationRawAccount(user),
 			ownerTimetables: OwnerTimetable.query(on: req.db).filter(\.$user.$id == id).all(),
@@ -264,6 +274,7 @@ struct AdministrationController: RouteCollection {
 			receivedPassMirrors: ReceivedPassMirror.query(on: req.db).filter(\.$user.$id == id).all(),
 			receivedNameOverrides: ReceivedNameOverride.query(on: req.db).filter(\.$user.$id == id).all(),
 			devices: devices.compactMap(AdministrationRawDevice.init),
+			friendships: try friendships.map(AdministrationRawFriendship.init),
 			calendarEvents: CalendarEvent.query(on: req.db).filter(\.$user.$id == id).all(),
 			schoolNotificationDeliveries: SchoolNotificationDelivery.query(on: req.db).filter(\.$user.$id == id).all()
 		)
@@ -954,6 +965,34 @@ private struct AdministrationRawDevice: Content {
 	}
 }
 
+private struct AdministrationRawFriendship: Content {
+	let id: UUID
+	let status: FriendshipStatus
+	let requesterID: UUID
+	let requesterEmail: String?
+	let requesterDisplayName: String
+	let recipientID: UUID
+	let recipientEmail: String?
+	let recipientDisplayName: String
+	let acceptedAt: Date?
+	let createdAt: Date?
+	let updatedAt: Date?
+
+	init(_ friendship: Friendship) throws {
+		id = try friendship.requireID()
+		status = friendship.status
+		requesterID = friendship.$requester.id
+		requesterEmail = friendship.requester.email
+		requesterDisplayName = friendship.requester.displayName
+		recipientID = friendship.$recipient.id
+		recipientEmail = friendship.recipient.email
+		recipientDisplayName = friendship.recipient.displayName
+		acceptedAt = friendship.acceptedAt
+		createdAt = friendship.createdAt
+		updatedAt = friendship.updatedAt
+	}
+}
+
 private struct AdministrationUserRawData: Content {
 	let account: AdministrationRawAccount
 	let ownerTimetables: [OwnerTimetable]
@@ -962,6 +1001,7 @@ private struct AdministrationUserRawData: Content {
 	let receivedPassMirrors: [ReceivedPassMirror]
 	let receivedNameOverrides: [ReceivedNameOverride]
 	let devices: [AdministrationRawDevice]
+	let friendships: [AdministrationRawFriendship]
 	let calendarEvents: [CalendarEvent]
 	let schoolNotificationDeliveries: [SchoolNotificationDelivery]
 }
