@@ -1,6 +1,7 @@
 import Fluent
 import FluentPostgresDriver
 import FluentSQLiteDriver
+import FuzzyMatchingSwift
 import Vapor
 
 struct FriendController: RouteCollection {
@@ -108,15 +109,38 @@ struct FriendController: RouteCollection {
 		let query = (req.query[String.self, at: "q"] ?? "")
 			.trimmingCharacters(in: .whitespacesAndNewlines)
 			.lowercased()
-		guard (3 ... 254).contains(query.count), query.contains("@") else {
-			throw AppError(.badRequest, code: .invalidRequest, reason: "Search using a school email address.", field: "q")
+		guard (2 ... 254).contains(query.count) else {
+			return []
 		}
 
 		let users = try await User.query(on: req.db).all()
-		let matches = users.filter {
-			$0.id != viewerID && ($0.email?.lowercased().hasPrefix(query) ?? false)
+		let matches = users.compactMap { user -> (user: User, confidence: Double)? in
+			guard user.id != viewerID else {
+				return nil
+			}
+
+			let confidence = [user.email ?? "", user.displayName]
+				.compactMap { $0.confidenceScore(query) }
+				.min()
+
+			guard let confidence, confidence <= 0.5 else {
+				return nil
+			}
+			return (user: user, confidence: confidence)
+		}
+		.sorted {
+			if $0.confidence == $1.confidence {
+				return $0.user.displayName.localizedCaseInsensitiveCompare($1.user.displayName) == .orderedAscending
+			}
+			return $0.confidence < $1.confidence
 		}
 		.prefix(25)
+		.map(\.user)
+
+		guard !matches.isEmpty else {
+			return []
+		}
+
 		let userIDs = matches.compactMap(\.id)
 		let relationships = try await Friendship.query(on: req.db)
 			.group(.or) { group in
@@ -133,7 +157,7 @@ struct FriendController: RouteCollection {
 			let relationship = relationships.first {
 				$0.$requester.id == userID || $0.$recipient.id == userID
 			}
-			let profile = try await profile(for: user, on: req.db)
+			let profile = try await profile(for: user, includesEmail: true, on: req.db)
 			results.append(FriendSearchResultDTO(
 				profile: profile,
 				relationship: relationship.map { relationshipState(for: $0, viewerID: viewerID) }
