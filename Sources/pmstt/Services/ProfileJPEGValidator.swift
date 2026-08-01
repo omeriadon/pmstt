@@ -10,12 +10,7 @@ struct ValidatedProfileJPEG {
 }
 
 enum ProfileJPEGValidator {
-	static let maximumBytes = 1_000_000
-
 	static func validateAndSanitize(_ input: Data) throws -> ValidatedProfileJPEG {
-		guard input.count <= maximumBytes else {
-			throw AppError(.payloadTooLarge, code: .invalidRequest, reason: "Profile photos must be one megabyte or smaller.")
-		}
 		guard input.starts(with: [0xFF, 0xD8]) else {
 			throw AppError(.unsupportedMediaType, code: .invalidRequest, reason: "Only JPEG profile photos are supported.")
 		}
@@ -63,9 +58,6 @@ enum ProfileJPEGValidator {
 		}
 		guard dimensions.width == dimensions.height else {
 			throw AppError(.badRequest, code: .invalidRequest, reason: "Profile photos must be square.")
-		}
-		guard sanitized.count <= maximumBytes else {
-			throw AppError(.payloadTooLarge, code: .invalidRequest, reason: "Profile photos must be one megabyte or smaller.")
 		}
 
 		let checksum = SHA256.hash(data: sanitized)
