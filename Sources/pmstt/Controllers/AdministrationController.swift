@@ -13,6 +13,7 @@ struct AdministrationController: RouteCollection {
 		admin.put("users", ":userID", "authority", use: updateAuthority)
 		admin.post("broadcast-notification", use: broadcastNotification)
 		admin.get("broadcast-notifications", use: broadcastNotifications)
+		admin.delete("broadcast-notifications", ":notificationID", use: deleteBroadcastNotification)
 		admin.get("profile-storage-quota", use: profileStorageQuota)
 		admin.get("badges", use: specialBadges)
 		admin.post("badges", use: createSpecialBadge)
@@ -305,6 +306,24 @@ struct AdministrationController: RouteCollection {
 			.sort(\.$createdAt, .descending)
 			.all()
 			.map(BroadcastNotificationHistoryResponse.init)
+	}
+
+	private func deleteBroadcastNotification(req: Request) async throws -> BroadcastNotificationHistoryResponse {
+		_ = try await requireAdministrator(req)
+		guard let notificationID = req.parameters.get("notificationID", as: UUID.self),
+		      let record = try await BroadcastNotificationRecord.find(notificationID, on: req.db)
+		else {
+			throw Abort(.notFound)
+		}
+
+		guard !record.isDeleted else {
+			return try BroadcastNotificationHistoryResponse(record)
+		}
+
+		try await NotificationService().deleteBroadcast(record, on: req)
+		record.isDeleted = true
+		try await record.update(on: req.db)
+		return try BroadcastNotificationHistoryResponse(record)
 	}
 
 	private func eventTags(req: Request) async throws -> AdministrationEventTagCatalogueResponse {
@@ -794,6 +813,7 @@ private struct BroadcastNotificationHistoryResponse: Content {
 	let invalidatedDeviceCount: Int
 	let failedDeviceCount: Int
 	let deliveryState: BroadcastNotificationDeliveryState
+	let isDeleted: Bool
 	let failureSummary: String?
 	let createdAt: Date?
 
@@ -809,6 +829,7 @@ private struct BroadcastNotificationHistoryResponse: Content {
 		invalidatedDeviceCount = record.invalidatedDeviceCount
 		failedDeviceCount = record.failedDeviceCount
 		deliveryState = record.deliveryState
+		isDeleted = record.isDeleted
 		failureSummary = record.failureSummary
 		createdAt = record.createdAt
 	}

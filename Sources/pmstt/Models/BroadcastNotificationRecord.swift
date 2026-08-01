@@ -49,6 +49,9 @@ final class BroadcastNotificationRecord: Model, Content, @unchecked Sendable {
 	@Field(key: "delivery_state")
 	var deliveryState: BroadcastNotificationDeliveryState
 
+	@Field(key: "is_deleted")
+	var isDeleted: Bool
+
 	@OptionalField(key: "failure_summary")
 	var failureSummary: String?
 
@@ -84,5 +87,6 @@ final class BroadcastNotificationRecord: Model, Content, @unchecked Sendable {
 		invalidatedDeviceCount = 0
 		failedDeviceCount = 0
 		deliveryState = .pending
+		isDeleted = false
 	}
 }

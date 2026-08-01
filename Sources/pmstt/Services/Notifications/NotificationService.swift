@@ -110,7 +110,9 @@ struct NotificationService {
 		to userID: UUID,
 		devices: [UserDevice],
 		on database: any Database,
-		logger: Logger
+		logger: Logger,
+		broadcastID: UUID? = nil,
+		isDeletion: Bool = false
 	) async throws -> Int {
 		guard !devices.isEmpty else {
 			return 0
@@ -150,7 +152,9 @@ struct NotificationService {
 					isDebug: device.isDebug,
 					authorization: authorization,
 					config: config,
-					expiration: expiration
+					expiration: expiration,
+					broadcastID: broadcastID,
+					isDeletion: isDeletion
 				)
 
 				logger.info("APNs notification response", metadata: [
@@ -266,7 +270,8 @@ struct NotificationService {
 						isDebug: device.isDebug,
 						authorization: authorization,
 						config: config,
-						expiration: expiration
+						expiration: expiration,
+						broadcastID: try record.requireID()
 					)
 
 					req.logger.info("APNs broadcast response", metadata: [
@@ -314,6 +319,50 @@ struct NotificationService {
 		}
 	}
 
+	func deleteBroadcast(_ record: BroadcastNotificationRecord, on req: Request) async throws {
+		let devices = try await UserDevice.query(on: req.db).all()
+		guard !devices.isEmpty else {
+			return
+		}
+
+		let config = try configuration()
+		let authorization = try await makeJWT(config: config)
+		let expiration = Self.apnsExpiration(sentAt: Date())
+		let broadcastID = try record.requireID()
+		var sentTokens = Set<String>()
+
+		for device in devices {
+			guard let token = device.apnsToken else {
+				continue
+			}
+
+			let tokenKey = "\(device.isDebug):\(token)"
+			guard sentTokens.insert(tokenKey).inserted else {
+				continue
+			}
+
+			let response = try await send(
+				title: "",
+				subtitle: nil,
+				body: "",
+				threadID: nil,
+				collapseID: "broadcast-delete-\(broadcastID.uuidString)",
+				token: token,
+				isDebug: device.isDebug,
+				authorization: authorization,
+				config: config,
+				expiration: expiration,
+				broadcastID: broadcastID,
+				isDeletion: true
+			)
+
+			if [.badRequest, .unauthorized, .forbidden, .notFound, .gone].contains(response.status) {
+				device.apnsToken = nil
+				try await device.save(on: req.db)
+			}
+		}
+	}
+
 	private func response(for record: BroadcastNotificationRecord) throws -> BroadcastNotificationResponse {
 		try BroadcastNotificationResponse(
 			id: record.requireID(),
@@ -334,7 +383,9 @@ struct NotificationService {
 		isDebug: Bool,
 		authorization: String,
 		config: APNSConfig,
-		expiration: Date
+		expiration: Date,
+		broadcastID: UUID? = nil,
+		isDeletion: Bool = false
 	) async throws -> APNSClient.Response {
 		let host = isDebug
 			? "api.sandbox.push.apple.com"
@@ -348,12 +399,12 @@ struct NotificationService {
 
 		request.headers.add(
 			name: "apns-push-type",
-			value: "alert"
+			value: isDeletion ? "background" : "alert"
 		)
 
 		request.headers.add(
 			name: "apns-priority",
-			value: "10"
+			value: isDeletion ? "5" : "10"
 		)
 
 		request.headers.add(
@@ -377,14 +428,16 @@ struct NotificationService {
 		)
 
 		let payload = NotificationPayload(
+			broadcastID: broadcastID,
 			aps: .init(
-				alert: .init(
+				alert: isDeletion ? nil : .init(
 					title: title,
 					subtitle: subtitle,
 					body: body
 				),
-				sound: "default",
-				threadID: threadID
+				sound: isDeletion ? nil : "default",
+				threadID: threadID,
+				contentAvailable: isDeletion ? 1 : nil
 			)
 		)
 
@@ -421,17 +474,25 @@ struct NotificationService {
 }
 
 private struct NotificationPayload: Encodable {
+	let broadcastID: UUID?
 	let aps: APS
 
+	enum CodingKeys: String, CodingKey {
+		case broadcastID = "broadcast-id"
+		case aps
+	}
+
 	struct APS: Encodable {
-		let alert: Alert
-		let sound: String
+		let alert: Alert?
+		let sound: String?
 		let threadID: String?
+		let contentAvailable: Int?
 
 		enum CodingKeys: String, CodingKey {
 			case alert
 			case sound
 			case threadID = "thread-id"
+			case contentAvailable = "content-available"
 		}
 	}
 
