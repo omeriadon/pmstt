@@ -1,5 +1,5 @@
-import Foundation
 import Fluent
+import Foundation
 import Vapor
 
 final class SpecialProfileBadge: Model, Content, @unchecked Sendable {

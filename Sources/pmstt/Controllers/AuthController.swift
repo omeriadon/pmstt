@@ -128,7 +128,6 @@ struct AuthController: RouteCollection {
 		return try await issueNewSession(for: user, platform: platform, installationID: normalizedInstallationID(body.installationID), on: req)
 	}
 
-
 	func refresh(req: Request) async throws -> TokenResponse {
 		let body = try req.content.decode(RefreshRequest.self)
 		let submittedHash = hashToken(body.refreshToken)
@@ -255,10 +254,10 @@ struct AuthController: RouteCollection {
 		} else {
 			try await makeRefreshToken(for: session, jti: session.refreshJTI!, on: req)
 		}
-		return TokenResponse(
+		return try await TokenResponse(
 			accessToken: access,
 			refreshToken: refresh,
-			user: try await UserAccountResponse(user: user, on: req.db)
+			user: UserAccountResponse(user: user, on: req.db)
 		)
 	}
 

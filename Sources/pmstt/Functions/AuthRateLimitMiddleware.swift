@@ -53,7 +53,7 @@ extension AuthRateLimiter {
 		let requests = [
 			("verification-email:\(normalizedEmail)", 3, 600.0),
 			("verification-installation:\(installationID)", 5, 600.0),
-			("verification-ip:\(sourceIP)", 10, 600.0)
+			("verification-ip:\(sourceIP)", 10, 600.0),
 		]
 
 		for (key, limit, window) in requests {

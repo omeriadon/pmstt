@@ -11,8 +11,8 @@ func normalizedSchoolEmail(_ value: String) throws -> String {
 	let localPart = email.dropLast(suffix.count)
 	let names = localPart.split(separator: ".", omittingEmptySubsequences: false)
 	guard names.count == 2,
-		!names[0].isEmpty,
-		!String(names[1]).trimmingCharacters(in: .decimalDigits).isEmpty
+	      !names[0].isEmpty,
+	      !String(names[1]).trimmingCharacters(in: .decimalDigits).isEmpty
 	else {
 		throw AppError(.badRequest, code: .invalidRequest, reason: "Your school email must use the firstname.lastname format.", field: "email")
 	}

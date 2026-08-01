@@ -204,7 +204,7 @@ struct ProfileBadgeDTO: Content {
 extension User {
 	var decodedProfileAppearance: ProfileAppearanceDTO {
 		guard let profileAppearanceData,
-			  let appearance = try? JSONDecoder().decode(ProfileAppearanceDTO.self, from: profileAppearanceData)
+		      let appearance = try? JSONDecoder().decode(ProfileAppearanceDTO.self, from: profileAppearanceData)
 		else {
 			return .default
 		}
@@ -213,9 +213,9 @@ extension User {
 
 	func profilePhotoMetadata(on database: any Database) async throws -> ProfilePhotoMetadataDTO? {
 		guard let userID = id,
-			  let media = try await ProfileMedia.query(on: database)
-				.filter(\.$user.$id == userID)
-				.first()
+		      let media = try await ProfileMedia.query(on: database)
+		      .filter(\.$user.$id == userID)
+		      .first()
 		else {
 			return nil
 		}
@@ -244,7 +244,7 @@ extension User {
 					ProfileBadgeDTO(
 						id: UUID(uuid: (0xE9, 0x3D, 0xD9, 0xC4, 0xA5, 0xB1, 0x46, 0x94, 0x97, 0x95, 0xFD, 0x0D, 0x89, 0xC0, 0x5F, 0xB3)),
 						symbol: "wrench.and.screwdriver",
-						backgroundColor: ProfileColorDTO(red: 1, green: 1, blue: 1, alpha: 1),
+						backgroundColor: ProfileColorDTO(red: 0, green: 0, blue: 0, alpha: 1),
 						symbolColor: ProfileColorDTO(red: 1, green: 1, blue: 1, alpha: 1),
 						priority: 100,
 						accessibilityLabel: "Permanent owner"
@@ -286,15 +286,15 @@ extension User {
 
 extension UserAccountResponse {
 	init(user: User, on database: any Database) async throws {
-		self.init(
-			id: try user.requireID(),
+		try await self.init(
+			id: user.requireID(),
 			email: user.email,
 			displayName: user.displayName,
 			createdAt: user.createdAt,
 			authority: user.resolvedAccountAuthority,
 			appearance: user.decodedProfileAppearance,
-			photo: try await user.profilePhotoMetadata(on: database),
-			badges: try await user.profileBadges(on: database),
+			photo: user.profilePhotoMetadata(on: database),
+			badges: user.profileBadges(on: database),
 			revision: user.profileRevision
 		)
 	}

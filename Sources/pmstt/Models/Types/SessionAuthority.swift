@@ -34,7 +34,6 @@ enum ClientPlatform: String, Codable, Sendable {
 			case .watchOS, .legacy: false
 		}
 	}
-
 }
 
 enum SessionAuthority: String, Codable, Sendable {

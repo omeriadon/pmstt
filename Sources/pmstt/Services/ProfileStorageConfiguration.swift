@@ -12,9 +12,9 @@ struct ProfileStorageConfiguration {
 
 	static func load() throws -> ProfileStorageConfiguration {
 		guard let accountID = Environment.get("R2_ACCOUNT_ID"),
-			  let accessKeyID = Environment.get("R2_ACCESS_KEY_ID"),
-			  let secretAccessKey = Environment.get("R2_SECRET_ACCESS_KEY"),
-			  let bucketName = Environment.get("R2_BUCKET_NAME")
+		      let accessKeyID = Environment.get("R2_ACCESS_KEY_ID"),
+		      let secretAccessKey = Environment.get("R2_SECRET_ACCESS_KEY"),
+		      let bucketName = Environment.get("R2_BUCKET_NAME")
 		else {
 			throw Abort(.serviceUnavailable, reason: "Profile photo storage is not configured.")
 		}

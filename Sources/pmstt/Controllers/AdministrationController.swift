@@ -49,10 +49,10 @@ struct AdministrationController: RouteCollection {
 		_ = try await requireSystemOwner(req)
 		let request = try req.content.decode(AdministrationSpecialBadgeRequest.self)
 		let values = try validatedSpecialBadge(request)
-		let badge = SpecialProfileBadge(
+		let badge = try SpecialProfileBadge(
 			symbol: values.symbol,
-			backgroundColorData: try encodeColor(values.backgroundColor),
-			symbolColorData: try encodeColor(values.symbolColor),
+			backgroundColorData: encodeColor(values.backgroundColor),
+			symbolColorData: encodeColor(values.symbolColor),
 			priority: values.priority,
 			accessibilityLabel: values.accessibilityLabel
 		)
@@ -63,7 +63,7 @@ struct AdministrationController: RouteCollection {
 	private func updateSpecialBadge(req: Request) async throws -> AdministrationSpecialBadgeResponse {
 		_ = try await requireSystemOwner(req)
 		guard let badgeID = req.parameters.get("badgeID", as: UUID.self),
-			  let badge = try await SpecialProfileBadge.find(badgeID, on: req.db)
+		      let badge = try await SpecialProfileBadge.find(badgeID, on: req.db)
 		else {
 			throw Abort(.notFound)
 		}
@@ -82,7 +82,7 @@ struct AdministrationController: RouteCollection {
 	private func deleteSpecialBadge(req: Request) async throws -> HTTPStatus {
 		_ = try await requireSystemOwner(req)
 		guard let badgeID = req.parameters.get("badgeID", as: UUID.self),
-			  let badge = try await SpecialProfileBadge.find(badgeID, on: req.db)
+		      let badge = try await SpecialProfileBadge.find(badgeID, on: req.db)
 		else {
 			throw Abort(.notFound)
 		}
@@ -94,7 +94,7 @@ struct AdministrationController: RouteCollection {
 	private func replaceSpecialBadgeUsers(req: Request) async throws -> AdministrationSpecialBadgeResponse {
 		_ = try await requireSystemOwner(req)
 		guard let badgeID = req.parameters.get("badgeID", as: UUID.self),
-			  let badge = try await SpecialProfileBadge.find(badgeID, on: req.db)
+		      let badge = try await SpecialProfileBadge.find(badgeID, on: req.db)
 		else {
 			throw Abort(.notFound)
 		}
@@ -103,7 +103,7 @@ struct AdministrationController: RouteCollection {
 		let requestedUserIDs = Set(request.userIDs)
 		let existingUsers = try await User.query(on: req.db)
 			.filter(\.$id ~~ requestedUserIDs)
-		.all()
+			.all()
 		guard existingUsers.count == requestedUserIDs.count else {
 			throw Abort(.badRequest)
 		}
@@ -137,7 +137,7 @@ struct AdministrationController: RouteCollection {
 		var responses: [AdministrationUserResponse] = []
 		responses.reserveCapacity(users.count)
 		for user in users {
-			responses.append(try await AdministrationUserResponse(user, on: req.db))
+			try await responses.append(AdministrationUserResponse(user, on: req.db))
 		}
 		return responses
 	}
@@ -183,7 +183,7 @@ struct AdministrationController: RouteCollection {
 		let oldAuthority = user.resolvedAccountAuthority
 		let actorUserID = try systemOwner.requireID()
 		let targetUserID = try user.requireID()
-		try await req.db.transaction { database -> Void in
+		try await req.db.transaction { database in
 			user.accountAuthority = request.authority
 			try await user.update(on: database)
 			let auditRecord = AuthorityAuditRecord(
@@ -472,10 +472,10 @@ struct AdministrationController: RouteCollection {
 		let symbol = request.symbol.trimmingCharacters(in: .whitespacesAndNewlines)
 		let accessibilityLabel = request.accessibilityLabel.trimmingCharacters(in: .whitespacesAndNewlines)
 		guard !symbol.isEmpty, symbol.count <= 120,
-			  !accessibilityLabel.isEmpty, accessibilityLabel.count <= 120,
-			  (0 ... 10_000).contains(request.priority),
-			  isValidColor(request.backgroundColor),
-			  isValidColor(request.symbolColor)
+		      !accessibilityLabel.isEmpty, accessibilityLabel.count <= 120,
+		      (0 ... 10000).contains(request.priority),
+		      isValidColor(request.backgroundColor),
+		      isValidColor(request.symbolColor)
 		else {
 			throw Abort(.badRequest)
 		}
@@ -528,10 +528,10 @@ struct AdministrationController: RouteCollection {
 	}
 
 	private func eventTag(from request: AdministrationEventTagRequest, section: EventTagSection) throws -> EventTag {
-		EventTag(
-			sectionID: try section.requireID(),
-			slug: try validatedSlug(request.slug),
-			displayName: try validatedDisplayName(request.displayName),
+		try EventTag(
+			sectionID: section.requireID(),
+			slug: validatedSlug(request.slug),
+			displayName: validatedDisplayName(request.displayName),
 			category: section.category,
 			symbol: request.symbol?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
 			colorHex: request.colorHex?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
@@ -602,8 +602,8 @@ struct AdministrationController: RouteCollection {
 	) async throws {
 		if tag.category == .yearGroup,
 		   try await EventTagAssociatedName.query(on: database)
-			.filter(\.$eventTag.$id == tag.requireID())
-			.first() != nil
+		   .filter(\.$eventTag.$id == tag.requireID())
+		   .first() != nil
 		{
 			return
 		}
@@ -735,6 +735,7 @@ private struct AdministrationDashboardResponse: Content {
 	let isAdmin: Bool
 	let authority: AccountAuthority
 }
+
 private struct AdministrationUserCreateRequest: Content {
 	let displayName: String
 	let email: String
@@ -750,6 +751,7 @@ private struct AdministrationUserUpdateRequest: Content {
 private struct AdministrationUserAuthorityUpdateRequest: Content {
 	let authority: AccountAuthority
 }
+
 private struct AdministrationUserDetailResponse: Content {
 	let rawData: String
 }
@@ -775,6 +777,7 @@ private struct AdministrationUserResponse: Content {
 		badges = try await user.profileBadges(on: database)
 	}
 }
+
 private struct AdministrationEventTagCatalogueResponse: Content {
 	let sections: [AdministrationEventTagSectionResponse]
 }
@@ -887,6 +890,7 @@ private struct AdministrationEventTagSectionUpdateRequest: Content {
 	let sortOrder: Int
 	let isArchived: Bool
 }
+
 private struct AdministrationRawAccount: Content {
 	let id: UUID
 	let email: String?

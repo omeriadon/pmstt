@@ -315,8 +315,8 @@ struct NotificationService {
 	}
 
 	private func response(for record: BroadcastNotificationRecord) throws -> BroadcastNotificationResponse {
-		BroadcastNotificationResponse(
-			id: try record.requireID(),
+		try BroadcastNotificationResponse(
+			id: record.requireID(),
 			eligibleDeviceCount: record.eligibleDeviceCount,
 			deliveredDeviceCount: record.deliveredDeviceCount,
 			invalidatedDeviceCount: record.invalidatedDeviceCount,

@@ -303,8 +303,8 @@ struct FriendController: RouteCollection {
 			try await storageObject.save(on: database)
 			if let previousObjectKey,
 			   let previousObject = try await ProfileStorageObject.query(on: database)
-				.filter(\.$objectKey == previousObjectKey)
-				.first()
+			   .filter(\.$objectKey == previousObjectKey)
+			   .first()
 			{
 				previousObject.state = .superseded
 				try await previousObject.save(on: database)
@@ -334,7 +334,7 @@ struct FriendController: RouteCollection {
 	func profilePhoto(req: Request) async throws -> Response {
 		let viewerID = try req.auth.require(UserPayload.self).sub
 		guard let rawUserID = req.parameters.get("userID"),
-			  let userID = UUID(uuidString: rawUserID)
+		      let userID = UUID(uuidString: rawUserID)
 		else {
 			throw Abort(.notFound)
 		}
@@ -434,8 +434,8 @@ struct FriendController: RouteCollection {
 		guard let user = try await User.find(friend, on: req.db), let acceptedAt = friendship.acceptedAt else { throw Abort(.notFound) }
 		let friendProfile = try await profile(for: user, on: req.db)
 		let friendTimetable = try await timetable(for: friend, on: req.db)
-		return FriendDetailDTO(
-			relationshipID: try friendship.requireID(),
+		return try FriendDetailDTO(
+			relationshipID: friendship.requireID(),
 			friend: friendProfile,
 			acceptedAt: acceptedAt,
 			timetable: friendTimetable
@@ -468,14 +468,13 @@ struct FriendController: RouteCollection {
 	private func summary(for friendship: Friendship, viewerID: UUID, on database: any Database) async throws -> FriendSummaryDTO {
 		let friend = friendship.$requester.id == viewerID ? friendship.recipient : friendship.requester
 		let friendProfile = try await profile(for: friend, on: database)
-		let friendTimetable: FriendTimetableDTO?
-		if friendship.status == .accepted {
-			friendTimetable = try await timetable(for: friend.requireID(), on: database)
+		let friendTimetable: FriendTimetableDTO? = if friendship.status == .accepted {
+			try await timetable(for: friend.requireID(), on: database)
 		} else {
-			friendTimetable = nil
+			nil
 		}
-		return FriendSummaryDTO(
-			relationshipID: try friendship.requireID(),
+		return try FriendSummaryDTO(
+			relationshipID: friendship.requireID(),
 			friend: friendProfile,
 			state: relationshipState(for: friendship, viewerID: viewerID),
 			requestedAt: friendship.createdAt ?? .now,
@@ -500,14 +499,14 @@ struct FriendController: RouteCollection {
 		on database: any Database
 	) async throws -> FriendProfileDTO {
 		let photo = try await user.profilePhotoMetadata(on: database)
-		return try FriendProfileDTO(
+		return try await FriendProfileDTO(
 			userID: user.requireID(),
 			displayName: user.displayName,
 			email: includesEmail ? user.email : nil,
 			appearanceData: user.profileAppearanceData,
 			appearance: user.decodedProfileAppearance,
 			photo: photo,
-			badges: try await user.profileBadges(on: database),
+			badges: user.profileBadges(on: database),
 			revision: user.profileRevision
 		)
 	}

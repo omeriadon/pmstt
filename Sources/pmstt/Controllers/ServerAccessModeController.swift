@@ -11,8 +11,8 @@ struct ServerAccessModeController: RouteCollection {
 
 	private func read(req: Request) async throws -> ServerAccessModeResponse {
 		try await requireSystemOwner(req)
-		return ServerAccessModeResponse(
-			developmentAccessOnly: try await ServerAccessModeService.developmentAccessOnly(on: req.db)
+		return try await ServerAccessModeResponse(
+			developmentAccessOnly: ServerAccessModeService.developmentAccessOnly(on: req.db)
 		)
 	}
 
@@ -39,7 +39,7 @@ struct ServerAccessModeController: RouteCollection {
 	private func requireSystemOwner(_ req: Request) async throws {
 		let payload = try req.auth.require(UserPayload.self)
 		guard let user = try await User.find(payload.sub, on: req.db),
-			  user.resolvedAccountAuthority == .systemOwner
+		      user.resolvedAccountAuthority == .systemOwner
 		else {
 			throw Abort(.forbidden)
 		}

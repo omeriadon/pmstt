@@ -127,9 +127,9 @@ struct CalendarEventsController: RouteCollection {
 			.filter(\.$isGlobal == false)
 			.filter(\.$user.$id == userID)
 			.all()
-		return CalendarEventsResponse(
-			globalEvents: try await globalEvents.asyncMap { try await CalendarEventResponse($0, on: req.db) },
-			privateEvents: try await privateEvents.asyncMap { try await CalendarEventResponse($0, on: req.db) },
+		return try await CalendarEventsResponse(
+			globalEvents: globalEvents.asyncMap { try await CalendarEventResponse($0, on: req.db) },
+			privateEvents: privateEvents.asyncMap { try await CalendarEventResponse($0, on: req.db) },
 			canManageGlobalEvents: canManageGlobalEvents(user)
 		)
 	}
@@ -199,11 +199,10 @@ struct CalendarEventsController: RouteCollection {
 		on database: any Database
 	) async throws {
 		let uniqueTagIDs = Array(Set(requestedTagIDs))
-		let tags: [EventTag]
-		if uniqueTagIDs.isEmpty {
-			tags = []
+		let tags: [EventTag] = if uniqueTagIDs.isEmpty {
+			[]
 		} else {
-			tags = try await EventTag.query(on: database)
+			try await EventTag.query(on: database)
 				.filter(\.$id ~~ uniqueTagIDs)
 				.filter(\.$isArchived == false)
 				.all()
@@ -219,7 +218,7 @@ struct CalendarEventsController: RouteCollection {
 		for tag in tags {
 			try await CalendarEventTag(
 				calendarEventID: eventID,
-				eventTagID: try tag.requireID()
+				eventTagID: tag.requireID()
 			).create(on: database)
 		}
 	}
@@ -233,10 +232,10 @@ struct CalendarEventsController: RouteCollection {
 		}
 
 		let userID = try user.requireID()
-		let subscribedTagIDs = Set(try await AccountEventTagSubscription.query(on: database)
+		let subscribedTagIDs = try await Set(AccountEventTagSubscription.query(on: database)
 			.filter(\.$account.$id == userID)
 			.all()
-			.map { $0.$eventTag.id })
+			.map(\.$eventTag.id))
 
 		return try await globalEvents.asyncFilter { event in
 			let assignedTags = try await tags(for: event, on: database)
@@ -256,7 +255,7 @@ struct CalendarEventsController: RouteCollection {
 		let associations = try await CalendarEventTag.query(on: database)
 			.filter(\.$calendarEvent.$id == eventID)
 			.all()
-		let tagIDs = associations.map { $0.$eventTag.id }
+		let tagIDs = associations.map(\.$eventTag.id)
 		guard !tagIDs.isEmpty else {
 			return []
 		}

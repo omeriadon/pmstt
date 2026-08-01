@@ -107,7 +107,7 @@ struct ProfileStorageReconciliation {
 		do {
 			let configuration = try ProfileStorageConfiguration.load()
 			guard let token = configuration.analyticsAPIToken,
-				  !token.isEmpty
+			      !token.isEmpty
 			else {
 				application.logger.debug(
 					"Profile storage analytics reconciliation is not configured"

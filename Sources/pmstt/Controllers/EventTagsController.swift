@@ -31,8 +31,8 @@ struct EventTagsController: RouteCollection {
 
 	private func subscriptions(req: Request) async throws -> EventTagSubscriptionResponse {
 		let user = try await user(req)
-		return EventTagSubscriptionResponse(
-			tagIDs: try await subscriptionIDs(for: user, on: req.db),
+		return try await EventTagSubscriptionResponse(
+			tagIDs: subscriptionIDs(for: user, on: req.db),
 			droppedTagIDs: []
 		)
 	}
@@ -42,11 +42,10 @@ struct EventTagsController: RouteCollection {
 		let userID = try user.requireID()
 		let request = try req.content.decode(EventTagSubscriptionUpdateRequest.self)
 		let requestedTagIDs = Array(Set(request.tagIDs))
-		let tags: [EventTag]
-		if requestedTagIDs.isEmpty {
-			tags = []
+		let tags: [EventTag] = if requestedTagIDs.isEmpty {
+			[]
 		} else {
-			tags = try await EventTag.query(on: req.db)
+			try await EventTag.query(on: req.db)
 				.filter(\.$id ~~ requestedTagIDs)
 				.filter(\.$isArchived == false)
 				.all()
@@ -76,11 +75,10 @@ struct EventTagsController: RouteCollection {
 		let userID = try user.requireID()
 		let request = try req.content.decode(EventTagSubscriptionUpdateRequest.self)
 		let requestedTagIDs = Array(Set(request.tagIDs))
-		let subjectTags: [EventTag]
-		if requestedTagIDs.isEmpty {
-			subjectTags = []
+		let subjectTags: [EventTag] = if requestedTagIDs.isEmpty {
+			[]
 		} else {
-			subjectTags = try await EventTag.query(on: req.db)
+			try await EventTag.query(on: req.db)
 				.filter(\.$id ~~ requestedTagIDs)
 				.filter(\.$category == .subject)
 				.filter(\.$isArchived == false)
@@ -100,7 +98,7 @@ struct EventTagsController: RouteCollection {
 			for tag in subjectTags {
 				try await AccountEventTagSubscription(
 					accountID: userID,
-					eventTagID: try tag.requireID()
+					eventTagID: tag.requireID()
 				).create(on: database)
 			}
 		}
@@ -110,8 +108,8 @@ struct EventTagsController: RouteCollection {
 		let droppedTagIDs = requestedTagIDs.filter {
 			!acceptedSubjectTagIDs.contains($0)
 		}
-		return EventTagSubscriptionResponse(
-			tagIDs: try await subscriptionIDs(for: user, on: req.db),
+		return try await EventTagSubscriptionResponse(
+			tagIDs: subscriptionIDs(for: user, on: req.db),
 			droppedTagIDs: droppedTagIDs
 		)
 	}
@@ -129,7 +127,7 @@ struct EventTagsController: RouteCollection {
 		return try await AccountEventTagSubscription.query(on: database)
 			.filter(\.$account.$id == userID)
 			.all()
-			.map { $0.$eventTag.id }
+			.map(\.$eventTag.id)
 	}
 }
 
@@ -187,7 +185,7 @@ private extension Array {
 		var results: [T] = []
 		results.reserveCapacity(count)
 		for element in self {
-			results.append(try await transform(element))
+			try await results.append(transform(element))
 		}
 		return results
 	}
