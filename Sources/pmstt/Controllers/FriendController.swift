@@ -210,6 +210,7 @@ struct FriendController: RouteCollection {
 		try await friendship.save(on: req.db)
 		try await friendship.$requester.load(on: req.db)
 		try await friendship.$recipient.load(on: req.db)
+		let relationshipID = try friendship.requireID()
 		let requester = friendship.requester
 		let pendingRequestCount = try await Friendship.query(on: req.db)
 			.filter(\.$recipient.$id == recipientID)
@@ -220,7 +221,7 @@ struct FriendController: RouteCollection {
 				title: "Friend request",
 				body: "\(requester.displayName) sent you a friend request.",
 				threadID: "friend-requests",
-				collapseID: "friend-request-\(friendship.requireID().uuidString)",
+				collapseID: "friend-request-\(relationshipID.uuidString)",
 				to: recipientID,
 				on: req,
 				badge: pendingRequestCount,
@@ -228,14 +229,14 @@ struct FriendController: RouteCollection {
 			)
 			req.logger.info("Sent friend request notification", metadata: [
 				"recipient_id": .string(recipientID.uuidString),
-				"relationship_id": .string(friendship.requireID().uuidString),
+				"relationship_id": .string(relationshipID.uuidString),
 				"pending_request_count": .stringConvertible(pendingRequestCount),
 				"delivered_device_count": .stringConvertible(deliveredDeviceCount),
 			])
 		} catch {
 			req.logger.error("Failed to send friend request notification", metadata: [
 				"recipient_id": .string(recipientID.uuidString),
-				"relationship_id": .string(friendship.requireID().uuidString),
+				"relationship_id": .string(relationshipID.uuidString),
 				"error": .string(error.localizedDescription),
 			])
 		}
