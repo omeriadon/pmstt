@@ -52,10 +52,10 @@ struct EventTagsController: RouteCollection {
 		}
 		if !tags.contains(where: { $0.category == .yearGroup }),
 		   let defaultYearGroup = try await EventTag.query(on: req.db)
-				.filter(\.$category == .yearGroup)
-				.filter(\.$slug == "year-7")
-				.filter(\.$isArchived == false)
-				.first()
+		   .filter(\.$category == .yearGroup)
+		   .filter(\.$slug == "year-7")
+		   .filter(\.$isArchived == false)
+		   .first()
 		{
 			tags.append(defaultYearGroup)
 		}

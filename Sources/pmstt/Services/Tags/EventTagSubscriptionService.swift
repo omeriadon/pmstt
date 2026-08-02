@@ -14,7 +14,7 @@ enum EventTagSubscriptionService {
 			.filter(\.$isArchived == false)
 			.first()
 
-		for tag in [generalTag, yearSevenTag].compactMap({ $0 }) {
+		for tag in [generalTag, yearSevenTag].compactMap(\.self) {
 			let tagID = try tag.requireID()
 			let existingSubscription = try await AccountEventTagSubscription.query(on: database)
 				.filter(\.$account.$id == accountID)
