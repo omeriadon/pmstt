@@ -17,6 +17,7 @@ struct AdministrationController: RouteCollection {
 		admin.get("profile-storage-quota", use: profileStorageQuota)
 		admin.get("badges", use: specialBadges)
 		admin.post("badges", use: createSpecialBadge)
+		admin.put("badges", "order", use: reorderSpecialBadges)
 		admin.put("badges", ":badgeID", use: updateSpecialBadge)
 		admin.delete("badges", ":badgeID", use: deleteSpecialBadge)
 		admin.put("badges", ":badgeID", "users", use: replaceSpecialBadgeUsers)
@@ -44,6 +45,34 @@ struct AdministrationController: RouteCollection {
 			.sort(\.$accessibilityLabel)
 			.all()
 			.asyncMap { try await AdministrationSpecialBadgeResponse($0, on: req.db) }
+	}
+
+	private func reorderSpecialBadges(req: Request) async throws -> [AdministrationSpecialBadgeResponse] {
+		_ = try await requireSystemOwner(req)
+		let request = try req.content.decode(AdministrationSpecialBadgeOrderRequest.self)
+		guard Set(request.badgeIDs).count == request.badgeIDs.count else {
+			throw Abort(.badRequest)
+		}
+
+		let badges = try await SpecialProfileBadge.query(on: req.db).all()
+		let badgeByID = Dictionary(uniqueKeysWithValues: badges.compactMap { badge in
+			badge.id.map { ($0, badge) }
+		})
+		guard Set(request.badgeIDs) == Set(badgeByID.keys) else {
+			throw Abort(.badRequest)
+		}
+
+		try await req.db.transaction { database in
+			for (index, badgeID) in request.badgeIDs.enumerated() {
+				guard let badge = badgeByID[badgeID] else {
+					throw Abort(.badRequest)
+				}
+				badge.priority = request.badgeIDs.count - index
+				try await badge.update(on: database)
+			}
+		}
+
+		return try await specialBadges(req: req)
 	}
 
 	private func createSpecialBadge(req: Request) async throws -> AdministrationSpecialBadgeResponse {
@@ -749,6 +778,10 @@ private struct AdministrationSpecialBadgeRequest: Content {
 
 private struct AdministrationSpecialBadgeAssignmentsRequest: Content {
 	let userIDs: [UUID]
+}
+
+private struct AdministrationSpecialBadgeOrderRequest: Content {
+	let badgeIDs: [UUID]
 }
 
 private extension Array {
