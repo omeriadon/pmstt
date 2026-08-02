@@ -10,6 +10,7 @@ struct FriendController: RouteCollection {
 			.grouped(SessionAuthenticator(), UserPayload.guardMiddleware(), CapabilityMiddleware())
 		protected.get(use: list)
 		protected.get("requests", use: incomingRequests)
+		protected.get("requests", "outgoing", use: outgoingRequests)
 		protected.get("search", use: search)
 		protected.get("profile", use: profileAppearance)
 		protected.put("profile", use: updateProfileAppearance)
@@ -91,6 +92,23 @@ struct FriendController: RouteCollection {
 		let userID = try req.auth.require(UserPayload.self).sub
 		let relationships = try await Friendship.query(on: req.db)
 			.filter(\.$recipient.$id == userID)
+			.filter(\.$status == .pending)
+			.with(\.$requester)
+			.with(\.$recipient)
+			.sort(\.$createdAt, .descending)
+			.all()
+		var summaries: [FriendSummaryDTO] = []
+		for relationship in relationships {
+			let summary = try await summary(for: relationship, viewerID: userID, on: req.db)
+			summaries.append(summary)
+		}
+		return summaries
+	}
+
+	func outgoingRequests(req: Request) async throws -> [FriendSummaryDTO] {
+		let userID = try req.auth.require(UserPayload.self).sub
+		let relationships = try await Friendship.query(on: req.db)
+			.filter(\.$requester.$id == userID)
 			.filter(\.$status == .pending)
 			.with(\.$requester)
 			.with(\.$recipient)
@@ -193,14 +211,34 @@ struct FriendController: RouteCollection {
 		try await friendship.$requester.load(on: req.db)
 		try await friendship.$recipient.load(on: req.db)
 		let requester = friendship.requester
-		_ = try? await NotificationService().send(
-			title: "Friend request",
-			body: "\(requester.displayName) sent you a friend request.",
-			threadID: "friend-requests",
-			collapseID: "friend-request-\(friendship.requireID().uuidString)",
-			to: recipientID,
-			on: req
-		)
+		let pendingRequestCount = try await Friendship.query(on: req.db)
+			.filter(\.$recipient.$id == recipientID)
+			.filter(\.$status == .pending)
+			.count()
+		do {
+			let deliveredDeviceCount = try await NotificationService().send(
+				title: "Friend request",
+				body: "\(requester.displayName) sent you a friend request.",
+				threadID: "friend-requests",
+				collapseID: "friend-request-\(friendship.requireID().uuidString)",
+				to: recipientID,
+				on: req,
+				badge: pendingRequestCount,
+				notificationType: "friend-request"
+			)
+			req.logger.info("Sent friend request notification", metadata: [
+				"recipient_id": .string(recipientID.uuidString),
+				"relationship_id": .string(friendship.requireID().uuidString),
+				"pending_request_count": .stringConvertible(pendingRequestCount),
+				"delivered_device_count": .stringConvertible(deliveredDeviceCount),
+			])
+		} catch {
+			req.logger.error("Failed to send friend request notification", metadata: [
+				"recipient_id": .string(recipientID.uuidString),
+				"relationship_id": .string(friendship.requireID().uuidString),
+				"error": .string(error.localizedDescription),
+			])
+		}
 		return try await summary(for: friendship, viewerID: requesterID, on: req.db)
 	}
 

@@ -16,7 +16,9 @@ struct NotificationService {
 		threadID: String? = nil,
 		collapseID: String? = nil,
 		to userID: UUID,
-		on req: Request
+		on req: Request,
+		badge: Int? = nil,
+		notificationType: String? = nil
 	) async throws -> Int {
 		try await send(
 			title: title,
@@ -25,7 +27,9 @@ struct NotificationService {
 			collapseID: collapseID,
 			to: userID,
 			on: req.db,
-			logger: req.logger
+			logger: req.logger,
+			badge: badge,
+			notificationType: notificationType
 		)
 	}
 
@@ -36,7 +40,9 @@ struct NotificationService {
 		collapseID: String? = nil,
 		to userID: UUID,
 		installationID: String,
-		on req: Request
+		on req: Request,
+		badge: Int? = nil,
+		notificationType: String? = nil
 	) async throws -> Int {
 		try await send(
 			title: title,
@@ -46,7 +52,9 @@ struct NotificationService {
 			to: userID,
 			installationID: installationID,
 			on: req.db,
-			logger: req.logger
+			logger: req.logger,
+			badge: badge,
+			notificationType: notificationType
 		)
 	}
 
@@ -57,7 +65,9 @@ struct NotificationService {
 		collapseID: String? = nil,
 		to userID: UUID,
 		on database: any Database,
-		logger: Logger
+		logger: Logger,
+		badge: Int? = nil,
+		notificationType: String? = nil
 	) async throws -> Int {
 		let devices = try await UserDevice.query(on: database)
 			.filter(\.$user.$id == userID)
@@ -71,7 +81,9 @@ struct NotificationService {
 			to: userID,
 			devices: devices,
 			on: database,
-			logger: logger
+			logger: logger,
+			badge: badge,
+			notificationType: notificationType
 		)
 	}
 
@@ -83,7 +95,9 @@ struct NotificationService {
 		to userID: UUID,
 		installationID: String,
 		on database: any Database,
-		logger: Logger
+		logger: Logger,
+		badge: Int? = nil,
+		notificationType: String? = nil
 	) async throws -> Int {
 		let devices = try await UserDevice.query(on: database)
 			.filter(\.$user.$id == userID)
@@ -98,7 +112,9 @@ struct NotificationService {
 			to: userID,
 			devices: devices,
 			on: database,
-			logger: logger
+			logger: logger,
+			badge: badge,
+			notificationType: notificationType
 		)
 	}
 
@@ -112,7 +128,9 @@ struct NotificationService {
 		on database: any Database,
 		logger: Logger,
 		broadcastID: UUID? = nil,
-		isDeletion: Bool = false
+		isDeletion: Bool = false,
+		badge: Int? = nil,
+		notificationType: String? = nil
 	) async throws -> Int {
 		guard !devices.isEmpty else {
 			return 0
@@ -154,7 +172,9 @@ struct NotificationService {
 					config: config,
 					expiration: expiration,
 					broadcastID: broadcastID,
-					isDeletion: isDeletion
+					isDeletion: isDeletion,
+					badge: badge,
+					notificationType: notificationType
 				)
 
 				logger.info("APNs notification response", metadata: [
@@ -385,7 +405,9 @@ struct NotificationService {
 		config: APNSConfig,
 		expiration: Date,
 		broadcastID: UUID? = nil,
-		isDeletion: Bool = false
+		isDeletion: Bool = false,
+		badge: Int? = nil,
+		notificationType: String? = nil
 	) async throws -> APNSClient.Response {
 		let host = isDebug
 			? "api.sandbox.push.apple.com"
@@ -429,6 +451,7 @@ struct NotificationService {
 
 		let payload = NotificationPayload(
 			broadcastID: broadcastID,
+			notificationType: notificationType,
 			aps: .init(
 				alert: isDeletion ? nil : .init(
 					title: title,
@@ -437,7 +460,8 @@ struct NotificationService {
 				),
 				sound: isDeletion ? nil : "default",
 				threadID: threadID,
-				contentAvailable: isDeletion ? 1 : nil
+				contentAvailable: isDeletion ? 1 : nil,
+				badge: isDeletion ? nil : badge
 			)
 		)
 
@@ -475,10 +499,12 @@ struct NotificationService {
 
 private struct NotificationPayload: Encodable {
 	let broadcastID: UUID?
+	let notificationType: String?
 	let aps: APS
 
 	enum CodingKeys: String, CodingKey {
 		case broadcastID = "broadcast-id"
+		case notificationType = "notification-type"
 		case aps
 	}
 
@@ -487,12 +513,14 @@ private struct NotificationPayload: Encodable {
 		let sound: String?
 		let threadID: String?
 		let contentAvailable: Int?
+		let badge: Int?
 
 		enum CodingKeys: String, CodingKey {
 			case alert
 			case sound
 			case threadID = "thread-id"
 			case contentAvailable = "content-available"
+			case badge
 		}
 	}
 
