@@ -25,6 +25,7 @@ struct FriendController: RouteCollection {
 		protected.get("profile", "photo", ":userID", use: profilePhoto)
 		protected.post("requests", use: createRequest)
 		protected.post("requests", ":relationshipID", "accept", use: acceptRequest)
+		protected.delete("requests", ":relationshipID", use: deleteRequest)
 		protected.put("order", use: reorder)
 		protected.get(":friendID", use: detail)
 		protected.delete(":friendID", use: removeFriend)
@@ -480,6 +481,25 @@ struct FriendController: RouteCollection {
 		friendship.acceptedAt = .now
 		try await friendship.save(on: req.db)
 		return try await summary(for: friendship, viewerID: recipientID, on: req.db)
+	}
+
+	func deleteRequest(req: Request) async throws -> HTTPStatus {
+		let userID = try req.auth.require(UserPayload.self).sub
+		let relationshipID = try requireRelationshipID(req)
+		guard let friendship = try await Friendship.query(on: req.db)
+			.filter(\.$id == relationshipID)
+			.filter(\.$status == .pending)
+			.group(.or) { group in
+				group.filter(\.$requester.$id == userID)
+				group.filter(\.$recipient.$id == userID)
+			}
+			.first()
+		else {
+			throw Abort(.notFound)
+		}
+
+		try await friendship.delete(on: req.db)
+		return .noContent
 	}
 
 	func detail(req: Request) async throws -> FriendDetailDTO {
