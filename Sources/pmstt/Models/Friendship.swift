@@ -19,6 +19,9 @@ final class Friendship: Model, Content, @unchecked Sendable {
 	@Parent(key: "recipient_id")
 	var recipient: User
 
+	@Field(key: "pair_key")
+	var pairKey: String
+
 	@Field(key: "status")
 	var status: FriendshipStatus
 
@@ -39,6 +42,12 @@ final class Friendship: Model, Content, @unchecked Sendable {
 
 	init() {}
 
+	static func pairKey(for first: UUID, and second: UUID) -> String {
+		[first.uuidString.lowercased(), second.uuidString.lowercased()]
+			.sorted()
+			.joined(separator: ":")
+	}
+
 	init(
 		id: UUID? = nil,
 		requesterID: User.IDValue,
@@ -49,6 +58,7 @@ final class Friendship: Model, Content, @unchecked Sendable {
 		self.id = id
 		$requester.id = requesterID
 		$recipient.id = recipientID
+		pairKey = Self.pairKey(for: requesterID, and: recipientID)
 		self.status = status
 		self.acceptedAt = acceptedAt
 		requesterSortOrder = 0

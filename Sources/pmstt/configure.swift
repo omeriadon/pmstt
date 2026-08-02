@@ -86,6 +86,7 @@ func pmsttMigrationList() -> [any Migration] {
 		CreateReceivedTimetableImport(),
 		BackfillReceivedTimetableImports(),
 		CreateFriendship(),
+		ResetFriendshipsForRebuild(),
 		CreateTimetableShareAlias(),
 		CreateCalendarEvent(),
 		CreateSchoolCalendarEntry(),

@@ -142,21 +142,18 @@ struct FriendController: RouteCollection {
 		}
 
 		let userIDs = matches.compactMap(\.id)
+		let pairKeys = userIDs.map { Friendship.pairKey(for: viewerID, and: $0) }
 		let relationships = try await Friendship.query(on: req.db)
-			.group(.or) { group in
-				group.filter(\.$requester.$id == viewerID).filter(\.$recipient.$id ~~ userIDs)
-				group.filter(\.$recipient.$id == viewerID).filter(\.$requester.$id ~~ userIDs)
-			}
+			.filter(\.$pairKey ~~ pairKeys)
 			.all()
+		let relationshipByPairKey = Dictionary(uniqueKeysWithValues: relationships.map { ($0.pairKey, $0) })
 
 		var results: [FriendSearchResultDTO] = []
 		for user in matches {
 			guard let userID = user.id else {
 				continue
 			}
-			let relationship = relationships.first {
-				$0.$requester.id == userID || $0.$recipient.id == userID
-			}
+			let relationship = relationshipByPairKey[Friendship.pairKey(for: viewerID, and: userID)]
 			let profile = try await profile(for: user, includesEmail: true, on: req.db)
 			results.append(FriendSearchResultDTO(
 				profile: profile,
@@ -183,16 +180,11 @@ struct FriendController: RouteCollection {
 		if let existing = try await relationship(between: requesterID, and: recipientID, on: req.db) {
 			switch existing.status {
 				case .accepted:
-					return try await summary(for: existing, viewerID: requesterID, on: req.db)
+					throw AppError(.conflict, code: .invalidRequest, reason: "You are already friends.")
 				case .blocked:
 					throw AppError(.forbidden, code: .invalidRequest, reason: "This friend relationship is unavailable.")
 				case .pending:
-					if existing.$recipient.id == requesterID {
-						try await existing.$requester.load(on: req.db)
-						try await existing.$recipient.load(on: req.db)
-						return try await summary(for: existing, viewerID: requesterID, on: req.db)
-					}
-					throw AppError(.conflict, code: .invalidRequest, reason: "A friend request is already pending.")
+					return try await summary(for: existing, viewerID: requesterID, on: req.db)
 			}
 		}
 
@@ -574,10 +566,7 @@ struct FriendController: RouteCollection {
 
 	private func relationship(between first: UUID, and second: UUID, on database: any Database) async throws -> Friendship? {
 		try await Friendship.query(on: database)
-			.group(.or) { group in
-				group.filter(\.$requester.$id == first).filter(\.$recipient.$id == second)
-				group.filter(\.$requester.$id == second).filter(\.$recipient.$id == first)
-			}
+			.filter(\.$pairKey == Friendship.pairKey(for: first, and: second))
 			.with(\.$requester)
 			.with(\.$recipient)
 			.first()
