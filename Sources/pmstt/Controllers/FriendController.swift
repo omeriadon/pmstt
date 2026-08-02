@@ -486,15 +486,14 @@ struct FriendController: RouteCollection {
 	func deleteRequest(req: Request) async throws -> HTTPStatus {
 		let userID = try req.auth.require(UserPayload.self).sub
 		let relationshipID = try requireRelationshipID(req)
-		guard let friendship = try await Friendship.query(on: req.db)
-			.filter(\.$id == relationshipID)
-			.filter(\.$status == .pending)
-			.group(.or) { group in
-				group.filter(\.$requester.$id == userID)
-				group.filter(\.$recipient.$id == userID)
-			}
-			.first()
-		else {
+		let query = Friendship.query(on: req.db)
+		query.filter(\.$id == relationshipID)
+		query.filter(\.$status == .pending)
+		query.group(.or) { group in
+			group.filter(\.$requester.$id == userID)
+			group.filter(\.$recipient.$id == userID)
+		}
+		guard let friendship = try await query.first() else {
 			throw Abort(.notFound)
 		}
 
