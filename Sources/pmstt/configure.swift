@@ -110,5 +110,6 @@ func pmsttMigrationList() -> [any Migration] {
 		AddUserProfileRevision(),
 		CreateSpecialProfileBadges(),
 		RemoveBackfilledFriendships(),
+		AddDefaultYearGroupSubscriptions(),
 	]
 }

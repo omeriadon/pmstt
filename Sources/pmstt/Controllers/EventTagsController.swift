@@ -42,13 +42,22 @@ struct EventTagsController: RouteCollection {
 		let userID = try user.requireID()
 		let request = try req.content.decode(EventTagSubscriptionUpdateRequest.self)
 		let requestedTagIDs = Array(Set(request.tagIDs))
-		let tags: [EventTag] = if requestedTagIDs.isEmpty {
+		var tags: [EventTag] = if requestedTagIDs.isEmpty {
 			[]
 		} else {
 			try await EventTag.query(on: req.db)
 				.filter(\.$id ~~ requestedTagIDs)
 				.filter(\.$isArchived == false)
 				.all()
+		}
+		if !tags.contains(where: { $0.category == .yearGroup }),
+		   let defaultYearGroup = try await EventTag.query(on: req.db)
+				.filter(\.$category == .yearGroup)
+				.filter(\.$slug == "year-7")
+				.filter(\.$isArchived == false)
+				.first()
+		{
+			tags.append(defaultYearGroup)
 		}
 		let tagIDs = try tags.map { try $0.requireID() }
 		let droppedTagIDs = requestedTagIDs.filter { !tagIDs.contains($0) }
