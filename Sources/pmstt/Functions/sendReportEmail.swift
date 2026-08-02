@@ -12,9 +12,29 @@ let resendAPIKey = Environment.get("RESEND_API_KEY")!
 
 struct ResendEmailRequest: Content {
 	let from: String
-	let to: String
+	let to: [String]
 	let subject: String
 	let html: String
+}
+
+func reportRecipientEmails(on database: any Database) async throws -> [String] {
+	let administrators = try await User.query(on: database)
+		.all()
+		.compactMap { user -> String? in
+			guard user.resolvedAccountAuthority.isAdministrator else {
+				return nil
+			}
+
+			return user.email?
+				.trimmingCharacters(in: .whitespacesAndNewlines)
+				.lowercased()
+		}
+
+	return Array(
+		Set(administrators)
+			.union(AccountAuthority.systemOwnerEmails)
+			.sorted()
+	)
 }
 
 func sendReportEmail(
@@ -53,9 +73,10 @@ func sendReportEmail(
 	\(renderCreatedTimetablesHTML(createdTimetables))
 	"""
 
+	let recipients = try await reportRecipientEmails(on: req.db)
 	let email = ResendEmailRequest(
 		from: "onboarding@resend.dev",
-		to: "adon.omeri@student.education.wa.edu.au",
+		to: recipients,
 		subject: "Timetable App User Report",
 		html: html
 	)

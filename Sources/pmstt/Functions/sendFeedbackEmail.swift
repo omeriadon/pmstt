@@ -10,9 +10,10 @@ func sendFeedbackEmail(body: FeedbackRequest, reporterUser: User, req: Request) 
 	<p>\(escapeFeedbackHTML(body.message).replacingOccurrences(of: "\n", with: "<br>"))</p>
 	<p><strong>Generated:</strong> \(Date().description)</p>
 	"""
+	let recipients = try await reportRecipientEmails(on: req.db)
 	let email = ResendEmailRequest(
 		from: "onboarding@resend.dev",
-		to: "adon.omeri@student.education.wa.edu.au",
+		to: recipients,
 		subject: "Timetable App Feedback: \(body.category)",
 		html: html
 	)

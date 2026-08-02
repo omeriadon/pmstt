@@ -7,7 +7,7 @@ func sendVerificationEmail(
 ) async throws {
 	let request = ResendEmailRequest(
 		from: "Timetable <onboarding@resend.dev>",
-		to: email,
+		to: [email],
 		subject: "Your Timetable verification code",
 		html: """
 		<h1>Verify your Timetable account</h1>
