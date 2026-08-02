@@ -248,7 +248,7 @@ extension User {
 					ProfileBadgeDTO(
 						id: UUID(uuidString: "E93DD9C4-A5B1-4694-9795-FD0D89C05FB3")!,
 						symbol: "wrench.and.screwdriver",
-						backgroundColor: ProfileColorDTO(red: 1, green: 1, blue: 1, alpha: 1),
+						backgroundColor: ProfileColorDTO(red: 0, green: 0, blue: 0, alpha: 1),
 						symbolColor: ProfileColorDTO(red: 1, green: 1, blue: 1, alpha: 1),
 						priority: 100,
 						accessibilityLabel: "System Administrator"
