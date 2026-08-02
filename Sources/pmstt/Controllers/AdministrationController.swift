@@ -23,6 +23,7 @@ struct AdministrationController: RouteCollection {
 		admin.put("badges", ":badgeID", "users", use: replaceSpecialBadgeUsers)
 		admin.get("event-tags", use: eventTags)
 		admin.post("event-tags", use: createEventTag)
+		admin.put("event-tags", "order", use: reorderEventTags)
 		admin.put("event-tags", ":tagID", use: updateEventTag)
 		admin.post("event-tags", "sections", use: createEventTagSection)
 		admin.put("event-tags", "sections", ":sectionID", use: updateEventTagSection)
@@ -405,6 +406,35 @@ struct AdministrationController: RouteCollection {
 				try await removeAssociations(for: tagID, on: database)
 			}
 		}
+		return try await eventTagCatalogue(on: req.db)
+	}
+
+	private func reorderEventTags(req: Request) async throws -> AdministrationEventTagCatalogueResponse {
+		_ = try await requireAdministrator(req)
+		let request = try req.content.decode(AdministrationEventTagOrderRequest.self)
+		guard Set(request.tagIDs).count == request.tagIDs.count else {
+			throw Abort(.badRequest)
+		}
+
+		let tags = try await EventTag.query(on: req.db).all()
+		let tagsByID = Dictionary(uniqueKeysWithValues: tags.compactMap { tag in
+			tag.id.map { ($0, tag) }
+		})
+		guard Set(request.tagIDs) == Set(tagsByID.keys) else {
+			throw Abort(.badRequest)
+		}
+
+		try await req.db.transaction { database in
+			for (index, tagID) in request.tagIDs.enumerated() {
+				guard let tag = tagsByID[tagID] else {
+					throw Abort(.badRequest)
+				}
+				tag.sortOrder = index
+				tag.revision += 1
+				try await tag.update(on: database)
+			}
+		}
+
 		return try await eventTagCatalogue(on: req.db)
 	}
 
@@ -942,6 +972,10 @@ private struct AdministrationEventTagRequest: Content {
 	let sortOrder: Int
 	let isArchived: Bool
 	let associatedNames: [String]
+}
+
+private struct AdministrationEventTagOrderRequest: Content {
+	let tagIDs: [UUID]
 }
 
 private struct AdministrationEventTagSectionCreateRequest: Content {
