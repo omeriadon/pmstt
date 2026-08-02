@@ -111,5 +111,6 @@ func pmsttMigrationList() -> [any Migration] {
 		CreateSpecialProfileBadges(),
 		RemoveBackfilledFriendships(),
 		AddDefaultYearGroupSubscriptions(),
+		DisableCreatedTimetableSharing(),
 	]
 }

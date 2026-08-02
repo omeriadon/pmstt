@@ -93,7 +93,7 @@ enum AuthoritativeTimetableResolver {
 			return .ambiguous
 		}
 		if let owner {
-			return owner.isSearchable ? .available(.owner(owner)) : .privateSource(.owner(owner))
+			return .available(.owner(owner))
 		}
 		if let created {
 			return created.isSearchable ? .available(.created(created)) : .privateSource(.created(created))

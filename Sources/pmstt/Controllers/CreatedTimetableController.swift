@@ -25,7 +25,7 @@ struct CreatedTimetableController: RouteCollection {
 			passSerialNumber: UUID().uuidString,
 			subjectsData: JSONEncoder().encode(body.subjects),
 			revision: 1,
-			isSearchable: body.isSearchable
+			isSearchable: false
 		)
 		timetable.$author.value = user
 		try await timetable.save(on: req.db)
@@ -46,7 +46,7 @@ struct CreatedTimetableController: RouteCollection {
 		guard !title.isEmpty, title.count <= 100 else { throw AppError(.badRequest, code: .invalidRequest, reason: "The title must contain between 1 and 100 characters.", field: "title") }
 		timetable.subjectDisplayName = title
 		timetable.subjectsData = try JSONEncoder().encode(body.subjects)
-		timetable.isSearchable = body.isSearchable
+		timetable.isSearchable = false
 		timetable.revision += 1
 		try await timetable.save(on: req.db)
 		return try await ResolvedTimetable.created(timetable).detail(on: req.db, viewerID: payload.sub)
