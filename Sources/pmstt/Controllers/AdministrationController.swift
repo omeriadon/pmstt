@@ -303,7 +303,7 @@ struct AdministrationController: RouteCollection {
 			receivedPassMirrors: ReceivedPassMirror.query(on: req.db).filter(\.$user.$id == id).all(),
 			receivedNameOverrides: ReceivedNameOverride.query(on: req.db).filter(\.$user.$id == id).all(),
 			devices: devices.compactMap(AdministrationRawDevice.init),
-			friendships: try friendships.map(AdministrationRawFriendship.init),
+			friendships: friendships.map(AdministrationRawFriendship.init),
 			calendarEvents: CalendarEvent.query(on: req.db).filter(\.$user.$id == id).all(),
 			schoolNotificationDeliveries: SchoolNotificationDelivery.query(on: req.db).filter(\.$user.$id == id).all()
 		)

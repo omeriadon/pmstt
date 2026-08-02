@@ -271,7 +271,7 @@ struct NotificationService {
 						authorization: authorization,
 						config: config,
 						expiration: expiration,
-						broadcastID: try record.requireID()
+						broadcastID: record.requireID()
 					)
 
 					req.logger.info("APNs broadcast response", metadata: [
