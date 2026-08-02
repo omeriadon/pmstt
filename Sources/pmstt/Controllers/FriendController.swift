@@ -188,9 +188,6 @@ struct FriendController: RouteCollection {
 					throw AppError(.forbidden, code: .invalidRequest, reason: "This friend relationship is unavailable.")
 				case .pending:
 					if existing.$recipient.id == requesterID {
-						existing.status = .accepted
-						existing.acceptedAt = .now
-						try await existing.save(on: req.db)
 						try await existing.$requester.load(on: req.db)
 						try await existing.$recipient.load(on: req.db)
 						return try await summary(for: existing, viewerID: requesterID, on: req.db)
