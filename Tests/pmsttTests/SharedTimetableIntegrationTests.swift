@@ -115,7 +115,7 @@ final class SharedTimetableIntegrationTests: XCTestCase, @unchecked Sendable {
 		XCTAssertEqual(importCount, 0)
 	}
 
-	func testOnlyIOSMayMutateAndOtherRegisteredPlatformsAreForbidden() async throws {
+	func testAllMainPlatformsMayMutateReceivedTimetables() async throws {
 		let (app, importer, _) = try await makeFixture(platform: .iOS)
 		let author = try await register(app, platform: .iOS)
 		let source = try await makePublicSource(app: app, authorID: author.user.id)
@@ -123,8 +123,10 @@ final class SharedTimetableIntegrationTests: XCTestCase, @unchecked Sendable {
 		XCTAssertEqual(allowed.status, .created)
 		for platform in [ClientPlatform.iPadOS, .macOS] {
 			let client = try await register(app, platform: platform)
-			let forbidden = try await request(app, .DELETE, "/v1/timetables/received/authoritative/\(source.id!.uuidString)", token: client.accessToken)
-			XCTAssertEqual(forbidden.status, .forbidden)
+			let imported = try await request(app, .POST, "/v1/timetables/received/import", token: client.accessToken, body: ReceivedTimetableImportRequest(timetableID: XCTUnwrap(source.id)))
+			XCTAssertEqual(imported.status, .created)
+			let deleted = try await request(app, .DELETE, "/v1/timetables/received/authoritative/\(source.id!.uuidString)", token: client.accessToken)
+			XCTAssertEqual(deleted.status, .noContent)
 		}
 	}
 
@@ -330,7 +332,7 @@ final class SharedTimetableIntegrationTests: XCTestCase, @unchecked Sendable {
 	private func register(_ app: Application, platform: ClientPlatform) async throws -> TokenResponse {
 		let email = "\(UUID())@example.com"
 		let installationID = UUID().uuidString
-		if platform == .iOS {
+		if platform != .watchOS {
 			let response = try await request(app, .POST, "/v1/auth/register", body: RegisterRequest(email: email, password: "password", displayName: "User", platform: platform.rawValue, installationID: installationID))
 			return try response.content.decode(TokenResponse.self)
 		}

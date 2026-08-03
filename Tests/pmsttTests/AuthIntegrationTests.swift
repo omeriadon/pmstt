@@ -8,15 +8,15 @@ import XCTest
 import XCTVapor
 
 final class AuthIntegrationTests: XCTestCase, @unchecked Sendable {
-	func testPlatformAuthorityAndCapabilities() {
-		XCTAssertEqual(ClientPlatform.iOS.authority, .authoritative)
+	func testPlatformCapabilities() {
 		XCTAssertTrue(ClientPlatform.iOS.capabilities.contains(.mutateAccount))
-		XCTAssertEqual(ClientPlatform.iPadOS.capabilities, [.read, .logout, .mutateNotifications])
-		XCTAssertEqual(ClientPlatform.macOS.capabilities, [.read, .logout, .mutateNotifications])
-		XCTAssertEqual(ClientPlatform.watchOS.capabilities, [.read, .logout, .mutateNotifications])
-		XCTAssertTrue(ClientPlatform.iPadOS.appleAccountCreationAllowed)
-		XCTAssertTrue(ClientPlatform.macOS.appleAccountCreationAllowed)
-		XCTAssertFalse(ClientPlatform.watchOS.appleAccountCreationAllowed)
+		XCTAssertEqual(ClientPlatform.iPadOS.capabilities, ClientPlatform.macOS.capabilities)
+		XCTAssertTrue(ClientPlatform.iPadOS.capabilities.contains(.mutateAccount))
+		XCTAssertTrue(ClientPlatform.macOS.capabilities.contains(.mutateOwnerTimetable))
+		XCTAssertEqual(ClientPlatform.watchOS.capabilities, [.read, .logout])
+		XCTAssertTrue(ClientPlatform.iPadOS.signupAllowed)
+		XCTAssertTrue(ClientPlatform.macOS.signupAllowed)
+		XCTAssertFalse(ClientPlatform.watchOS.signupAllowed)
 	}
 
 	func testRegisterAndRefreshRotateTheSameSession() async throws {
@@ -47,7 +47,7 @@ final class AuthIntegrationTests: XCTestCase, @unchecked Sendable {
 		let response = try await request(app, .POST, "/v1/auth/register", body: RegisterRequest(email: "claims@example.com", password: "password", displayName: nil, platform: "iOS", installationID: "iphone-claims"))
 		let tokens = try response.content.decode(TokenResponse.self)
 		let payload = try await app.jwt.keys.verify([UInt8](tokens.refreshToken.utf8), as: RefreshPayload.self)
-		let mismatched = try await app.jwt.keys.sign(RefreshPayload(sub: payload.sub, sid: payload.sid, platform: payload.platform, installationID: "other-installation", authority: payload.authority, jti: payload.jti, typ: "refresh", iss: payload.iss, iat: payload.iat, exp: payload.exp))
+		let mismatched = try await app.jwt.keys.sign(RefreshPayload(sub: payload.sub, sid: payload.sid, platform: payload.platform, installationID: "other-installation", jti: payload.jti, typ: "refresh", iss: payload.iss, iat: payload.iat, exp: payload.exp))
 		let result = try await request(app, .POST, "/v1/auth/refresh", body: RefreshRequest(refreshToken: mismatched))
 		XCTAssertEqual(result.status, .unauthorized)
 	}
@@ -63,7 +63,7 @@ final class AuthIntegrationTests: XCTestCase, @unchecked Sendable {
 		XCTAssertEqual(results.filter { $0.status == .unauthorized }.count, 1)
 	}
 
-	func testNonAuthoritativeSessionsCanReadButCannotMutate() async throws {
+	func testIPadSessionCanReadAndMutate() async throws {
 		let app = try await makeApplication()
 		_ = try await request(app, .POST, "/v1/auth/register", body: RegisterRequest(email: "ipad@example.com", password: "password", displayName: nil, platform: "iOS", installationID: "iphone-ipad"))
 		let tokens = try await request(app, .POST, "/v1/auth/login", body: LoginRequest(email: "ipad@example.com", password: "password", platform: "iPadOS", installationID: "ipad-1")).content.decode(TokenResponse.self)
@@ -71,27 +71,21 @@ final class AuthIntegrationTests: XCTestCase, @unchecked Sendable {
 		let read = try await request(app, .GET, "/v1/account", token: tokens.accessToken, body: EmptyBody())
 		XCTAssertEqual(read.status, .ok)
 		let mutation = try await request(app, .PUT, "/v1/account", token: tokens.accessToken, body: UpdateAccountRequest(displayName: "blocked", email: nil))
-		XCTAssertEqual(mutation.status, .forbidden)
+		XCTAssertEqual(mutation.status, .ok)
 	}
 
-	func testOnlyIOSCanCreateAccountsAndIPadOSAndMacOSCanLogIntoExistingAccounts() async throws {
+	func testMainPlatformsCanCreateAccountsAndWatchCannot() async throws {
 		let app = try await makeApplication()
-		for platform in [ClientPlatform.iPadOS, .macOS, .watchOS] {
-			let denied = try await request(app, .POST, "/v1/auth/register", body: RegisterRequest(email: "create-\(platform.rawValue)@example.com", password: "password", displayName: nil, platform: platform.rawValue, installationID: "\(platform.rawValue)-new"))
-			XCTAssertEqual(denied.status, .forbidden, platform.rawValue)
+		for platform in [ClientPlatform.iOS, .iPadOS, .macOS] {
+			let registered = try await request(app, .POST, "/v1/auth/register", body: RegisterRequest(email: "create-\(platform.rawValue)@example.com", password: "password", displayName: nil, platform: platform.rawValue, installationID: "\(platform.rawValue)-new"))
+			XCTAssertEqual(registered.status, .ok, platform.rawValue)
 		}
 
-		let registered = try await request(app, .POST, "/v1/auth/register", body: RegisterRequest(email: "existing@example.com", password: "password", displayName: nil, platform: "iOS", installationID: "iphone-existing"))
-		XCTAssertEqual(registered.status, .ok)
-		for platform in [ClientPlatform.iPadOS, .macOS] {
-			let loggedIn = try await request(app, .POST, "/v1/auth/login", body: LoginRequest(email: "existing@example.com", password: "password", platform: platform.rawValue, installationID: "\(platform.rawValue)-existing"))
-			XCTAssertEqual(loggedIn.status, .ok, platform.rawValue)
-			let payload = try await app.jwt.keys.verify([UInt8](loggedIn.content.decode(TokenResponse.self).accessToken.utf8), as: UserPayload.self)
-			XCTAssertEqual(payload.platformValue, platform)
-		}
+		let denied = try await request(app, .POST, "/v1/auth/register", body: RegisterRequest(email: "create-watch@example.com", password: "password", displayName: nil, platform: ClientPlatform.watchOS.rawValue, installationID: "watch-new"))
+		XCTAssertEqual(denied.status, .forbidden)
 	}
 
-	func testNonAuthoritativeSessionsCanRegisterRemoveAndTestOnlyTheirOwnNotificationDevice() async throws {
+	func testMainPlatformSessionsCanRegisterRemoveAndTestOnlyTheirOwnNotificationDevice() async throws {
 		let app = try await makeApplication()
 		let registration = try await request(app, .POST, "/v1/auth/register", body: RegisterRequest(email: "notifications@example.com", password: "password", displayName: nil, platform: "iOS", installationID: "iphone-notifications"))
 		let iOSTokens = try registration.content.decode(TokenResponse.self)
