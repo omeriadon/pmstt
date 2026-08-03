@@ -12,19 +12,10 @@ enum ClientPlatform: String, Codable, Sendable {
 	// This is a client-declared policy identity used for capability decisions.
 	// It is not hardware attestation and must not be treated as proof of origin.
 
-	var authority: SessionAuthority {
-		switch self {
-			case .iOS: .authoritative
-			case .iPadOS, .macOS, .watchOS: .nonAuthoritative
-			case .legacy: .legacy
-		}
-	}
-
 	var signupAllowed: Bool {
 		switch self {
-			case .iOS: true
+			case .iOS, .iPadOS, .macOS: true
 			case .watchOS, .legacy: false
-			case .iPadOS, .macOS: false
 		}
 	}
 
@@ -34,12 +25,6 @@ enum ClientPlatform: String, Codable, Sendable {
 			case .watchOS, .legacy: false
 		}
 	}
-}
-
-enum SessionAuthority: String, Codable, Sendable {
-	case authoritative
-	case nonAuthoritative
-	case legacy
 }
 
 enum Capability: String, Codable, Sendable {
@@ -59,12 +44,13 @@ enum Capability: String, Codable, Sendable {
 extension ClientPlatform {
 	var capabilities: [Capability] {
 		switch self {
-			case .iOS:
+			case .iOS, .iPadOS, .macOS:
 				[.read, .logout, .mutateAccount, .mutateSettings, .mutateOwnerTimetable,
 				 .mutateCreatedTimetable, .mutateReceivedTimetable, .mutateReceivedNameOverride,
-				 .mutateNotifications, .mutateLiveActivities, .createWatchSession]
-			case .iPadOS, .macOS, .watchOS:
-				[.read, .logout, .mutateNotifications]
+				 .mutateNotifications]
+					+ (self == .iOS ? [.mutateLiveActivities, .createWatchSession] : [])
+			case .watchOS:
+				[.read, .logout]
 			case .legacy:
 				[.read, .logout]
 		}
@@ -73,9 +59,6 @@ extension ClientPlatform {
 
 enum SessionAuthorityResolver {
 	static func validate(_ payload: UserPayload, on request: Request) async throws {
-		guard payload.authority == payload.platformValue.authority.rawValue else {
-			throw Abort(.forbidden)
-		}
 		guard let user = try await User.find(payload.sub, on: request.db) else {
 			throw AppError(.notFound, code: .accountNotFound, reason: "Your account could not be found.")
 		}

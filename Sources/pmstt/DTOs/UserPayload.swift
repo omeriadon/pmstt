@@ -6,7 +6,6 @@ struct UserPayload: JWTPayload, Authenticatable {
 	let sid: UUID
 	let platform: ClientPlatform.RawValue
 	let installationID: String
-	let authority: SessionAuthority.RawValue
 	let capabilities: [Capability.RawValue]
 	let typ: String
 	let iss: IssuerClaim
@@ -22,7 +21,6 @@ struct UserPayload: JWTPayload, Authenticatable {
 		self.sid = sid
 		self.platform = platform.rawValue
 		self.installationID = installationID
-		authority = platform.authority.rawValue
 		self.capabilities = capabilities.map(\.rawValue)
 		self.typ = typ
 		iss = .init(value: "pmstt")
@@ -41,7 +39,6 @@ struct RefreshPayload: JWTPayload {
 	let sid: UUID
 	let platform: ClientPlatform.RawValue
 	let installationID: String
-	let authority: SessionAuthority.RawValue
 	let jti: UUID
 	let typ: String
 	let iss: IssuerClaim

@@ -140,8 +140,7 @@ struct AuthController: RouteCollection {
 			      session.refreshJTI == signedPayload.jti,
 			      session.$user.id == signedPayload.sub,
 			      session.platformValue.rawValue == signedPayload.platform,
-			      session.installationID == signedPayload.installationID,
-			      session.platformValue.authority.rawValue == signedPayload.authority
+			      session.installationID == signedPayload.installationID
 			else { throw AppError(.unauthorized, code: .sessionExpired, reason: "Invalid or expired session.") }
 			try await SessionAuthorityResolver.validate(UserPayload(sub: signedPayload.sub, sid: signedPayload.sid, platform: session.platformValue, installationID: signedPayload.installationID, expiresAt: Date().addingTimeInterval(60)), on: req)
 		} else {
@@ -262,7 +261,7 @@ struct AuthController: RouteCollection {
 	}
 
 	private func makeRefreshToken(for session: UserToken, jti: UUID, on req: Request) async throws -> String {
-		try await req.jwt.sign(RefreshPayload(sub: session.$user.id, sid: session.requireID(), platform: session.platformValue.rawValue, installationID: session.installationID ?? "", authority: session.platformValue.authority.rawValue, jti: jti, typ: "refresh", iss: .init(value: "pmstt"), iat: .init(value: Date()), exp: .init(value: Date().addingTimeInterval(refreshLifetime(for: session.platformValue)))))
+		try await req.jwt.sign(RefreshPayload(sub: session.$user.id, sid: session.requireID(), platform: session.platformValue.rawValue, installationID: session.installationID ?? "", jti: jti, typ: "refresh", iss: .init(value: "pmstt"), iat: .init(value: Date()), exp: .init(value: Date().addingTimeInterval(refreshLifetime(for: session.platformValue)))))
 	}
 
 	private func newRefreshToken(for session: UserToken, jti: UUID?, legacy: Bool, on req: Request) async throws -> String {
@@ -304,7 +303,7 @@ struct AuthController: RouteCollection {
 	}
 
 	private func validatedClient(platform raw: String, installationID: String) throws -> ClientPlatform {
-		guard let platform = ClientPlatform(rawValue: raw), platform.signupAllowed else { throw AppError(.forbidden, code: .invalidRequest, reason: "Only iOS can create accounts.", field: "platform") }; _ = try normalizedInstallation(installationID); return platform
+		guard let platform = ClientPlatform(rawValue: raw), platform.signupAllowed else { throw AppError(.forbidden, code: .invalidRequest, reason: "This client platform cannot create an account.", field: "platform") }; _ = try normalizedInstallation(installationID); return platform
 	}
 
 	private func validatedSessionClient(platform raw: String, installationID: String) throws -> ClientPlatform {

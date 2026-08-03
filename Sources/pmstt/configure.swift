@@ -112,5 +112,6 @@ func pmsttMigrationList() -> [any Migration] {
 		RemoveBackfilledFriendships(),
 		AddDefaultYearGroupSubscriptions(),
 		DisableCreatedTimetableSharing(),
+		InvalidateLegacyPlatformSessions(),
 	]
 }
