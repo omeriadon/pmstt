@@ -9,7 +9,7 @@ enum ModerationAction: String, Codable {
 	case rejected
 }
 
-final class UserReport: Model {
+final class UserReport: Model, @unchecked Sendable {
 	static let schema = "user_reports"
 
 	@ID(key: .id) var id: UUID?

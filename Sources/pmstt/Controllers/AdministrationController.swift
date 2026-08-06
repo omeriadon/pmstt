@@ -226,7 +226,7 @@ struct AdministrationController: RouteCollection {
 			async let reporter = User.find(report.reporterID, on: req.db)
 			async let reportedUser = User.find(report.reportedUserID, on: req.db)
 			let users = try await (reporter, reportedUser)
-			return try await AdministrationUserReportResponse(
+			return try AdministrationUserReportResponse(
 				report,
 				reporterDisplayName: users.0?.displayName,
 				reportedUserDisplayName: users.1?.displayName

@@ -1,7 +1,7 @@
 import Fluent
 import Foundation
 
-final class FriendshipDateChangeRequest: Model {
+final class FriendshipDateChangeRequest: Model, @unchecked Sendable {
 	static let schema = "friendship_date_change_requests"
 
 	@ID(key: .id) var id: UUID?
