@@ -1,4 +1,5 @@
 import Fluent
+import Foundation
 
 enum ModerationAction: String, Codable {
 	case pending

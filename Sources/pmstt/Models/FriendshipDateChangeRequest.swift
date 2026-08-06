@@ -1,4 +1,5 @@
 import Fluent
+import Foundation
 
 final class FriendshipDateChangeRequest: Model {
 	static let schema = "friendship_date_change_requests"
