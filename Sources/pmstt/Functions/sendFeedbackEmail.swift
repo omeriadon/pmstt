@@ -12,7 +12,7 @@ func sendFeedbackEmail(body: FeedbackRequest, reporterUser: User, req: Request) 
 	"""
 	let recipients = try await reportRecipientEmails(on: req.db)
 	let email = ResendEmailRequest(
-		from: "onboarding@resend.dev",
+		from: resendFromAddress,
 		to: recipients,
 		subject: "Timetable App Feedback: \(body.category)",
 		html: html
@@ -31,6 +31,7 @@ func sendFeedbackEmail(body: FeedbackRequest, reporterUser: User, req: Request) 
 			String(buffer: buffer)
 		} ?? "No response body"
 		req.logger.error("Resend email failed with status \(response.status): \(responseBody)")
+		throw Abort(.badGateway, reason: "Email failed to send.")
 	}
 	return Response(status: .created)
 }

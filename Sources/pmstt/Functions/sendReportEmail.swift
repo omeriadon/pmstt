@@ -9,6 +9,8 @@ import Fluent
 import Vapor
 
 let resendAPIKey = Environment.get("RESEND_API_KEY")!
+let resendFromAddress = Environment.get("RESEND_FROM_EMAIL") ?? "Timetable <onboarding@resend.dev>"
+let resendTestRecipientEmail = Environment.get("RESEND_TEST_RECIPIENT_EMAIL") ?? "adon.omeri@student.education.wa.edu.au"
 
 struct ResendEmailRequest: Content {
 	let from: String
@@ -18,6 +20,12 @@ struct ResendEmailRequest: Content {
 }
 
 func reportRecipientEmails(on database: any Database) async throws -> [String] {
+	// The Resend test sender may only deliver to its account email. A verified
+	// RESEND_FROM_EMAIL enables delivery to every administrator.
+	guard Environment.get("RESEND_FROM_EMAIL") != nil else {
+		return [resendTestRecipientEmail]
+	}
+
 	let administrators = try await User.query(on: database)
 		.all()
 		.compactMap { user -> String? in
@@ -75,7 +83,7 @@ func sendReportEmail(
 
 	let recipients = try await reportRecipientEmails(on: req.db)
 	let email = ResendEmailRequest(
-		from: "onboarding@resend.dev",
+		from: resendFromAddress,
 		to: recipients,
 		subject: "Timetable App User Report",
 		html: html
@@ -97,6 +105,8 @@ func sendReportEmail(
 		} ?? "No response body"
 
 		req.logger.error("Resend email failed with status \(response.status): \(responseBody)")
+
+		throw Abort(.badGateway, reason: "Email failed to send.")
 	}
 
 	return Response(status: .created)
@@ -117,7 +127,7 @@ func sendFriendshipDateChangeRequestEmail(
 	</ul>
 	"""
 	let email = ResendEmailRequest(
-		from: "onboarding@resend.dev",
+		from: resendFromAddress,
 		to: try await reportRecipientEmails(on: req.db),
 		subject: "Timetable App Friends-Since Change Request",
 		html: html
@@ -136,6 +146,7 @@ func sendFriendshipDateChangeRequestEmail(
 			String(buffer: buffer)
 		} ?? "No response body"
 		req.logger.error("Resend email failed with status \(response.status): \(responseBody)")
+		throw Abort(.badGateway, reason: "Email failed to send.")
 	}
 }
 
