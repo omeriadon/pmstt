@@ -6,6 +6,33 @@ import NIOHTTP1
 import Vapor
 
 struct NotificationService {
+	func sendToAdministrators(
+		title: String,
+		body: String,
+		threadID: String,
+		collapseID: String,
+		on req: Request
+	) async throws {
+		let administrators = try await User.query(on: req.db).all()
+		for administrator in administrators {
+			guard administrator.resolvedAccountAuthority.isAdministrator,
+			      let administratorID = administrator.id
+			else {
+				continue
+			}
+
+			_ = try await send(
+				title: title,
+				body: body,
+				threadID: threadID,
+				collapseID: collapseID,
+				to: administratorID,
+				on: req,
+				notificationType: "administrationModeration"
+			)
+		}
+	}
+
 	static func apnsExpiration(sentAt: Date) -> Date {
 		sentAt.addingTimeInterval(3 * 60)
 	}

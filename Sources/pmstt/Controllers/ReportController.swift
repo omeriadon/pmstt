@@ -50,14 +50,15 @@ struct ReportController: RouteCollection {
 				field: "reportedAccountID"
 			)
 		}
-		try await UserReport(reporterID: reporterUserID, reportedUserID: reportedUserID).create(on: req.db)
-
-		return try await sendReportEmail(
-			body: body,
-			reporterUser: reporterUser,
-			reportedUser: reportedUser,
+		let report = UserReport(reporterID: reporterUserID, reportedUserID: reportedUserID)
+		try await report.create(on: req.db)
+		try await sendModerationNotification(
+			title: "User report",
+			body: "\(reporterUser.displayName) reported \(reportedUser.displayName).",
+			collapseID: "user-report-\(try report.requireID().uuidString)",
 			req: req
 		)
+		return Response(status: .created)
 	}
 
 	func reportFeedback(req: Request) async throws -> Response {
@@ -67,6 +68,31 @@ struct ReportController: RouteCollection {
 			throw AppError(.badRequest, code: .invalidRequest, reason: "Feedback is empty or too long.", field: "message")
 		}
 		guard let reporter = try await User.find(payload.sub, on: req.db) else { throw Abort(.unauthorized) }
-		return try await sendFeedbackEmail(body: body, reporterUser: reporter, req: req)
+		try await sendModerationNotification(
+			title: "Feedback: \(body.category)",
+			body: reporter.displayName,
+			collapseID: "feedback-\(UUID().uuidString)",
+			req: req
+		)
+		return Response(status: .created)
+	}
+
+	private func sendModerationNotification(
+		title: String,
+		body: String,
+		collapseID: String,
+		req: Request
+	) async throws {
+		do {
+			try await NotificationService().sendToAdministrators(
+				title: title,
+				body: body,
+				threadID: "administration-moderation",
+				collapseID: collapseID,
+				on: req
+			)
+		} catch {
+			req.logger.error("Moderation notification delivery failed: \(error.localizedDescription)")
+		}
 	}
 }

@@ -535,12 +535,17 @@ struct FriendController: RouteCollection {
 		else {
 			throw Abort(.notFound)
 		}
-		try await sendFriendshipDateChangeRequestEmail(
-			requester: requester,
-			friend: friend,
-			requestedDate: request.requestedDate,
-			req: req
-		)
+		do {
+			try await NotificationService().sendToAdministrators(
+				title: "Friends-since request",
+				body: "\(requester.displayName) requested a date change with \(friend.displayName).",
+				threadID: "administration-moderation",
+				collapseID: "friends-since-\(try friendship.requireID().uuidString)",
+				on: req
+			)
+		} catch {
+			req.logger.error("Friends-since request notification delivery failed: \(error.localizedDescription)")
+		}
 		return .created
 	}
 

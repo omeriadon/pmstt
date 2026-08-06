@@ -159,9 +159,18 @@ struct AdministrationController: RouteCollection {
 
 	private func dashboard(req: Request) async throws -> AdministrationDashboardResponse {
 		let user = try await requireAdministrator(req)
+		async let pendingFriendshipRequests = FriendshipDateChangeRequest.query(on: req.db)
+			.filter(\.$action == .pending)
+			.count()
+		async let pendingReports = UserReport.query(on: req.db)
+			.filter(\.$action == .pending)
+			.count()
+		let pendingCounts = try await (pendingFriendshipRequests, pendingReports)
+		let pendingModerationCount = pendingCounts.0 + pendingCounts.1
 		return AdministrationDashboardResponse(
 			isAdmin: true,
-			authority: user.resolvedAccountAuthority
+			authority: user.resolvedAccountAuthority,
+			pendingModerationCount: pendingModerationCount
 		)
 	}
 
@@ -932,6 +941,7 @@ private extension Array {
 private struct AdministrationDashboardResponse: Content {
 	let isAdmin: Bool
 	let authority: AccountAuthority
+	let pendingModerationCount: Int
 }
 
 private struct AdministrationUserCreateRequest: Content {
