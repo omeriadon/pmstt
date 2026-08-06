@@ -6,6 +6,10 @@ struct LocationStatusUpdateRequest: Content {
 	let updatedAt: Date
 }
 
+struct LocationStatusCurrentResponse: Content {
+	let item: LocationStatusItem?
+}
+
 struct LocationArrivalStatisticsResponse: Content {
 	let averageArrivalSecondsSinceMidnight: Double?
 }

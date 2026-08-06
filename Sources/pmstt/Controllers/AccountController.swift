@@ -9,6 +9,7 @@ struct AccountController: RouteCollection {
 		protected.get(use: getAccount)
 		protected.put(use: updateAccount)
 		protected.delete(use: deleteAccount)
+		protected.get("status", use: currentLocationStatus)
 		protected.post("status", use: updateLocationStatus)
 		protected.get("status", "statistics", use: locationStatusStatistics)
 	}
@@ -90,6 +91,15 @@ struct AccountController: RouteCollection {
 		try user.setLocationStatusHistory(history)
 		try await user.update(on: req.db)
 		return .noContent
+	}
+
+	func currentLocationStatus(req: Request) async throws -> LocationStatusCurrentResponse {
+		let payload = try req.auth.require(UserPayload.self)
+		guard let user = try await User.find(payload.sub, on: req.db) else {
+			throw AppError(.notFound, code: .accountNotFound, reason: "User not found.")
+		}
+
+		return LocationStatusCurrentResponse(item: try user.locationStatusHistory().last)
 	}
 
 	func locationStatusStatistics(req: Request) async throws -> LocationArrivalStatisticsResponse {

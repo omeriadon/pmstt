@@ -50,6 +50,7 @@ struct ReportController: RouteCollection {
 				field: "reportedAccountID"
 			)
 		}
+		try await UserReport(reporterID: reporterUserID, reportedUserID: reportedUserID).create(on: req.db)
 
 		return try await sendReportEmail(
 			body: body,

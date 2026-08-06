@@ -104,6 +104,40 @@ func sendReportEmail(
 	return Response(status: .created)
 }
 
+func sendFriendshipDateChangeRequestEmail(
+	requester: User,
+	friend: User,
+	requestedDate: Date,
+	req: Request
+) async throws {
+	let html = """
+	<h1>Friends-Since Change Request</h1>
+	<ul>
+	 <li><strong>Requester:</strong> \(escapeHTML(requester.displayName))</li>
+	 <li><strong>Friend:</strong> \(escapeHTML(friend.displayName))</li>
+	 <li><strong>Requested date:</strong> \(escapeHTML(requestedDate.description))</li>
+	</ul>
+	"""
+	let email = ResendEmailRequest(
+		from: "onboarding@resend.dev",
+		to: try await reportRecipientEmails(on: req.db),
+		subject: "Timetable App Friends-Since Change Request",
+		html: html
+	)
+	let response = try await req.client.post(
+		URI(string: "https://api.resend.com/emails"),
+		headers: [
+			"Authorization": "Bearer \(resendAPIKey)",
+			"Content-Type": "application/json",
+		]
+	) { clientReq in
+		try clientReq.content.encode(email)
+	}
+	guard response.status == .ok || response.status == .created else {
+		throw Abort(.badGateway, reason: "Email failed to send.")
+	}
+}
+
 // MARK: - HTML Rendering
 
 private func renderUserHTML(title: String, user: User) -> String {

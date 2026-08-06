@@ -24,6 +24,7 @@ struct FriendController: RouteCollection {
 		protected.delete("profile", "photo", use: deleteProfilePhoto)
 		protected.get("profile", "photo", ":userID", use: profilePhoto)
 		protected.post("requests", use: createRequest)
+		protected.post(":friendID", "friends-since-request", use: requestFriendsSinceDate)
 		protected.post("requests", ":relationshipID", "accept", use: acceptRequest)
 		protected.delete("requests", ":relationshipID", use: deleteRequest)
 		protected.put("order", use: reorder)
@@ -508,8 +509,39 @@ struct FriendController: RouteCollection {
 			relationshipID: friendship.requireID(),
 			friend: friendProfile,
 			acceptedAt: acceptedAt,
-			timetable: friendTimetable
+			timetable: friendTimetable,
+			averageArrivalSecondsSinceMidnight: try LocationStatusStatisticsService().averageArrival(
+				for: [user.locationStatusHistory()]
+			)
 		)
+	}
+
+	func requestFriendsSinceDate(req: Request) async throws -> HTTPStatus {
+		let requesterID = try req.auth.require(UserPayload.self).sub
+		let friendID = try requireFriendID(req)
+		let request = try req.content.decode(FriendshipDateChangeRequestDTO.self)
+		guard let friendship = try await relationship(between: requesterID, and: friendID, on: req.db), friendship.status == .accepted else {
+			throw Abort(.notFound)
+		}
+
+		try await FriendshipDateChangeRequest(
+			friendshipID: try friendship.requireID(),
+			requesterID: requesterID,
+			requestedDate: request.requestedDate
+		).create(on: req.db)
+
+		guard let requester = try await User.find(requesterID, on: req.db),
+		      let friend = try await User.find(friendID, on: req.db)
+		else {
+			throw Abort(.notFound)
+		}
+		try await sendFriendshipDateChangeRequestEmail(
+			requester: requester,
+			friend: friend,
+			requestedDate: request.requestedDate,
+			req: req
+		)
+		return .created
 	}
 
 	func removeFriend(req: Request) async throws -> HTTPStatus {

@@ -114,5 +114,6 @@ func pmsttMigrationList() -> [any Migration] {
 		DisableCreatedTimetableSharing(),
 		InvalidateLegacyPlatformSessions(),
 		AddUserLocationStatusHistory(),
+		CreateModerationRecords(),
 	]
 }

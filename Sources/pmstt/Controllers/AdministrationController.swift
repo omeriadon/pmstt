@@ -6,6 +6,10 @@ struct AdministrationController: RouteCollection {
 		let admin = routes.grouped("v1", "administration").grouped(SessionAuthenticator(), UserPayload.guardMiddleware(), CapabilityMiddleware())
 		admin.get(use: dashboard)
 		admin.get("statistics", use: locationStatusStatistics)
+		admin.get("friends-since-requests", use: friendshipDateChangeRequests)
+		admin.put("friends-since-requests", ":requestID", use: resolveFriendshipDateChangeRequest)
+		admin.get("user-reports", use: userReports)
+		admin.put("user-reports", ":reportID", use: resolveUserReport)
 		admin.get("users", use: users)
 		admin.get("users", ":userID", use: userDetail)
 		admin.post("users", use: createUser)
@@ -169,6 +173,95 @@ struct AdministrationController: RouteCollection {
 		return AdministrationStatisticsResponse(
 			totalUsers: users.count,
 			averageArrivalSecondsSinceMidnight: LocationStatusStatisticsService().averageArrival(for: histories)
+		)
+	}
+
+	private func friendshipDateChangeRequests(req: Request) async throws -> [AdministrationFriendshipDateChangeRequestResponse] {
+		_ = try await requireAdministrator(req)
+		let requests = try await FriendshipDateChangeRequest.query(on: req.db)
+			.sort(\.$createdAt, .descending)
+			.all()
+		return try await requests.asyncMap { request in
+			let requester = try await User.find(request.requesterID, on: req.db)
+			return try AdministrationFriendshipDateChangeRequestResponse(
+				request,
+				requesterDisplayName: requester?.displayName
+			)
+		}
+	}
+
+	private func resolveFriendshipDateChangeRequest(req: Request) async throws -> AdministrationFriendshipDateChangeRequestResponse {
+		_ = try await requireAdministrator(req)
+		guard let requestID = req.parameters.get("requestID", as: UUID.self),
+		      let changeRequest = try await FriendshipDateChangeRequest.find(requestID, on: req.db)
+		else {
+			throw Abort(.notFound)
+		}
+		let resolution = try req.content.decode(AdministrationModerationResolutionRequest.self)
+		guard resolution.action == .approved || resolution.action == .rejected else {
+			throw Abort(.badRequest)
+		}
+		if resolution.action == .approved {
+			guard let friendship = try await Friendship.find(changeRequest.friendshipID, on: req.db) else {
+				throw Abort(.notFound)
+			}
+			friendship.acceptedAt = changeRequest.requestedDate
+			try await friendship.update(on: req.db)
+		}
+		changeRequest.action = resolution.action
+		try await changeRequest.update(on: req.db)
+		let requester = try await User.find(changeRequest.requesterID, on: req.db)
+		return try AdministrationFriendshipDateChangeRequestResponse(
+			changeRequest,
+			requesterDisplayName: requester?.displayName
+		)
+	}
+
+	private func userReports(req: Request) async throws -> [AdministrationUserReportResponse] {
+		_ = try await requireAdministrator(req)
+		let reports = try await UserReport.query(on: req.db)
+			.sort(\.$createdAt, .descending)
+			.all()
+		return try await reports.asyncMap { report in
+			async let reporter = User.find(report.reporterID, on: req.db)
+			async let reportedUser = User.find(report.reportedUserID, on: req.db)
+			let users = try await (reporter, reportedUser)
+			return try await AdministrationUserReportResponse(
+				report,
+				reporterDisplayName: users.0?.displayName,
+				reportedUserDisplayName: users.1?.displayName
+			)
+		}
+	}
+
+	private func resolveUserReport(req: Request) async throws -> AdministrationUserReportResponse {
+		_ = try await requireAdministrator(req)
+		guard let reportID = req.parameters.get("reportID", as: UUID.self),
+		      let report = try await UserReport.find(reportID, on: req.db)
+		else {
+			throw Abort(.notFound)
+		}
+		let resolution = try req.content.decode(AdministrationModerationResolutionRequest.self)
+		guard resolution.action == .noAction || resolution.action == .accountDeleted else {
+			throw Abort(.badRequest)
+		}
+		if resolution.action == .accountDeleted,
+		   let reportedUser = try await User.find(report.reportedUserID, on: req.db)
+		{
+			try preventChangingSystemOwner(reportedUser)
+			report.action = resolution.action
+			try await report.update(on: req.db)
+			try await reportedUser.delete(on: req.db)
+		} else {
+			report.action = resolution.action
+			try await report.update(on: req.db)
+		}
+		let reporter = try await User.find(report.reporterID, on: req.db)
+		let reportedUser = try await User.find(report.reportedUserID, on: req.db)
+		return try AdministrationUserReportResponse(
+			report,
+			reporterDisplayName: reporter?.displayName,
+			reportedUserDisplayName: reportedUser?.displayName
 		)
 	}
 
@@ -1002,12 +1095,59 @@ private struct AdministrationEventTagSectionUpdateRequest: Content {
 	let isArchived: Bool
 }
 
+private struct AdministrationModerationResolutionRequest: Content {
+	let action: ModerationAction
+}
+
+private struct AdministrationFriendshipDateChangeRequestResponse: Content {
+	let id: UUID
+	let requesterID: UUID
+	let requesterDisplayName: String?
+	let requestedDate: Date
+	let action: ModerationAction
+	let createdAt: Date?
+
+	init(_ request: FriendshipDateChangeRequest, requesterDisplayName: String?) throws {
+		id = try request.requireID()
+		requesterID = request.requesterID
+		self.requesterDisplayName = requesterDisplayName
+		requestedDate = request.requestedDate
+		action = request.action
+		createdAt = request.createdAt
+	}
+}
+
+private struct AdministrationUserReportResponse: Content {
+	let id: UUID
+	let reporterID: UUID
+	let reporterDisplayName: String?
+	let reportedUserID: UUID
+	let reportedUserDisplayName: String?
+	let action: ModerationAction
+	let createdAt: Date?
+
+	init(
+		_ report: UserReport,
+		reporterDisplayName: String?,
+		reportedUserDisplayName: String?
+	) throws {
+		id = try report.requireID()
+		reporterID = report.reporterID
+		self.reporterDisplayName = reporterDisplayName
+		reportedUserID = report.reportedUserID
+		self.reportedUserDisplayName = reportedUserDisplayName
+		action = report.action
+		createdAt = report.createdAt
+	}
+}
+
 private struct AdministrationRawAccount: Content {
 	let id: UUID
 	let email: String?
 	let displayName: String
 	let selfPassSerialNumber: String
 	let settingsData: Data
+	let locationStatusHistory: [LocationStatusItem]
 	let createdAt: Date?
 	let updatedAt: Date?
 
@@ -1017,6 +1157,7 @@ private struct AdministrationRawAccount: Content {
 		displayName = user.displayName
 		selfPassSerialNumber = user.selfPassSerialNumber
 		settingsData = user.settingsData
+		locationStatusHistory = try user.locationStatusHistory()
 		createdAt = user.createdAt
 		updatedAt = user.updatedAt
 	}

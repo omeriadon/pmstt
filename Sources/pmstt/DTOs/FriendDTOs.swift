@@ -37,6 +37,7 @@ struct FriendDetailDTO: Content {
 	let friend: FriendProfileDTO
 	let acceptedAt: Date
 	let timetable: FriendTimetableDTO?
+	let averageArrivalSecondsSinceMidnight: Double?
 }
 
 struct FriendSearchResultDTO: Content {
@@ -46,6 +47,10 @@ struct FriendSearchResultDTO: Content {
 
 struct CreateFriendRequest: Content {
 	let userID: UUID
+}
+
+struct FriendshipDateChangeRequestDTO: Content {
+	let requestedDate: Date
 }
 
 struct FriendProfileAppearanceUpdateRequest: Content {
