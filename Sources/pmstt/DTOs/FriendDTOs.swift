@@ -24,6 +24,7 @@ struct FriendSummaryDTO: Content {
 	let requestedAt: Date
 	let acceptedAt: Date?
 	let timetable: FriendTimetableDTO?
+	let locationStatus: LocationStatusItem?
 }
 
 struct FriendTimetableDTO: Content {

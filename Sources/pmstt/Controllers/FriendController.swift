@@ -581,7 +581,8 @@ struct FriendController: RouteCollection {
 			state: relationshipState(for: friendship, viewerID: viewerID),
 			requestedAt: friendship.createdAt ?? .now,
 			acceptedAt: friendship.acceptedAt,
-			timetable: friendTimetable
+			timetable: friendTimetable,
+			locationStatus: try friend.locationStatusHistory().last
 		)
 	}
 
