@@ -34,6 +34,9 @@ final class User: Model, Content, @unchecked Sendable {
 	@Field(key: "account_authority")
 	var accountAuthority: AccountAuthority
 
+	@OptionalField(key: "location_status_data")
+	var locationStatusData: Data?
+
 	@Timestamp(key: "created_at", on: .create)
 	var createdAt: Date?
 
@@ -68,5 +71,17 @@ final class User: Model, Content, @unchecked Sendable {
 
 	var resolvedAccountAuthority: AccountAuthority {
 		AccountAuthority.resolved(for: email, storedAuthority: accountAuthority)
+	}
+
+	func locationStatusHistory() throws -> [LocationStatusItem] {
+		guard let locationStatusData else {
+			return []
+		}
+
+		return try JSONDecoder().decode([LocationStatusItem].self, from: locationStatusData)
+	}
+
+	func setLocationStatusHistory(_ history: [LocationStatusItem]) throws {
+		locationStatusData = try JSONEncoder().encode(history)
 	}
 }

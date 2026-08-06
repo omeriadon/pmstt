@@ -9,6 +9,8 @@ struct AccountController: RouteCollection {
 		protected.get(use: getAccount)
 		protected.put(use: updateAccount)
 		protected.delete(use: deleteAccount)
+		protected.post("status", use: updateLocationStatus)
+		protected.get("status", "statistics", use: locationStatusStatistics)
 	}
 
 	func getAccount(req: Request) async throws -> UserAccountResponse {
@@ -67,6 +69,40 @@ struct AccountController: RouteCollection {
 		await SchoolDayActivityCoordinator().endActivities(forUserID: payload.sub, database: req.db, logger: req.logger)
 		try await user.delete(on: req.db)
 		return .noContent
+	}
+
+	func updateLocationStatus(req: Request) async throws -> HTTPStatus {
+		let payload = try req.auth.require(UserPayload.self)
+		guard payload.platformValue == .iOS else {
+			throw Abort(.forbidden)
+		}
+		guard let user = try await User.find(payload.sub, on: req.db) else {
+			throw AppError(.notFound, code: .accountNotFound, reason: "User not found.")
+		}
+
+		let request = try req.content.decode(LocationStatusUpdateRequest.self)
+		var history = try user.locationStatusHistory()
+		guard history.last?.state != request.state else {
+			return .noContent
+		}
+
+		history.append(LocationStatusItem(state: request.state, updatedAt: request.updatedAt))
+		try user.setLocationStatusHistory(history)
+		try await user.update(on: req.db)
+		return .noContent
+	}
+
+	func locationStatusStatistics(req: Request) async throws -> LocationArrivalStatisticsResponse {
+		let payload = try req.auth.require(UserPayload.self)
+		guard let user = try await User.find(payload.sub, on: req.db) else {
+			throw AppError(.notFound, code: .accountNotFound, reason: "User not found.")
+		}
+
+		return try LocationArrivalStatisticsResponse(
+			averageArrivalSecondsSinceMidnight: LocationStatusStatisticsService().averageArrival(
+				for: [user.locationStatusHistory()]
+			)
+		)
 	}
 
 	private func requireMatchingRevision(

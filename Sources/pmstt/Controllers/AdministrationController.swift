@@ -5,6 +5,7 @@ struct AdministrationController: RouteCollection {
 	func boot(routes: any RoutesBuilder) throws {
 		let admin = routes.grouped("v1", "administration").grouped(SessionAuthenticator(), UserPayload.guardMiddleware(), CapabilityMiddleware())
 		admin.get(use: dashboard)
+		admin.get("statistics", use: locationStatusStatistics)
 		admin.get("users", use: users)
 		admin.get("users", ":userID", use: userDetail)
 		admin.post("users", use: createUser)
@@ -157,6 +158,16 @@ struct AdministrationController: RouteCollection {
 		return AdministrationDashboardResponse(
 			isAdmin: true,
 			authority: user.resolvedAccountAuthority
+		)
+	}
+
+	private func locationStatusStatistics(req: Request) async throws -> LocationArrivalStatisticsResponse {
+		_ = try await requireAdministrator(req)
+		let users = try await User.query(on: req.db).all()
+		let histories = try users.map { try $0.locationStatusHistory() }
+
+		return LocationArrivalStatisticsResponse(
+			averageArrivalSecondsSinceMidnight: LocationStatusStatisticsService().averageArrival(for: histories)
 		)
 	}
 
