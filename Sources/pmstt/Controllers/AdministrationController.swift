@@ -161,12 +161,13 @@ struct AdministrationController: RouteCollection {
 		)
 	}
 
-	private func locationStatusStatistics(req: Request) async throws -> LocationArrivalStatisticsResponse {
+	private func locationStatusStatistics(req: Request) async throws -> AdministrationStatisticsResponse {
 		_ = try await requireAdministrator(req)
 		let users = try await User.query(on: req.db).all()
 		let histories = try users.map { try $0.locationStatusHistory() }
 
-		return LocationArrivalStatisticsResponse(
+		return AdministrationStatisticsResponse(
+			totalUsers: users.count,
 			averageArrivalSecondsSinceMidnight: LocationStatusStatisticsService().averageArrival(for: histories)
 		)
 	}

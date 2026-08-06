@@ -9,3 +9,8 @@ struct LocationStatusUpdateRequest: Content {
 struct LocationArrivalStatisticsResponse: Content {
 	let averageArrivalSecondsSinceMidnight: Double?
 }
+
+struct AdministrationStatisticsResponse: Content {
+	let totalUsers: Int
+	let averageArrivalSecondsSinceMidnight: Double?
+}

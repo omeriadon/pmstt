@@ -45,7 +45,7 @@ struct FriendSearchResultDTO: Content {
 }
 
 struct CreateFriendRequest: Content {
-	let schoolEmail: String
+	let userID: UUID
 }
 
 struct FriendProfileAppearanceUpdateRequest: Content {

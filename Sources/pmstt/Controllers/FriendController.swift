@@ -127,7 +127,6 @@ struct FriendController: RouteCollection {
 		let viewerID = try req.auth.require(UserPayload.self).sub
 		let query = (req.query[String.self, at: "q"] ?? "")
 			.trimmingCharacters(in: .whitespacesAndNewlines)
-			.lowercased()
 		guard (2 ... 254).contains(query.count) else {
 			return []
 		}
@@ -138,9 +137,7 @@ struct FriendController: RouteCollection {
 				return nil
 			}
 
-			let confidence = [user.email ?? "", user.displayName]
-				.compactMap { $0.confidenceScore(query) }
-				.min()
+			let confidence = user.displayName.confidenceScore(query)
 
 			guard let confidence, confidence <= 0.5 else {
 				return nil
@@ -173,7 +170,7 @@ struct FriendController: RouteCollection {
 				continue
 			}
 			let relationship = relationshipByPairKey[Friendship.pairKey(for: viewerID, and: userID)]
-			let profile = try await profile(for: user, includesEmail: true, on: req.db)
+			let profile = try await profile(for: user, on: req.db)
 			results.append(FriendSearchResultDTO(
 				profile: profile,
 				relationship: relationship.map { relationshipState(for: $0, viewerID: viewerID) }
@@ -185,15 +182,11 @@ struct FriendController: RouteCollection {
 	func createRequest(req: Request) async throws -> FriendSummaryDTO {
 		let requesterID = try req.auth.require(UserPayload.self).sub
 		let body = try req.content.decode(CreateFriendRequest.self)
-		let schoolEmail = body.schoolEmail.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-		guard schoolEmail.contains("@"), schoolEmail.count <= 254 else {
-			throw AppError(.badRequest, code: .invalidRequest, reason: "Enter a valid school email address.", field: "schoolEmail")
-		}
-		guard let recipient = try await User.query(on: req.db).filter(\.$email == schoolEmail).first(), let recipientID = recipient.id else {
-			throw AppError(.notFound, code: .accountNotFound, reason: "No account uses that school email address.", field: "schoolEmail")
+		guard let recipient = try await User.find(body.userID, on: req.db), let recipientID = recipient.id else {
+			throw AppError(.notFound, code: .accountNotFound, reason: "No matching account was found.", field: "userID")
 		}
 		guard recipientID != requesterID else {
-			throw AppError(.badRequest, code: .invalidRequest, reason: "You cannot add yourself.", field: "schoolEmail")
+			throw AppError(.badRequest, code: .invalidRequest, reason: "You cannot add yourself.", field: "userID")
 		}
 
 		if let existing = try await relationship(between: requesterID, and: recipientID, on: req.db) {
