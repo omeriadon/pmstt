@@ -52,12 +52,17 @@ struct ReportController: RouteCollection {
 		}
 		try await UserReport(reporterID: reporterUserID, reportedUserID: reportedUserID).create(on: req.db)
 
-		return try await sendReportEmail(
-			body: body,
-			reporterUser: reporterUser,
-			reportedUser: reportedUser,
-			req: req
-		)
+		do {
+			return try await sendReportEmail(
+				body: body,
+				reporterUser: reporterUser,
+				reportedUser: reportedUser,
+				req: req
+			)
+		} catch {
+			req.logger.error("User report email delivery failed: \(error.localizedDescription)")
+			return Response(status: .created)
+		}
 	}
 
 	func reportFeedback(req: Request) async throws -> Response {
@@ -67,6 +72,11 @@ struct ReportController: RouteCollection {
 			throw AppError(.badRequest, code: .invalidRequest, reason: "Feedback is empty or too long.", field: "message")
 		}
 		guard let reporter = try await User.find(payload.sub, on: req.db) else { throw Abort(.unauthorized) }
-		return try await sendFeedbackEmail(body: body, reporterUser: reporter, req: req)
+		do {
+			return try await sendFeedbackEmail(body: body, reporterUser: reporter, req: req)
+		} catch {
+			req.logger.error("Feedback email delivery failed: \(error.localizedDescription)")
+			return Response(status: .created)
+		}
 	}
 }

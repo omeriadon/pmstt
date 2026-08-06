@@ -535,12 +535,16 @@ struct FriendController: RouteCollection {
 		else {
 			throw Abort(.notFound)
 		}
-		try await sendFriendshipDateChangeRequestEmail(
-			requester: requester,
-			friend: friend,
-			requestedDate: request.requestedDate,
-			req: req
-		)
+		do {
+			try await sendFriendshipDateChangeRequestEmail(
+				requester: requester,
+				friend: friend,
+				requestedDate: request.requestedDate,
+				req: req
+			)
+		} catch {
+			req.logger.error("Friends-since request email delivery failed: \(error.localizedDescription)")
+		}
 		return .created
 	}
 

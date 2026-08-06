@@ -27,7 +27,10 @@ func sendFeedbackEmail(body: FeedbackRequest, reporterUser: User, req: Request) 
 		try clientReq.content.encode(email)
 	}
 	guard response.status == .ok || response.status == .created else {
-		throw Abort(.badGateway, reason: "Email failed to send.")
+		let responseBody = response.body.map { buffer in
+			String(buffer: buffer)
+		} ?? "No response body"
+		req.logger.error("Resend email failed with status \(response.status): \(responseBody)")
 	}
 	return Response(status: .created)
 }

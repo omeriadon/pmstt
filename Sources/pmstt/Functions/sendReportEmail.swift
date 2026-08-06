@@ -97,8 +97,6 @@ func sendReportEmail(
 		} ?? "No response body"
 
 		req.logger.error("Resend email failed with status \(response.status): \(responseBody)")
-
-		throw Abort(.badGateway, reason: "Email failed to send.")
 	}
 
 	return Response(status: .created)
@@ -134,7 +132,10 @@ func sendFriendshipDateChangeRequestEmail(
 		try clientReq.content.encode(email)
 	}
 	guard response.status == .ok || response.status == .created else {
-		throw Abort(.badGateway, reason: "Email failed to send.")
+		let responseBody = response.body.map { buffer in
+			String(buffer: buffer)
+		} ?? "No response body"
+		req.logger.error("Resend email failed with status \(response.status): \(responseBody)")
 	}
 }
 
