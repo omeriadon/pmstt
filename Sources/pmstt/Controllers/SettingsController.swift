@@ -86,7 +86,9 @@ struct SettingsController: RouteCollection {
 	}
 
 	private func validate(_ settings: UpdateSettingsRequest) throws {
-		_ = settings
+		guard [0, 7, 30, 365].contains(settings.calendarEventAutoDeleteDays) else {
+			throw Abort(.badRequest, reason: "Invalid calendar event deletion policy.")
+		}
 	}
 
 	private func requireMatchingRevision(

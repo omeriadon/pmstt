@@ -18,6 +18,12 @@ struct SchoolNotificationScheduler {
 	}
 
 	func tick(at date: Date, database: any Database, logger: Logger) async {
+		do {
+			try await deleteExpiredCalendarEvents(at: date, database: database, logger: logger)
+		} catch {
+			logger.report(error: error, metadata: ["calendar_event_cleanup": .string("tick")])
+		}
+
 		let hour = schoolCalendar.calendar.component(.hour, from: date)
 		let minute = schoolCalendar.calendar.component(.minute, from: date)
 		let schoolDayIndex = schoolCalendar.isSchoolDay(date) ? schoolCalendar.dayIndex(for: date) : nil
@@ -96,6 +102,51 @@ struct SchoolNotificationScheduler {
 			}
 		} catch {
 			logger.report(error: error, metadata: ["school_notification_scheduler": .string("tick")])
+		}
+	}
+
+	private func deleteExpiredCalendarEvents(
+		at date: Date,
+		database: any Database,
+		logger: Logger
+	) async throws {
+		let users = try await User.query(on: database).all()
+		for user in users {
+			let settings = try JSONDecoder().decode(AccountSettings.self, from: user.settingsData)
+			guard settings.calendarEventAutoDeleteDays > 0,
+			      let userID = user.id,
+			      let cutoff = schoolCalendar.calendar.date(
+			      	byAdding: .day,
+			      	value: -settings.calendarEventAutoDeleteDays,
+			      	to: date
+			      )
+			else {
+				continue
+			}
+
+			let cutoffKey = schoolDateKey(cutoff)
+			let events = try await CalendarEvent.query(on: database)
+				.filter(\.$user.$id == userID)
+				.filter(\.$isGlobal == false)
+				.filter(\.$eventDate < cutoffKey)
+				.all()
+
+			for event in events {
+				let eventID = try event.requireID()
+				try await database.transaction { transaction in
+					try await event.delete(on: transaction)
+					try await SyncRecordTombstone(
+						userID: userID,
+						recordType: .privateCalendarEvent,
+						recordID: eventID,
+						revision: event.revision + 1
+					).create(on: transaction)
+				}
+				logger.info("Deleted expired private calendar event", metadata: [
+					"user_id": .string(userID.uuidString),
+					"event_id": .string(eventID.uuidString),
+				])
+			}
 		}
 	}
 

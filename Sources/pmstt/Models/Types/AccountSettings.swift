@@ -23,6 +23,7 @@ struct AccountSettings: Content, Hashable {
 	var notificationLeadTimes: Set<NotificationLeadTime>
 	var breakToPeriodNotificationLeadTimes: Set<NotificationLeadTime>
 	var eventNotificationSchedules: Set<EventNotificationSchedule>
+	var calendarEventAutoDeleteDays: Int
 	var serverRevision: Int
 
 	static var `default`: AccountSettings {
@@ -34,6 +35,7 @@ struct AccountSettings: Content, Hashable {
 			notificationLeadTimes: [.zero],
 			breakToPeriodNotificationLeadTimes: [.zero],
 			eventNotificationSchedules: [],
+			calendarEventAutoDeleteDays: 0,
 			serverRevision: 0
 		)
 	}
@@ -61,6 +63,7 @@ extension AccountSettings {
 		}
 		breakToPeriodNotificationLeadTimes = try container.decodeIfPresent(Set<NotificationLeadTime>.self, forKey: .breakToPeriodNotificationLeadTimes) ?? defaults.breakToPeriodNotificationLeadTimes
 		eventNotificationSchedules = try container.decodeIfPresent(Set<EventNotificationSchedule>.self, forKey: .eventNotificationSchedules) ?? defaults.eventNotificationSchedules
+		calendarEventAutoDeleteDays = try container.decodeIfPresent(Int.self, forKey: .calendarEventAutoDeleteDays) ?? defaults.calendarEventAutoDeleteDays
 		serverRevision = try container.decodeIfPresent(Int.self, forKey: .serverRevision) ?? 0
 	}
 }

@@ -71,6 +71,7 @@ struct UpdateSettingsRequest: Content {
 	var notificationLeadTimes: Set<NotificationLeadTime>
 	var breakToPeriodNotificationLeadTimes: Set<NotificationLeadTime>
 	var eventNotificationSchedules: Set<EventNotificationSchedule>
+	var calendarEventAutoDeleteDays: Int
 	var serverRevision: Int?
 
 	static let `default` = UpdateSettingsRequest(
@@ -81,6 +82,7 @@ struct UpdateSettingsRequest: Content {
 		notificationLeadTimes: [.zero],
 		breakToPeriodNotificationLeadTimes: [.zero],
 		eventNotificationSchedules: [],
+		calendarEventAutoDeleteDays: 0,
 		serverRevision: nil
 	)
 
@@ -93,6 +95,7 @@ struct UpdateSettingsRequest: Content {
 			notificationLeadTimes: notificationLeadTimes,
 			breakToPeriodNotificationLeadTimes: breakToPeriodNotificationLeadTimes,
 			eventNotificationSchedules: eventNotificationSchedules,
+			calendarEventAutoDeleteDays: calendarEventAutoDeleteDays,
 			serverRevision: serverRevision ?? 0
 		)
 	}
@@ -155,6 +158,7 @@ extension UpdateSettingsRequest {
 		}
 		breakToPeriodNotificationLeadTimes = try container.decodeIfPresent(Set<NotificationLeadTime>.self, forKey: .breakToPeriodNotificationLeadTimes) ?? defaults.breakToPeriodNotificationLeadTimes
 		eventNotificationSchedules = try container.decodeIfPresent(Set<EventNotificationSchedule>.self, forKey: .eventNotificationSchedules) ?? defaults.eventNotificationSchedules
+		calendarEventAutoDeleteDays = try container.decodeIfPresent(Int.self, forKey: .calendarEventAutoDeleteDays) ?? defaults.calendarEventAutoDeleteDays
 		serverRevision = try container.decodeIfPresent(Int.self, forKey: .serverRevision)
 	}
 }
