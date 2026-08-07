@@ -27,7 +27,7 @@ func sendVerificationEmail(
 			+ "\n\nThis code expires in ten minutes."
 	)
 
-	try await withCheckedThrowingContinuation { continuation in
+	try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
 		smtp.send(mail) { error in
 			if let error {
 				continuation.resume(throwing: error)

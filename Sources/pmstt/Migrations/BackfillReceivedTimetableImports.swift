@@ -19,7 +19,6 @@ struct BackfillReceivedTimetableImports: AsyncMigration {
 				guard !mirrors.isEmpty else { return (0, 0, 0) }
 
 				let issuerIDs = Set(mirrors.compactMap { UUID(uuidString: $0.issuerAccountID) })
-				let serials = Set(mirrors.map(\.passSerialNumber))
 				let owners = issuerIDs.isEmpty ? [] : try await OwnerTimetable.query(on: database).filter(\.$user.$id ~~ issuerIDs).with(\.$user).all()
 				let ownerByIdentity: [String: UUID] = Dictionary(uniqueKeysWithValues: owners.compactMap { owner in
 					guard let id = owner.id else { return nil }
