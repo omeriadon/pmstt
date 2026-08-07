@@ -178,9 +178,42 @@ struct AdministrationController: RouteCollection {
 		_ = try await requireAdministrator(req)
 		let users = try await User.query(on: req.db).all()
 		let histories = try users.map { try $0.locationStatusHistory() }
+		let activeDeviceCutoff = Date().addingTimeInterval(-30 * 24 * 60 * 60)
+		async let usersWithOwnerTimetable = OwnerTimetable.query(on: req.db).count()
+		async let activeDevicesLast30Days = UserDevice.query(on: req.db)
+			.filter(\.$lastSeenAt >= activeDeviceCutoff)
+			.count()
+		async let acceptedFriendships = Friendship.query(on: req.db)
+			.filter(\.$status == .accepted)
+			.count()
+		async let totalCalendarEvents = CalendarEvent.query(on: req.db).count()
+		async let globalCalendarEvents = CalendarEvent.query(on: req.db)
+			.filter(\.$isGlobal == true)
+			.count()
+		async let personalCalendarEvents = CalendarEvent.query(on: req.db)
+			.filter(\.$isGlobal == false)
+			.count()
+		async let activeEventTagSubscriptions = AccountEventTagSubscription.query(on: req.db)
+			.count()
+		let counts = try await (
+			usersWithOwnerTimetable,
+			activeDevicesLast30Days,
+			acceptedFriendships,
+			totalCalendarEvents,
+			globalCalendarEvents,
+			personalCalendarEvents,
+			activeEventTagSubscriptions
+		)
 
 		return AdministrationStatisticsResponse(
 			totalUsers: users.count,
+			usersWithOwnerTimetable: counts.0,
+			activeDevicesLast30Days: counts.1,
+			acceptedFriendships: counts.2,
+			totalCalendarEvents: counts.3,
+			globalCalendarEvents: counts.4,
+			personalCalendarEvents: counts.5,
+			activeEventTagSubscriptions: counts.6,
 			averageArrivalSecondsSinceMidnight: LocationStatusStatisticsService().averageArrival(for: histories)
 		)
 	}
