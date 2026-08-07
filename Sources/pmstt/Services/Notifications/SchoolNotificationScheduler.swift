@@ -128,8 +128,8 @@ struct SchoolNotificationScheduler {
 			let events = try await CalendarEvent.query(on: database)
 				.filter(\.$user.$id == userID)
 				.filter(\.$isGlobal == false)
-				.filter(\.$eventDate < cutoffKey)
 				.all()
+				.filter { $0.eventDate < cutoffKey }
 
 			for event in events {
 				let eventID = try event.requireID()
