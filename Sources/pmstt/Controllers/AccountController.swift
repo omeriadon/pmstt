@@ -99,7 +99,7 @@ struct AccountController: RouteCollection {
 			throw AppError(.notFound, code: .accountNotFound, reason: "User not found.")
 		}
 
-		return LocationStatusCurrentResponse(item: try user.locationStatusHistory().last)
+		return try LocationStatusCurrentResponse(item: user.locationStatusHistory().last)
 	}
 
 	func locationStatusStatistics(req: Request) async throws -> LocationArrivalStatisticsResponse {

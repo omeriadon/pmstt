@@ -510,7 +510,7 @@ struct FriendController: RouteCollection {
 			friend: friendProfile,
 			acceptedAt: acceptedAt,
 			timetable: friendTimetable,
-			averageArrivalSecondsSinceMidnight: try LocationStatusStatisticsService().averageArrival(
+			averageArrivalSecondsSinceMidnight: LocationStatusStatisticsService().averageArrival(
 				for: [user.locationStatusHistory()]
 			)
 		)
@@ -525,7 +525,7 @@ struct FriendController: RouteCollection {
 		}
 
 		try await FriendshipDateChangeRequest(
-			friendshipID: try friendship.requireID(),
+			friendshipID: friendship.requireID(),
 			requesterID: requesterID,
 			requestedDate: request.requestedDate
 		).create(on: req.db)
@@ -540,7 +540,7 @@ struct FriendController: RouteCollection {
 				title: "Friends-since request",
 				body: "\(requester.displayName) requested a date change with \(friend.displayName).",
 				threadID: "administration-moderation",
-				collapseID: "friends-since-\(try friendship.requireID().uuidString)",
+				collapseID: "friends-since-\(friendship.requireID().uuidString)",
 				on: req
 			)
 		} catch {
@@ -587,7 +587,7 @@ struct FriendController: RouteCollection {
 			requestedAt: friendship.createdAt ?? .now,
 			acceptedAt: friendship.acceptedAt,
 			timetable: friendTimetable,
-			locationStatus: try friend.locationStatusHistory().last
+			locationStatus: friend.locationStatusHistory().last
 		)
 	}
 

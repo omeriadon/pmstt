@@ -55,7 +55,7 @@ struct ReportController: RouteCollection {
 		try await sendModerationNotification(
 			title: "User report",
 			body: "\(reporterUser.displayName) reported \(reportedUser.displayName).",
-			collapseID: "user-report-\(try report.requireID().uuidString)",
+			collapseID: "user-report-\(report.requireID().uuidString)",
 			req: req
 		)
 		return Response(status: .created)
