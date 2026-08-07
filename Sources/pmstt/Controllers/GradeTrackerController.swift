@@ -3,10 +3,10 @@ import Vapor
 
 struct GradeTrackerController: RouteCollection {
 	func boot(routes: any RoutesBuilder) throws {
-		routes.grouped("v1", "grades")
+		let protected = routes.grouped("v1", "grades")
 			.grouped(SessionAuthenticator(), UserPayload.guardMiddleware(), CapabilityMiddleware())
-			.get(use: get)
-			.put(use: update)
+		protected.get(use: get)
+		protected.put(use: update)
 	}
 
 	func get(req: Request) async throws -> GradeTrackerResponse {
