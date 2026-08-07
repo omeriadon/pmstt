@@ -62,6 +62,7 @@ func registerMigrations(on app: Application) {
 func pmsttMigrationList() -> [any Migration] {
 	[
 		CreateUser(),
+		CreateUserGradeTracker(),
 		AddUserProfileAppearance(),
 		CreateUserToken(),
 		AddUserTokenClientIdentity(),

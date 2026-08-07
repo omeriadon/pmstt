@@ -25,6 +25,12 @@ final class User: Model, Content, @unchecked Sendable {
 	@Field(key: "settings_revision")
 	var settingsRevision: Int
 
+	@OptionalField(key: "grade_tracker_data")
+	var gradeTrackerData: Data?
+
+	@Field(key: "grade_tracker_revision")
+	var gradeTrackerRevision: Int
+
 	@OptionalField(key: "profile_appearance_data")
 	var profileAppearanceData: Data?
 
@@ -53,6 +59,8 @@ final class User: Model, Content, @unchecked Sendable {
 		selfPassSerialNumber: String,
 		settingsData: Data,
 		settingsRevision: Int = 0,
+		gradeTrackerData: Data? = try? JSONEncoder().encode(GradeTrackerDocument.empty),
+		gradeTrackerRevision: Int = 0,
 		profileAppearanceData: Data? = nil,
 		profileRevision: Int = 0,
 		accountAuthority: AccountAuthority = .user
@@ -64,6 +72,8 @@ final class User: Model, Content, @unchecked Sendable {
 		self.selfPassSerialNumber = selfPassSerialNumber
 		self.settingsData = settingsData
 		self.settingsRevision = settingsRevision
+		self.gradeTrackerData = gradeTrackerData
+		self.gradeTrackerRevision = gradeTrackerRevision
 		self.profileAppearanceData = profileAppearanceData
 		self.profileRevision = profileRevision
 		self.accountAuthority = accountAuthority
