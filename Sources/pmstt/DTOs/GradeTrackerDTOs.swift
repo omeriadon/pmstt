@@ -22,16 +22,18 @@ enum GradeAssessmentLocation: String, Codable, Sendable {
 		} else if container.contains(.subjectPeriod) {
 			self = .subjectPeriod
 		} else {
-			throw DecodingError.dataCorruptedError(
-				in: container,
-				debugDescription: "Unknown grade assessment location."
+			throw DecodingError.dataCorrupted(
+				.init(
+					codingPath: decoder.codingPath,
+					debugDescription: "Unknown grade assessment location."
+				)
 			)
 		}
 	}
 
 	private enum LegacyCodingKeys: String, CodingKey {
 		case exam
-		directedStudy
+		case directedStudy
 		case subjectPeriod
 	}
 }
