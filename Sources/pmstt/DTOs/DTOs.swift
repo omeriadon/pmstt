@@ -290,38 +290,6 @@ struct OwnerTimetableResponse: Content {
 	let isSearchable: Bool
 }
 
-struct TimetableSearchResult: Content {
-	let id: UUID
-	let title: String
-	let authorAccountID: UUID
-	let authorDisplayName: String
-	let sourceKind: SourceKind
-	let confidence: Double
-}
-
-struct TimetableDetailResponse: Content {
-	let id: UUID
-	let title: String
-	let authorAccountID: UUID
-	let authorDisplayName: String
-	let sourceKind: SourceKind
-	let subjects: [TimetableSubjectDTO]
-	let subjectCount: Int
-	let weeklyLessonCount: Int
-	let updatedAt: Date?
-	let savedByCount: Int
-	let isSearchable: Bool
-	let canEdit: Bool
-}
-
-struct CreatedTimetableUpdateRequest: Content {
-	let title: String
-	let subjects: [TimetableSubjectDTO]
-	let isSearchable: Bool
-}
-
-typealias CreatedTimetableCreateRequest = CreatedTimetableUpdateRequest
-
 struct ReportUserRequest: Content {
 	let reportedAccountID: String
 }

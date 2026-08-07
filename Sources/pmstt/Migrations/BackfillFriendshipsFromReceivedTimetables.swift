@@ -10,12 +10,8 @@ struct BackfillFriendshipsFromReceivedTimetables: AsyncMigration {
 		guard !imports.isEmpty else { return }
 
 		let ownerTimetables = try await OwnerTimetable.query(on: database).all()
-		let createdTimetables = try await CreatedTimetable.query(on: database).all()
 		let ownerByTimetableID = Dictionary(uniqueKeysWithValues: ownerTimetables.compactMap { timetable in
 			timetable.id.map { ($0, timetable.$user.id) }
-		})
-		let authorByTimetableID = Dictionary(uniqueKeysWithValues: createdTimetables.compactMap { timetable in
-			timetable.id.map { ($0, timetable.$author.id) }
 		})
 
 		var relationshipKeys = try await Set(
@@ -25,12 +21,8 @@ struct BackfillFriendshipsFromReceivedTimetables: AsyncMigration {
 		)
 
 		for received in imports {
-			let ownerID: UUID? = switch received.sourceKind {
-				case .accountOwner:
-					ownerByTimetableID[received.timetableID]
-				case .createdForThirdParty:
-					authorByTimetableID[received.timetableID]
-			}
+			guard received.sourceKind == .accountOwner else { continue }
+			let ownerID = ownerByTimetableID[received.timetableID]
 			guard let ownerID, ownerID != received.$user.id else { continue }
 			let key = canonicalKey(received.$user.id, ownerID)
 			guard relationshipKeys.insert(key).inserted else { continue }

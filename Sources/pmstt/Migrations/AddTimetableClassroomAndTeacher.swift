@@ -8,11 +8,6 @@ struct AddTimetableClassroomAndTeacher: AsyncMigration {
 			try await timetable.save(on: database)
 		}
 
-		for timetable in try await CreatedTimetable.query(on: database).all() {
-			timetable.subjectsData = try migratedSubjectsData(timetable.subjectsData)
-			try await timetable.save(on: database)
-		}
-
 		for timetable in try await ReceivedPassMirror.query(on: database).all() {
 			timetable.subjectsData = try migratedSubjectsData(timetable.subjectsData)
 			try await timetable.save(on: database)

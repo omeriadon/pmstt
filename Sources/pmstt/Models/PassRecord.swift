@@ -16,9 +16,6 @@ final class PassRecord: Model, Content, @unchecked Sendable {
 	@Field(key: "source_kind")
 	var sourceKind: SourceKind
 
-	@OptionalParent(key: "created_timetable_id")
-	var createdTimetable: CreatedTimetable?
-
 	@Field(key: "revision")
 	var revision: Int
 
@@ -41,7 +38,6 @@ final class PassRecord: Model, Content, @unchecked Sendable {
 		serialNumber: String,
 		issuerAccountID: String,
 		sourceKind: SourceKind,
-		createdTimetableID: CreatedTimetable.IDValue? = nil,
 		revision: Int,
 		authenticationTokenHash: String,
 		isDeleted: Bool = false
@@ -50,7 +46,6 @@ final class PassRecord: Model, Content, @unchecked Sendable {
 		self.serialNumber = serialNumber
 		self.issuerAccountID = issuerAccountID
 		self.sourceKind = sourceKind
-		$createdTimetable.id = createdTimetableID
 		self.revision = revision
 		self.authenticationTokenHash = authenticationTokenHash
 		self.isDeleted = isDeleted

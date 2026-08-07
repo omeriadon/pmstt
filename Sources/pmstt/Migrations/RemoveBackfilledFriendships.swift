@@ -13,21 +13,13 @@ struct RemoveBackfilledFriendships: AsyncMigration {
 		}
 
 		let ownerTimetables = try await OwnerTimetable.query(on: database).all()
-		let createdTimetables = try await CreatedTimetable.query(on: database).all()
 		let ownerByTimetableID = Dictionary(uniqueKeysWithValues: ownerTimetables.compactMap { timetable in
 			timetable.id.map { ($0, timetable.$user.id) }
 		})
-		let authorByTimetableID = Dictionary(uniqueKeysWithValues: createdTimetables.compactMap { timetable in
-			timetable.id.map { ($0, timetable.$author.id) }
-		})
 
 		let legacyRelationshipKeys = Set(imports.compactMap { received -> LegacyFriendshipKey? in
-			let ownerID: UUID? = switch received.sourceKind {
-				case .accountOwner:
-					ownerByTimetableID[received.timetableID]
-				case .createdForThirdParty:
-					authorByTimetableID[received.timetableID]
-			}
+			guard received.sourceKind == .accountOwner else { return nil }
+			let ownerID = ownerByTimetableID[received.timetableID]
 			guard let ownerID, ownerID != received.$user.id else {
 				return nil
 			}

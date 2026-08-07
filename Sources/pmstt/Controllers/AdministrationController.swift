@@ -446,7 +446,6 @@ struct AdministrationController: RouteCollection {
 		let rawData = try await AdministrationUserRawData(
 			account: AdministrationRawAccount(user),
 			ownerTimetables: OwnerTimetable.query(on: req.db).filter(\.$user.$id == id).all(),
-			createdTimetables: CreatedTimetable.query(on: req.db).filter(\.$author.$id == id).all(),
 			receivedTimetableImports: ReceivedTimetableImport.query(on: req.db).filter(\.$user.$id == id).all(),
 			receivedPassMirrors: ReceivedPassMirror.query(on: req.db).filter(\.$user.$id == id).all(),
 			receivedNameOverrides: ReceivedNameOverride.query(on: req.db).filter(\.$user.$id == id).all(),
@@ -1276,7 +1275,6 @@ private struct AdministrationRawFriendship: Content {
 private struct AdministrationUserRawData: Content {
 	let account: AdministrationRawAccount
 	let ownerTimetables: [OwnerTimetable]
-	let createdTimetables: [CreatedTimetable]
 	let receivedTimetableImports: [ReceivedTimetableImport]
 	let receivedPassMirrors: [ReceivedPassMirror]
 	let receivedNameOverrides: [ReceivedNameOverride]

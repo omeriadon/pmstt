@@ -112,9 +112,9 @@ func pmsttMigrationList() -> [any Migration] {
 		CreateSpecialProfileBadges(),
 		RemoveBackfilledFriendships(),
 		AddDefaultYearGroupSubscriptions(),
-		DisableCreatedTimetableSharing(),
 		InvalidateLegacyPlatformSessions(),
 		AddUserLocationStatusHistory(),
 		CreateModerationRecords(),
+		RemoveCreatedTimetables(),
 	]
 }
