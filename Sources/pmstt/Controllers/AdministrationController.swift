@@ -676,22 +676,39 @@ struct AdministrationController: RouteCollection {
 		let accessibilityLabel = request.accessibilityLabel.trimmingCharacters(in: .whitespacesAndNewlines)
 		guard !symbol.isEmpty, symbol.count <= 120,
 		      !accessibilityLabel.isEmpty, accessibilityLabel.count <= 120,
-		      (0 ... 10000).contains(request.priority),
-		      isValidColor(request.backgroundColor),
-		      isValidColor(request.symbolColor)
+		      (0 ... 10000).contains(request.priority)
 		else {
 			throw Abort(.badRequest)
 		}
 
-		return (symbol, request.backgroundColor, request.symbolColor, request.priority, accessibilityLabel)
+		return (
+			symbol,
+			normalizedColor(request.backgroundColor),
+			normalizedColor(request.symbolColor),
+			request.priority,
+			accessibilityLabel
+		)
 	}
 
-	private func isValidColor(_ color: ProfileColorDTO?) -> Bool {
+	private func normalizedColor(_ color: ProfileColorDTO?) -> ProfileColorDTO? {
 		guard let color else {
-			return true
+			return nil
 		}
 
-		return [color.red, color.green, color.blue, color.alpha].allSatisfy { (0 ... 1).contains($0) }
+		return ProfileColorDTO(
+			red: normalizedColorComponent(color.red),
+			green: normalizedColorComponent(color.green),
+			blue: normalizedColorComponent(color.blue),
+			alpha: normalizedColorComponent(color.alpha)
+		)
+	}
+
+	private func normalizedColorComponent(_ value: Double) -> Double {
+		guard value.isFinite else {
+			return 0
+		}
+
+		return min(max(value, 0), 1)
 	}
 
 	private func encodeColor(_ color: ProfileColorDTO?) throws -> Data? {
