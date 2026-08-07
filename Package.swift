@@ -15,7 +15,7 @@ let package = Package(
 		.package(url: "https://github.com/vapor/jwt.git", from: "5.0.0"),
 		.package(url: "https://github.com/vapor/sql-kit.git", from: "3.36.0"),
 		.package(url: "https://github.com/seanoshea/FuzzyMatchingSwift.git", exact: "0.11.1"),
-		.package(url: "https://github.com/Kitura/Swift-SMTP.git", from: "5.1.0"),
+		.package(url: "https://github.com/Kitura/Swift-SMTP.git", from: "6.0.0"),
 	],
 	targets: [
 		.executableTarget(
