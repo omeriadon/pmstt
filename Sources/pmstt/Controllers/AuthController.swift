@@ -67,7 +67,7 @@ struct AuthController: RouteCollection {
 			)
 			try await challenge.create(on: database)
 		}
-		try await sendVerificationEmail(code: code, to: email, req: req)
+		try await sendVerificationEmail(code: code, to: email)
 		return VerificationCodeResponse(expiresAt: expiresAt, resendAvailableAt: resendAvailableAt)
 	}
 
