@@ -5,6 +5,35 @@ enum GradeAssessmentLocation: String, Codable, Sendable {
 	case exam
 	case directedStudy
 	case subjectPeriod
+
+	init(from decoder: any Decoder) throws {
+		if let value = try? decoder.singleValueContainer().decode(String.self),
+		   let location = Self(rawValue: value)
+		{
+			self = location
+			return
+		}
+
+		let container = try decoder.container(keyedBy: LegacyCodingKeys.self)
+		if container.contains(.exam) {
+			self = .exam
+		} else if container.contains(.directedStudy) {
+			self = .directedStudy
+		} else if container.contains(.subjectPeriod) {
+			self = .subjectPeriod
+		} else {
+			throw DecodingError.dataCorruptedError(
+				in: container,
+				debugDescription: "Unknown grade assessment location."
+			)
+		}
+	}
+
+	private enum LegacyCodingKeys: String, CodingKey {
+		case exam
+		directedStudy
+		case subjectPeriod
+	}
 }
 
 struct GradeTrackerDate: Codable, Hashable, Sendable {
