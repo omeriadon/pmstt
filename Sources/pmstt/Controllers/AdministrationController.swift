@@ -397,7 +397,7 @@ struct AdministrationController: RouteCollection {
 		let update = try req.content.decode(AdministrationUserUpdateRequest.self)
 		let displayName = update.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
 		guard !displayName.isEmpty else { throw Abort(.badRequest) }
-		let email = try normalizedSchoolEmail(update.email)
+		let email = try normalizedEmail(update.email)
 		if email != user.email, try await User.query(on: req.db).filter(\.$email == email).first() != nil {
 			throw Abort(.conflict)
 		}
@@ -449,7 +449,7 @@ struct AdministrationController: RouteCollection {
 		_ = try await requireAdministrator(req)
 		let create = try req.content.decode(AdministrationUserCreateRequest.self)
 		let displayName = create.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-		let email = try normalizedSchoolEmail(create.email)
+		let email = try normalizedEmail(create.email)
 		try await ServerAccessModeService.requirePermittedEmail(email, on: req.db)
 		guard !displayName.isEmpty, create.password.count >= 8 else {
 			throw Abort(.badRequest)
