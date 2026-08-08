@@ -114,5 +114,6 @@ func pmsttMigrationList() -> [any Migration] {
 		AddUserLocationStatusHistory(),
 		CreateModerationRecords(),
 		RemoveCreatedTimetables(),
+		CorrectTermThreeStartDate(),
 	]
 }

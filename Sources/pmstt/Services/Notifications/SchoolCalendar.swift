@@ -47,8 +47,7 @@ struct SchoolCalendar {
 	/// WA public-school student term dates. Update this configuration before each school year.
 	static let configured = SchoolCalendar(
 		termRanges: [
-			// Term 3: started early (7 Jul) for development testing
-			.init(label: "Term 3", start: .ymd(2026, 7, 7), end: .ymd(2026, 9, 25)),
+			.init(label: "Term 3", start: .ymd(2026, 7, 20), end: .ymd(2026, 9, 25)),
 			.init(label: "Term 4", start: .ymd(2026, 10, 12), end: .ymd(2026, 12, 17)),
 		],
 		excludedDates: [
@@ -115,7 +114,10 @@ struct SchoolCalendar {
 		let skipped = try entries.filter { $0.kind == "noSchool" }.map { entry in
 			try SchoolCalendarNamedDate(date: SchoolCalendarDate(storageValue: entry.startDate), label: entry.label)
 		}
-		return SchoolCalendarResponse(termRanges: terms, skippedDates: skipped)
+		return SchoolCalendarResponse(
+			termRanges: terms.isEmpty ? configured.response.termRanges : terms,
+			skippedDates: skipped
+		)
 	}
 }
 
