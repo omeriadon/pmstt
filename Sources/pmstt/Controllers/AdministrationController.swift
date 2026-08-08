@@ -178,14 +178,37 @@ struct AdministrationController: RouteCollection {
 		_ = try await requireAdministrator(req)
 		let users = try await User.query(on: req.db).all()
 		let histories = try users.map { try $0.locationStatusHistory() }
+		let assessmentCounts = users.map { user in
+			user.gradeTrackerData
+				.flatMap { try? JSONDecoder().decode(GradeTrackerDocument.self, from: $0) }
+				?.assessments.count ?? 0
+		}
+		let totalAssessments = assessmentCounts.reduce(0, +)
+		let usersWithMultipleAssessments = assessmentCounts.filter { $0 > 1 }
 		let activeDeviceCutoff = Date().addingTimeInterval(-30 * 24 * 60 * 60)
 		async let usersWithOwnerTimetable = OwnerTimetable.query(on: req.db).count()
+		async let totalDevices = UserDevice.query(on: req.db).count()
 		async let activeDevicesLast30Days = UserDevice.query(on: req.db)
 			.filter(\.$lastSeenAt >= activeDeviceCutoff)
 			.count()
-		async let acceptedFriendships = Friendship.query(on: req.db)
-			.filter(\.$status == .accepted)
+		async let iPhoneDevices = UserDevice.query(on: req.db)
+			.filter(\.$platform == ClientPlatform.iOS.rawValue)
 			.count()
+		async let iPadDevices = UserDevice.query(on: req.db)
+			.filter(\.$platform == ClientPlatform.iPadOS.rawValue)
+			.count()
+		async let macDevices = UserDevice.query(on: req.db)
+			.filter(\.$platform == ClientPlatform.macOS.rawValue)
+			.count()
+		async let watchDevices = UserDevice.query(on: req.db)
+			.filter(\.$platform == ClientPlatform.watchOS.rawValue)
+			.count()
+		async let legacyDevices = UserDevice.query(on: req.db)
+			.filter(\.$platform == ClientPlatform.legacy.rawValue)
+			.count()
+		async let acceptedFriendshipModels = Friendship.query(on: req.db)
+			.filter(\.$status == .accepted)
+			.all()
 		async let totalCalendarEvents = CalendarEvent.query(on: req.db).count()
 		async let globalCalendarEvents = CalendarEvent.query(on: req.db)
 			.filter(\.$isGlobal == true)
@@ -197,25 +220,68 @@ struct AdministrationController: RouteCollection {
 			.count()
 		let counts = try await (
 			usersWithOwnerTimetable,
+			totalDevices,
 			activeDevicesLast30Days,
-			acceptedFriendships,
+			iPhoneDevices,
+			iPadDevices,
+			macDevices,
+			watchDevices,
+			legacyDevices,
+			acceptedFriendshipModels,
 			totalCalendarEvents,
 			globalCalendarEvents,
 			personalCalendarEvents,
 			activeEventTagSubscriptions
 		)
+		let friendshipParticipantIDs = Set(
+			counts.8.flatMap { friendship in
+				[friendship.$requester.id, friendship.$recipient.id]
+			}
+		)
+		let totalFriendConnections = counts.8.count * 2
 
 		return AdministrationStatisticsResponse(
 			totalUsers: users.count,
 			usersWithOwnerTimetable: counts.0,
-			activeDevicesLast30Days: counts.1,
-			acceptedFriendships: counts.2,
-			totalCalendarEvents: counts.3,
-			globalCalendarEvents: counts.4,
-			personalCalendarEvents: counts.5,
-			activeEventTagSubscriptions: counts.6,
+			totalAssessments: totalAssessments,
+			averageAssessmentsPerUser: average(
+				total: totalAssessments,
+				across: users.count
+			),
+			averageAssessmentsPerUserWithMultipleAssessments: average(
+				total: usersWithMultipleAssessments.reduce(0, +),
+				across: usersWithMultipleAssessments.count
+			),
+			totalDevices: counts.1,
+			activeDevicesLast30Days: counts.2,
+			iPhoneDevices: counts.3,
+			iPadDevices: counts.4,
+			macDevices: counts.5,
+			watchDevices: counts.6,
+			legacyDevices: counts.7,
+			acceptedFriendships: counts.8.count,
+			averageFriendsPerUser: average(
+				total: totalFriendConnections,
+				across: users.count
+			),
+			averageFriendsPerUserWithFriends: average(
+				total: totalFriendConnections,
+				across: friendshipParticipantIDs.count
+			),
+			totalCalendarEvents: counts.9,
+			globalCalendarEvents: counts.10,
+			personalCalendarEvents: counts.11,
+			activeEventTagSubscriptions: counts.12,
 			averageArrivalSecondsSinceMidnight: LocationStatusStatisticsService().averageArrival(for: histories)
 		)
+	}
+
+	private func average(total: Int, across count: Int) -> Double? {
+		guard count > 0 else {
+			return nil
+		}
+
+		return Double(total) / Double(count)
 	}
 
 	private func friendshipDateChangeRequests(req: Request) async throws -> [AdministrationFriendshipDateChangeRequestResponse] {
