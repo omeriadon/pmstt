@@ -66,6 +66,7 @@ struct UpdateAccountRequest: Content {
 struct UpdateSettingsRequest: Content {
 	var liveActivitiesEnabled: Bool
 	var highlightsCurrentDay: Bool
+	var appFontDesign: AppFontDesign
 	var notificationsEnabled: Bool
 	var broadcastNotificationsEnabled: Bool
 	var notificationLeadTimes: Set<NotificationLeadTime>
@@ -77,6 +78,7 @@ struct UpdateSettingsRequest: Content {
 	static let `default` = UpdateSettingsRequest(
 		liveActivitiesEnabled: true,
 		highlightsCurrentDay: true,
+		appFontDesign: .monospaced,
 		notificationsEnabled: true,
 		broadcastNotificationsEnabled: true,
 		notificationLeadTimes: [.zero],
@@ -90,6 +92,7 @@ struct UpdateSettingsRequest: Content {
 		AccountSettings(
 			liveActivitiesEnabled: liveActivitiesEnabled,
 			highlightsCurrentDay: highlightsCurrentDay,
+			appFontDesign: appFontDesign,
 			notificationsEnabled: notificationsEnabled,
 			broadcastNotificationsEnabled: broadcastNotificationsEnabled,
 			notificationLeadTimes: notificationLeadTimes,
@@ -147,6 +150,7 @@ extension UpdateSettingsRequest {
 			default: defaults.liveActivitiesEnabled
 		)
 		highlightsCurrentDay = try container.decodeIfPresent(Bool.self, forKey: .highlightsCurrentDay, default: defaults.highlightsCurrentDay)
+		appFontDesign = try container.decodeIfPresent(AppFontDesign.self, forKey: .appFontDesign, default: defaults.appFontDesign)
 		notificationsEnabled = try container.decodeIfPresent(Bool.self, forKey: .notificationsEnabled, default: defaults.notificationsEnabled)
 		broadcastNotificationsEnabled = try container.decodeIfPresent(Bool.self, forKey: .broadcastNotificationsEnabled, default: defaults.broadcastNotificationsEnabled)
 		if let leadTimes = try container.decodeIfPresent(Set<NotificationLeadTime>.self, forKey: .notificationLeadTimes) {

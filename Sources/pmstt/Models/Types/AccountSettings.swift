@@ -15,9 +15,15 @@ enum NotificationLeadTime: Int, Content, CaseIterable, Hashable {
 	}
 }
 
+enum AppFontDesign: String, Content, CaseIterable, Hashable {
+	case monospaced
+	case rounded
+}
+
 struct AccountSettings: Content, Hashable {
 	var liveActivitiesEnabled: Bool
 	var highlightsCurrentDay: Bool
+	var appFontDesign: AppFontDesign
 	var notificationsEnabled: Bool
 	var broadcastNotificationsEnabled: Bool
 	var notificationLeadTimes: Set<NotificationLeadTime>
@@ -30,6 +36,7 @@ struct AccountSettings: Content, Hashable {
 		AccountSettings(
 			liveActivitiesEnabled: true,
 			highlightsCurrentDay: true,
+			appFontDesign: .monospaced,
 			notificationsEnabled: true,
 			broadcastNotificationsEnabled: true,
 			notificationLeadTimes: [.zero],
@@ -52,6 +59,7 @@ extension AccountSettings {
 
 		liveActivitiesEnabled = try container.decodeIfPresent(Bool.self, forKey: .liveActivitiesEnabled) ?? defaults.liveActivitiesEnabled
 		highlightsCurrentDay = try container.decodeIfPresent(Bool.self, forKey: .highlightsCurrentDay) ?? defaults.highlightsCurrentDay
+		appFontDesign = try container.decodeIfPresent(AppFontDesign.self, forKey: .appFontDesign) ?? defaults.appFontDesign
 		notificationsEnabled = try container.decodeIfPresent(Bool.self, forKey: .notificationsEnabled) ?? defaults.notificationsEnabled
 		broadcastNotificationsEnabled = try container.decodeIfPresent(Bool.self, forKey: .broadcastNotificationsEnabled) ?? defaults.broadcastNotificationsEnabled
 		if let leadTimes = try container.decodeIfPresent(Set<NotificationLeadTime>.self, forKey: .notificationLeadTimes) {
