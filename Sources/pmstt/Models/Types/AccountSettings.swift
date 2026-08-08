@@ -18,6 +18,7 @@ enum NotificationLeadTime: Int, Content, CaseIterable, Hashable {
 enum AppFontDesign: String, Content, CaseIterable, Hashable {
 	case monospaced
 	case rounded
+	case expanded
 }
 
 struct AccountSettings: Content, Hashable {
