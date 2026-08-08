@@ -179,9 +179,13 @@ struct AdministrationController: RouteCollection {
 		let users = try await User.query(on: req.db).all()
 		let histories = try users.map { try $0.locationStatusHistory() }
 		let assessmentCounts = users.map { user in
-			user.gradeTrackerData
-				.flatMap { try? JSONDecoder().decode(GradeTrackerDocument.self, from: $0) }
-				?.assessments.count ?? 0
+			guard let data = user.gradeTrackerData,
+			      let document = try? JSONDecoder().decode(GradeTrackerDocument.self, from: data)
+			else {
+				return 0
+			}
+
+			return document.assessments.count
 		}
 		let totalAssessments = assessmentCounts.reduce(0, +)
 		let usersWithMultipleAssessments = assessmentCounts.filter { $0 > 1 }
