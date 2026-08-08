@@ -7,11 +7,6 @@ struct AddTimetableClassroomAndTeacher: AsyncMigration {
 			timetable.subjectsData = try migratedSubjectsData(timetable.subjectsData)
 			try await timetable.save(on: database)
 		}
-
-		for timetable in try await ReceivedPassMirror.query(on: database).all() {
-			timetable.subjectsData = try migratedSubjectsData(timetable.subjectsData)
-			try await timetable.save(on: database)
-		}
 	}
 
 	func revert(on _: any Database) async throws {}

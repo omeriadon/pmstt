@@ -33,8 +33,6 @@ enum Capability: String, Codable, Sendable {
 	case mutateAccount
 	case mutateSettings
 	case mutateOwnerTimetable
-	case mutateReceivedTimetable
-	case mutateReceivedNameOverride
 	case mutateNotifications
 	case mutateLiveActivities
 	case createWatchSession
@@ -44,9 +42,7 @@ extension ClientPlatform {
 	var capabilities: [Capability] {
 		switch self {
 			case .iOS, .iPadOS, .macOS:
-				[.read, .logout, .mutateAccount, .mutateSettings, .mutateOwnerTimetable,
-				 .mutateReceivedTimetable, .mutateReceivedNameOverride,
-				 .mutateNotifications]
+				[.read, .logout, .mutateAccount, .mutateSettings, .mutateOwnerTimetable, .mutateNotifications]
 					+ (self == .iOS ? [.mutateLiveActivities, .createWatchSession] : [])
 			case .watchOS:
 				[.read, .logout]
@@ -109,11 +105,7 @@ struct CapabilityMiddleware: AsyncMiddleware {
 				return path.dropFirst(2).first == "notifications" ? .mutateNotifications : .mutateSettings
 			case "events": return .mutateNotifications
 			case "timetables":
-				switch path.dropFirst(2).first {
-					case "owner": return .mutateOwnerTimetable
-					case "received": return .mutateReceivedTimetable
-					default: return .read
-				}
+				return path.dropFirst(2).first == "owner" ? .mutateOwnerTimetable : .read
 			case "devices": return path.contains("live-activity-token") ? .mutateLiveActivities : .mutateNotifications
 			case "notifications": return .mutateNotifications
 			case "live-activities": return .mutateLiveActivities

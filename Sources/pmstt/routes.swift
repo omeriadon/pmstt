@@ -30,9 +30,6 @@ func routes(_ app: Application) throws {
 		)
 	}
 
-	let sharedTimetables = SharedTimetableController()
-	try sharedTimetables.registerPublicRoutes(on: app)
-
 	let api = app.grouped("api")
 	try api.register(collection: ServerAccessModeController())
 	try api.register(collection: AuthController())
@@ -48,7 +45,6 @@ func routes(_ app: Application) throws {
 	try api.register(collection: FriendController())
 	try api.register(collection: GradeTrackerController())
 	try api.register(collection: SyncController())
-	try api.register(collection: sharedTimetables)
 }
 
 struct HealthResponse: Content {

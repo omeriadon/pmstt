@@ -24,14 +24,6 @@ struct RemoveCreatedTimetables: AsyncMigration {
 
 		if createdTimetableCount > 0 {
 			try await sqlDatabase.raw("""
-				DELETE FROM "received_timetable_imports"
-				WHERE "source_kind" = 'createdForThirdParty'
-				""").run()
-			try await sqlDatabase.raw("""
-				DELETE FROM "received_pass_mirrors"
-				WHERE "source_kind" = 'createdForThirdParty'
-				""").run()
-			try await sqlDatabase.raw("""
 				DELETE FROM "pass_records"
 				WHERE "source_kind" = 'createdForThirdParty'
 				""").run()
