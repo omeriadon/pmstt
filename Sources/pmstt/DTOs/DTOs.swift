@@ -43,6 +43,7 @@ struct TokenResponse: Content {
 
 struct WatchSessionRequest: Content {
 	let installationID: String
+	let osMajorVersion: Int
 }
 
 struct UserAccountResponse: Content {

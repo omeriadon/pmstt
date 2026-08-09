@@ -121,6 +121,10 @@ struct NotificationController: RouteCollection {
 			throw AppError(.badRequest, code: .invalidRequest, reason: "The installation ID is invalid.", field: "installationID")
 		}
 
+		guard (1 ... 999).contains(body.osMajorVersion) else {
+			throw AppError(.badRequest, code: .invalidRequest, reason: "The operating system version is invalid.", field: "osMajorVersion")
+		}
+
 		guard !body.apnsToken.isEmpty, body.apnsToken.count >= 32, body.apnsToken.count <= 200 else {
 			throw AppError(.badRequest, code: .invalidRequest, reason: "The APNS token is invalid.", field: "apnsToken")
 		}
