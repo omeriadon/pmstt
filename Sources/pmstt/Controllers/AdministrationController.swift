@@ -250,6 +250,9 @@ struct AdministrationController: RouteCollection {
 		return AdministrationStatisticsResponse(
 			totalUsers: users.count,
 			usersWithOwnerTimetable: counts.0,
+			usersWithAssessments: usersWithAssessments.count,
+			usersWithLocationStatus: usersWithLocationStatus.count,
+			totalLocationStatusUpdates: totalLocationStatusUpdates,
 			totalAssessments: totalAssessments,
 			averageAssessmentsPerUser: average(
 				total: totalAssessments,
@@ -280,9 +283,6 @@ struct AdministrationController: RouteCollection {
 			personalCalendarEvents: counts.11,
 			activeEventTagSubscriptions: counts.12,
 			averageArrivalSecondsSinceMidnight: LocationStatusStatisticsService().averageArrival(for: histories),
-			usersWithAssessments: usersWithAssessments.count,
-			usersWithLocationStatus: usersWithLocationStatus.count,
-			totalLocationStatusUpdates: totalLocationStatusUpdates,
 			deviceTypes: deviceTypeCounts(devices),
 			osMajorVersions: osMajorVersionCounts(devices),
 			deviceOSMajorVersions: deviceOSMajorVersionCounts(devices)
@@ -305,12 +305,14 @@ struct AdministrationController: RouteCollection {
 
 	private func deviceOSMajorVersionCounts(_ devices: [UserDevice]) -> [AdministrationDeviceOSMajorVersionCount] {
 		let grouped = Dictionary(grouping: devices.compactMap { device in
-			device.osMajorVersion.map { (device.platform, $0) }
+			device.osMajorVersion.map {
+				DeviceOSMajorVersionKey(platform: device.platform, osMajorVersion: $0)
+			}
 		}, by: { $0 })
 		return grouped.map { key, entries in
 			AdministrationDeviceOSMajorVersionCount(
-				platform: deviceTypeLabel(for: key.0),
-				osMajorVersion: key.1,
+				platform: deviceTypeLabel(for: key.platform),
+				osMajorVersion: key.osMajorVersion,
 				count: entries.count
 			)
 		}.sorted {
@@ -1051,6 +1053,11 @@ struct AdministrationController: RouteCollection {
 		}
 		return slug
 	}
+}
+
+private struct DeviceOSMajorVersionKey: Hashable {
+	let platform: String
+	let osMajorVersion: Int
 }
 
 private extension String {

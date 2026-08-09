@@ -91,7 +91,7 @@ final class AuthIntegrationTests: XCTestCase, @unchecked Sendable {
 		let iOSTokens = try registration.content.decode(TokenResponse.self)
 
 		let iPadTokens = try await request(app, .POST, "/v1/auth/login", body: LoginRequest(email: "notifications@example.com", password: "password", platform: "iPadOS", installationID: "ipad-notifications")).content.decode(TokenResponse.self)
-		let iPadDevice = RegisterUserDeviceRequest(installationID: "ipad-notifications", platform: ClientPlatform.iPadOS.rawValue, apnsToken: String(repeating: "a", count: 64), isDebug: true)
+		let iPadDevice = RegisterUserDeviceRequest(installationID: "ipad-notifications", platform: ClientPlatform.iPadOS.rawValue, osMajorVersion: 26, apnsToken: String(repeating: "a", count: 64), isDebug: true)
 		let registered = try await request(app, .PUT, "/v1/devices/current", token: iPadTokens.accessToken, body: iPadDevice)
 		XCTAssertEqual(registered.status, .ok)
 		let testNotification = try await request(app, .POST, "/v1/notifications/test", token: iPadTokens.accessToken)
@@ -99,13 +99,13 @@ final class AuthIntegrationTests: XCTestCase, @unchecked Sendable {
 		let removed = try await request(app, .DELETE, "/v1/devices/current", token: iPadTokens.accessToken, body: RemoveUserDeviceRequest(installationID: "ipad-notifications", platform: ClientPlatform.iPadOS.rawValue))
 		XCTAssertEqual(removed.status, .noContent)
 
-		let forged = try await request(app, .PUT, "/v1/devices/current", token: iOSTokens.accessToken, body: RegisterUserDeviceRequest(installationID: "ipad-notifications", platform: ClientPlatform.iPadOS.rawValue, apnsToken: String(repeating: "b", count: 64), isDebug: true))
+		let forged = try await request(app, .PUT, "/v1/devices/current", token: iOSTokens.accessToken, body: RegisterUserDeviceRequest(installationID: "ipad-notifications", platform: ClientPlatform.iPadOS.rawValue, osMajorVersion: 26, apnsToken: String(repeating: "b", count: 64), isDebug: true))
 		XCTAssertEqual(forged.status, .forbidden)
 		let forgedRemoval = try await request(app, .DELETE, "/v1/devices/current", token: iOSTokens.accessToken, body: RemoveUserDeviceRequest(installationID: "ipad-notifications", platform: ClientPlatform.iPadOS.rawValue))
 		XCTAssertEqual(forgedRemoval.status, .forbidden)
 
 		let macTokens = try await request(app, .POST, "/v1/auth/login", body: LoginRequest(email: "notifications@example.com", password: "password", platform: "macOS", installationID: "mac-notifications")).content.decode(TokenResponse.self)
-		let macRegistered = try await request(app, .PUT, "/v1/devices/current", token: macTokens.accessToken, body: RegisterUserDeviceRequest(installationID: "mac-notifications", platform: ClientPlatform.macOS.rawValue, apnsToken: String(repeating: "c", count: 64), isDebug: true))
+		let macRegistered = try await request(app, .PUT, "/v1/devices/current", token: macTokens.accessToken, body: RegisterUserDeviceRequest(installationID: "mac-notifications", platform: ClientPlatform.macOS.rawValue, osMajorVersion: 26, apnsToken: String(repeating: "c", count: 64), isDebug: true))
 		XCTAssertEqual(macRegistered.status, .ok)
 	}
 
@@ -216,7 +216,7 @@ final class AuthIntegrationTests: XCTestCase, @unchecked Sendable {
 		}
 		for (platform, installationID, tokens) in [("iPadOS", "matrix-ipad", ipad), ("macOS", "matrix-mac", mac), ("watchOS", "matrix-watch", watch)] {
 			let registered = try await request(app, .PUT, "/v1/devices/current", token: tokens.accessToken,
-			                                   body: RegisterUserDeviceRequest(installationID: installationID, platform: platform, apnsToken: String(repeating: "a", count: 64), isDebug: true))
+			                                   body: RegisterUserDeviceRequest(installationID: installationID, platform: platform, osMajorVersion: 26, apnsToken: String(repeating: "a", count: 64), isDebug: true))
 			XCTAssertNotEqual(registered.status, .forbidden, "PUT /v1/devices/current for \(platform)")
 			let removed = try await request(app, .DELETE, "/v1/devices/current", token: tokens.accessToken,
 			                                body: RemoveUserDeviceRequest(installationID: installationID, platform: platform))
