@@ -30,17 +30,20 @@ struct NotificationController: RouteCollection {
 		device.$user.id = payload.sub
 		device.platform = body.platform
 		device.osMajorVersion = body.osMajorVersion
-		device.apnsToken = body.apnsToken
+		if let apnsToken = body.apnsToken {
+			device.apnsToken = apnsToken
+		}
 		device.isDebug = body.isDebug
 		device.lastSeenAt = Date()
 		try await device.save(on: req.db)
 		let deviceID = try device.requireID()
 		try await pruneStaleDevices(for: payload.sub, keeping: deviceID, platform: body.platform, database: req.db, logger: req.logger)
-		req.logger.info("Registered APNs device", metadata: [
+		req.logger.info("Registered device", metadata: [
 			"user_id": .string(payload.sub.uuidString),
 			"device_id": .string(deviceID.uuidString),
 			"installation_id": .string(body.installationID),
 			"platform": .string(body.platform),
+			"has_apns_token": .stringConvertible(device.apnsToken != nil),
 			"is_debug": .stringConvertible(body.isDebug),
 		])
 		return UserDeviceResponse(
@@ -125,7 +128,9 @@ struct NotificationController: RouteCollection {
 			throw AppError(.badRequest, code: .invalidRequest, reason: "The operating system version is invalid.", field: "osMajorVersion")
 		}
 
-		guard !body.apnsToken.isEmpty, body.apnsToken.count >= 32, body.apnsToken.count <= 200 else {
+		if let apnsToken = body.apnsToken,
+		   apnsToken.isEmpty || apnsToken.count < 32 || apnsToken.count > 200
+		{
 			throw AppError(.badRequest, code: .invalidRequest, reason: "The APNS token is invalid.", field: "apnsToken")
 		}
 	}
