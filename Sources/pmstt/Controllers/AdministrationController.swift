@@ -250,9 +250,6 @@ struct AdministrationController: RouteCollection {
 		return AdministrationStatisticsResponse(
 			totalUsers: users.count,
 			usersWithOwnerTimetable: counts.0,
-			usersWithAssessments: usersWithAssessments.count,
-			usersWithLocationStatus: usersWithLocationStatus.count,
-			totalLocationStatusUpdates: totalLocationStatusUpdates,
 			totalAssessments: totalAssessments,
 			averageAssessmentsPerUser: average(
 				total: totalAssessments,
@@ -283,6 +280,9 @@ struct AdministrationController: RouteCollection {
 			personalCalendarEvents: counts.11,
 			activeEventTagSubscriptions: counts.12,
 			averageArrivalSecondsSinceMidnight: LocationStatusStatisticsService().averageArrival(for: histories),
+			usersWithAssessments: usersWithAssessments.count,
+			usersWithLocationStatus: usersWithLocationStatus.count,
+			totalLocationStatusUpdates: totalLocationStatusUpdates,
 			deviceTypes: deviceTypeCounts(devices),
 			osMajorVersions: osMajorVersionCounts(devices),
 			deviceOSMajorVersions: deviceOSMajorVersionCounts(devices)
