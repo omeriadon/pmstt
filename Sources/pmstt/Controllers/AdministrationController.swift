@@ -322,14 +322,15 @@ struct AdministrationController: RouteCollection {
 	}
 
 	private func deviceOSVersionCounts(_ devices: [UserDevice]) -> [AdministrationDeviceOSVersionCount] {
-		let grouped = Dictionary(grouping: devices.compactMap { device in
+		let keys: [DeviceOSVersionKey] = devices.compactMap { device in
 			guard let major = device.osMajorVersion, let minor = device.osMinorVersion else { return nil }
 			return DeviceOSVersionKey(
 				platform: device.platform,
 				osMajorVersion: major,
 				osMinorVersion: minor
 			)
-		}, by: { $0 })
+		}
+		let grouped = Dictionary(grouping: keys, by: { $0 })
 		return grouped.map { key, entries in
 			AdministrationDeviceOSVersionCount(
 				platform: deviceTypeLabel(for: key.platform),
