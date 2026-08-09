@@ -14,5 +14,5 @@ struct CorrectTermThreeStartDate: AsyncMigration {
 		}
 	}
 
-	func revert(on _: any Database) async throws {}
+	func revert(on database: any Database) async throws {}
 }
