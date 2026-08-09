@@ -255,11 +255,11 @@ struct AdministrationController: RouteCollection {
 			activeEventTagSubscriptions
 		)
 		let friendshipParticipantIDs = Set(
-			counts.10.flatMap { friendship in
+			counts.11.flatMap { friendship in
 				[friendship.$requester.id, friendship.$recipient.id]
 			}
 		)
-		let totalFriendConnections = counts.10.count * 2
+		let totalFriendConnections = counts.11.count * 2
 
 		return AdministrationStatisticsResponse(
 			totalUsers: users.count,
