@@ -190,9 +190,6 @@ struct AuthController: RouteCollection {
 		guard payload.platformValue == .iOS else { throw Abort(.forbidden) }
 		let body = try req.content.decode(WatchSessionRequest.self)
 		let installationID = try normalizedInstallation(body.installationID)
-		guard (1 ... 999).contains(body.osMajorVersion) else {
-			throw AppError(.badRequest, code: .invalidRequest, reason: "The Watch OS version is invalid.", field: "osMajorVersion")
-		}
 		let session = UserToken(id: UUID(), tokenHash: "pending", userID: payload.sub, expiresAt: Date().addingTimeInterval(refreshLifetime(for: .watchOS)), clientPlatform: ClientPlatform.watchOS.rawValue, installationID: installationID, parentSessionID: payload.sid, refreshJTI: UUID(), activeWatchKey: AddUserTokenAuthority.watchKey(userID: payload.sub, installationID: installationID))
 		let refresh = try await makeRefreshToken(for: session, jti: session.refreshJTI!, on: req)
 		session.tokenHash = hashToken(refresh)
@@ -212,24 +209,6 @@ struct AuthController: RouteCollection {
 				.set(\.$activeWatchKey, to: nil)
 				.update()
 			try await session.save(on: database)
-
-			let existingDevice = try await UserDevice.query(on: database)
-				.filter(\.$installationID == installationID)
-				.first()
-			if let existingDevice, existingDevice.$user.id != payload.sub {
-				throw Abort(.forbidden)
-			}
-
-			let device = existingDevice ?? UserDevice(
-				userID: payload.sub,
-				installationID: installationID,
-				platform: ClientPlatform.watchOS.rawValue
-			)
-			device.$user.id = payload.sub
-			device.platform = ClientPlatform.watchOS.rawValue
-			device.osMajorVersion = body.osMajorVersion
-			device.lastSeenAt = Date()
-			try await device.save(on: database)
 		}
 		return try await response(for: session, on: req, refreshToken: refresh)
 	}

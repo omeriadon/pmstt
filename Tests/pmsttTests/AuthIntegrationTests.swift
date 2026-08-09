@@ -91,7 +91,7 @@ final class AuthIntegrationTests: XCTestCase, @unchecked Sendable {
 		let iOSTokens = try registration.content.decode(TokenResponse.self)
 
 		let iPadTokens = try await request(app, .POST, "/v1/auth/login", body: LoginRequest(email: "notifications@example.com", password: "password", platform: "iPadOS", installationID: "ipad-notifications")).content.decode(TokenResponse.self)
-		let iPadDevice = RegisterUserDeviceRequest(installationID: "ipad-notifications", platform: ClientPlatform.iPadOS.rawValue, osMajorVersion: 26, apnsToken: String(repeating: "a", count: 64), isDebug: true)
+		let iPadDevice = RegisterUserDeviceRequest(installationID: "ipad-notifications", platform: ClientPlatform.iPadOS.rawValue, apnsToken: String(repeating: "a", count: 64), isDebug: true)
 		let registered = try await request(app, .PUT, "/v1/devices/current", token: iPadTokens.accessToken, body: iPadDevice)
 		XCTAssertEqual(registered.status, .ok)
 		let testNotification = try await request(app, .POST, "/v1/notifications/test", token: iPadTokens.accessToken)
@@ -99,13 +99,13 @@ final class AuthIntegrationTests: XCTestCase, @unchecked Sendable {
 		let removed = try await request(app, .DELETE, "/v1/devices/current", token: iPadTokens.accessToken, body: RemoveUserDeviceRequest(installationID: "ipad-notifications", platform: ClientPlatform.iPadOS.rawValue))
 		XCTAssertEqual(removed.status, .noContent)
 
-		let forged = try await request(app, .PUT, "/v1/devices/current", token: iOSTokens.accessToken, body: RegisterUserDeviceRequest(installationID: "ipad-notifications", platform: ClientPlatform.iPadOS.rawValue, osMajorVersion: 26, apnsToken: String(repeating: "b", count: 64), isDebug: true))
+		let forged = try await request(app, .PUT, "/v1/devices/current", token: iOSTokens.accessToken, body: RegisterUserDeviceRequest(installationID: "ipad-notifications", platform: ClientPlatform.iPadOS.rawValue, apnsToken: String(repeating: "b", count: 64), isDebug: true))
 		XCTAssertEqual(forged.status, .forbidden)
 		let forgedRemoval = try await request(app, .DELETE, "/v1/devices/current", token: iOSTokens.accessToken, body: RemoveUserDeviceRequest(installationID: "ipad-notifications", platform: ClientPlatform.iPadOS.rawValue))
 		XCTAssertEqual(forgedRemoval.status, .forbidden)
 
 		let macTokens = try await request(app, .POST, "/v1/auth/login", body: LoginRequest(email: "notifications@example.com", password: "password", platform: "macOS", installationID: "mac-notifications")).content.decode(TokenResponse.self)
-		let macRegistered = try await request(app, .PUT, "/v1/devices/current", token: macTokens.accessToken, body: RegisterUserDeviceRequest(installationID: "mac-notifications", platform: ClientPlatform.macOS.rawValue, osMajorVersion: 26, apnsToken: String(repeating: "c", count: 64), isDebug: true))
+		let macRegistered = try await request(app, .PUT, "/v1/devices/current", token: macTokens.accessToken, body: RegisterUserDeviceRequest(installationID: "mac-notifications", platform: ClientPlatform.macOS.rawValue, apnsToken: String(repeating: "c", count: 64), isDebug: true))
 		XCTAssertEqual(macRegistered.status, .ok)
 	}
 
@@ -113,20 +113,43 @@ final class AuthIntegrationTests: XCTestCase, @unchecked Sendable {
 		let app = try await makeApplication()
 		let phoneResponse = try await request(app, .POST, "/v1/auth/register", body: RegisterRequest(email: "watch@example.com", password: "password", displayName: nil, platform: "iOS", installationID: "iphone-watch"))
 		let phone = try phoneResponse.content.decode(TokenResponse.self)
-		let watchResponse = try await request(app, .POST, "/v1/auth/watch-session", token: phone.accessToken, body: WatchSessionRequest(installationID: "watch-1", osMajorVersion: 26))
+		let watchResponse = try await request(app, .POST, "/v1/auth/watch-session", token: phone.accessToken, body: WatchSessionRequest(installationID: "watch-1"))
 		XCTAssertEqual(watchResponse.status, .ok)
 		let watch = try watchResponse.content.decode(TokenResponse.self)
 		let watchPayload = try await app.jwt.keys.verify([UInt8](watch.accessToken.utf8), as: UserPayload.self)
 		let watchSession = try await UserToken.find(watchPayload.sid, on: app.db(.sqlite))
 		let phonePayload = try await app.jwt.keys.verify([UInt8](phone.accessToken.utf8), as: UserPayload.self)
 		XCTAssertEqual(watchSession?.parentSessionID, phonePayload.sid)
+		let deviceBeforeSynchronization = try await UserDevice.query(on: app.db(.sqlite))
+			.filter(\.$installationID == "watch-1")
+			.first()
+		XCTAssertNil(deviceBeforeSynchronization)
+
+		let synchronized = try await request(
+			app,
+			.PUT,
+			"/v1/devices/current/synchronize",
+			token: watch.accessToken,
+			body: SynchronizeUserDeviceRequest(
+				installationID: "watch-1",
+				platform: ClientPlatform.watchOS.rawValue,
+				osMajorVersion: 26,
+				osMinorVersion: 3,
+				isDebug: true,
+				isBeta: true
+			)
+		)
+		XCTAssertEqual(synchronized.status, .ok)
 		let watchDevice = try await UserDevice.query(on: app.db(.sqlite))
 			.filter(\.$installationID == "watch-1")
 			.first()
 		XCTAssertEqual(watchDevice?.platform, ClientPlatform.watchOS.rawValue)
 		XCTAssertEqual(watchDevice?.osMajorVersion, 26)
+		XCTAssertEqual(watchDevice?.osMinorVersion, 3)
+		XCTAssertEqual(watchDevice?.isDebug, true)
+		XCTAssertEqual(watchDevice?.isBeta, true)
 
-		let watchCannotProvision = try await request(app, .POST, "/v1/auth/watch-session", token: watch.accessToken, body: WatchSessionRequest(installationID: "watch-2", osMajorVersion: 26))
+		let watchCannotProvision = try await request(app, .POST, "/v1/auth/watch-session", token: watch.accessToken, body: WatchSessionRequest(installationID: "watch-2"))
 		XCTAssertEqual(watchCannotProvision.status, .forbidden)
 
 		let logout = try await request(app, .DELETE, "/v1/auth/logout", token: phone.accessToken, body: LogoutRequest(refreshToken: phone.refreshToken))
@@ -148,7 +171,7 @@ final class AuthIntegrationTests: XCTestCase, @unchecked Sendable {
 		parent.revokedAt = Date()
 		try await parent.save(on: app.db(.sqlite))
 
-		let watchResponse = try await request(app, .POST, "/v1/auth/watch-session", token: phone.accessToken, body: WatchSessionRequest(installationID: "watch-stale", osMajorVersion: 26))
+		let watchResponse = try await request(app, .POST, "/v1/auth/watch-session", token: phone.accessToken, body: WatchSessionRequest(installationID: "watch-stale"))
 		XCTAssertEqual(watchResponse.status, .unauthorized)
 		let watchRows = try await UserToken.query(on: app.db(.sqlite))
 			.filter(\.$clientPlatform == ClientPlatform.watchOS.rawValue)
@@ -160,8 +183,8 @@ final class AuthIntegrationTests: XCTestCase, @unchecked Sendable {
 		let app = try await makeApplication()
 		let phoneResponse = try await request(app, .POST, "/v1/auth/register", body: RegisterRequest(email: "watch-race@example.com", password: "password", displayName: nil, platform: "iOS", installationID: "iphone-watch-race"))
 		let phone = try phoneResponse.content.decode(TokenResponse.self)
-		let first = try await request(app, .POST, "/v1/auth/watch-session", token: phone.accessToken, body: WatchSessionRequest(installationID: "watch-race", osMajorVersion: 26))
-		let second = try await request(app, .POST, "/v1/auth/watch-session", token: phone.accessToken, body: WatchSessionRequest(installationID: "watch-race", osMajorVersion: 26))
+		let first = try await request(app, .POST, "/v1/auth/watch-session", token: phone.accessToken, body: WatchSessionRequest(installationID: "watch-race"))
+		let second = try await request(app, .POST, "/v1/auth/watch-session", token: phone.accessToken, body: WatchSessionRequest(installationID: "watch-race"))
 		let results = [first, second]
 		XCTAssertTrue(results.allSatisfy { $0.status == .ok })
 		let active = try await UserToken.query(on: app.db(.sqlite))
@@ -176,7 +199,7 @@ final class AuthIntegrationTests: XCTestCase, @unchecked Sendable {
 	func testWatchProvisioningAndParentRevocationAreOrderIndependent() async throws {
 		let app = try await makeApplication()
 		let provisionFirst = try await request(app, .POST, "/v1/auth/register", body: RegisterRequest(email: "watch-provision-first@example.com", password: "password", displayName: nil, platform: "iOS", installationID: "iphone-provision-first")).content.decode(TokenResponse.self)
-		let provisionResponse = try await request(app, .POST, "/v1/auth/watch-session", token: provisionFirst.accessToken, body: WatchSessionRequest(installationID: "watch-provision-first", osMajorVersion: 26))
+		let provisionResponse = try await request(app, .POST, "/v1/auth/watch-session", token: provisionFirst.accessToken, body: WatchSessionRequest(installationID: "watch-provision-first"))
 		XCTAssertEqual(provisionResponse.status, .ok)
 		let logoutAfterProvision = try await request(app, .DELETE, "/v1/auth/logout", token: provisionFirst.accessToken, body: LogoutRequest(refreshToken: provisionFirst.refreshToken))
 		XCTAssertEqual(logoutAfterProvision.status, .noContent)
@@ -186,7 +209,7 @@ final class AuthIntegrationTests: XCTestCase, @unchecked Sendable {
 		let revokeFirst = try await request(app, .POST, "/v1/auth/register", body: RegisterRequest(email: "watch-revoke-first@example.com", password: "password", displayName: nil, platform: "iOS", installationID: "iphone-revoke-first")).content.decode(TokenResponse.self)
 		let logoutBeforeProvision = try await request(app, .DELETE, "/v1/auth/logout", token: revokeFirst.accessToken, body: LogoutRequest(refreshToken: revokeFirst.refreshToken))
 		XCTAssertEqual(logoutBeforeProvision.status, .noContent)
-		let rejectedProvision = try await request(app, .POST, "/v1/auth/watch-session", token: revokeFirst.accessToken, body: WatchSessionRequest(installationID: "watch-revoke-first", osMajorVersion: 26))
+		let rejectedProvision = try await request(app, .POST, "/v1/auth/watch-session", token: revokeFirst.accessToken, body: WatchSessionRequest(installationID: "watch-revoke-first"))
 		XCTAssertEqual(rejectedProvision.status, .unauthorized)
 		let activeAfterRejectedProvision = try await UserToken.query(on: app.db(.sqlite)).filter(\.$installationID == "watch-revoke-first").filter(\.$revokedAt == nil).count()
 		XCTAssertEqual(activeAfterRejectedProvision, 0)
@@ -199,7 +222,7 @@ final class AuthIntegrationTests: XCTestCase, @unchecked Sendable {
 		_ = try await request(app, .POST, "/v1/auth/register", body: RegisterRequest(email: "matrix-mac@example.com", password: "password", displayName: nil, platform: "iOS", installationID: "matrix-mac-phone"))
 		let ipad = try await request(app, .POST, "/v1/auth/login", body: LoginRequest(email: "matrix-ipad@example.com", password: "password", platform: "iPadOS", installationID: "matrix-ipad")).content.decode(TokenResponse.self)
 		let mac = try await request(app, .POST, "/v1/auth/login", body: LoginRequest(email: "matrix-mac@example.com", password: "password", platform: "macOS", installationID: "matrix-mac")).content.decode(TokenResponse.self)
-		let watch = try await request(app, .POST, "/v1/auth/watch-session", token: phone.accessToken, body: WatchSessionRequest(installationID: "matrix-watch", osMajorVersion: 26)).content.decode(TokenResponse.self)
+		let watch = try await request(app, .POST, "/v1/auth/watch-session", token: phone.accessToken, body: WatchSessionRequest(installationID: "matrix-watch")).content.decode(TokenResponse.self)
 		let legacyPayload = LegacyUserPayload(sub: phone.user.id, email: phone.user.email, exp: .init(value: Date().addingTimeInterval(900)))
 		let legacy = try await app.jwt.keys.sign(legacyPayload)
 		let mutationRoutes: [(HTTPMethod, String)] = [
@@ -220,9 +243,21 @@ final class AuthIntegrationTests: XCTestCase, @unchecked Sendable {
 			}
 		}
 		for (platform, installationID, tokens) in [("iPadOS", "matrix-ipad", ipad), ("macOS", "matrix-mac", mac), ("watchOS", "matrix-watch", watch)] {
-			let registered = try await request(app, .PUT, "/v1/devices/current", token: tokens.accessToken,
-			                                   body: RegisterUserDeviceRequest(installationID: installationID, platform: platform, osMajorVersion: 26, apnsToken: String(repeating: "a", count: 64), isDebug: true))
-			XCTAssertNotEqual(registered.status, .forbidden, "PUT /v1/devices/current for \(platform)")
+			let registered = try await request(
+				app,
+				.PUT,
+				"/v1/devices/current/synchronize",
+				token: tokens.accessToken,
+				body: SynchronizeUserDeviceRequest(
+					installationID: installationID,
+					platform: platform,
+					osMajorVersion: 26,
+					osMinorVersion: 0,
+					isDebug: true,
+					isBeta: false
+				)
+			)
+			XCTAssertNotEqual(registered.status, .forbidden, "PUT device synchronization for \(platform)")
 			let removed = try await request(app, .DELETE, "/v1/devices/current", token: tokens.accessToken,
 			                                body: RemoveUserDeviceRequest(installationID: installationID, platform: platform))
 			XCTAssertNotEqual(removed.status, .forbidden, "DELETE /v1/devices/current for \(platform)")

@@ -9,6 +9,7 @@ struct NotificationController: RouteCollection {
 
 		protected.put("devices", "current", use: registerDevice)
 		protected.delete("devices", "current", use: removeDevice)
+		protected.put("devices", "current", "synchronize", use: synchronizeDevice)
 		protected.post("notifications", "test", use: sendTestNotification)
 	}
 
@@ -29,10 +30,7 @@ struct NotificationController: RouteCollection {
 
 		device.$user.id = payload.sub
 		device.platform = body.platform
-		device.osMajorVersion = body.osMajorVersion
-		if let apnsToken = body.apnsToken {
-			device.apnsToken = apnsToken
-		}
+		device.apnsToken = body.apnsToken
 		device.isDebug = body.isDebug
 		device.lastSeenAt = Date()
 		try await device.save(on: req.db)
@@ -45,6 +43,60 @@ struct NotificationController: RouteCollection {
 			"platform": .string(body.platform),
 			"has_apns_token": .stringConvertible(device.apnsToken != nil),
 			"is_debug": .stringConvertible(body.isDebug),
+		])
+		return UserDeviceResponse(
+			installationID: device.installationID,
+			platform: device.platform,
+			isDebug: device.isDebug,
+			lastSeenAt: device.lastSeenAt
+		)
+	}
+
+	func synchronizeDevice(req: Request) async throws -> UserDeviceResponse {
+		let payload = try req.auth.require(UserPayload.self)
+		let body = try req.content.decode(SynchronizeUserDeviceRequest.self)
+		try validate(body)
+		guard body.platform == payload.platform, body.installationID == payload.installationID else {
+			throw Abort(.forbidden)
+		}
+
+		let existingDevice = try await UserDevice.query(on: req.db)
+			.filter(\.$installationID == body.installationID)
+			.first()
+		if let existingDevice, existingDevice.$user.id != payload.sub {
+			throw Abort(.forbidden)
+		}
+
+		let device = existingDevice ?? UserDevice(
+			userID: payload.sub,
+			installationID: body.installationID,
+			platform: body.platform
+		)
+		device.$user.id = payload.sub
+		device.platform = body.platform
+		device.osMajorVersion = body.osMajorVersion
+		device.osMinorVersion = body.osMinorVersion
+		device.isDebug = body.isDebug
+		device.isBeta = body.isBeta
+		device.lastSeenAt = Date()
+		try await device.save(on: req.db)
+
+		let deviceID = try device.requireID()
+		try await pruneStaleDevices(
+			for: payload.sub,
+			keeping: deviceID,
+			platform: body.platform,
+			database: req.db,
+			logger: req.logger
+		)
+		req.logger.info("Synchronized device", metadata: [
+			"user_id": .string(payload.sub.uuidString),
+			"device_id": .string(deviceID.uuidString),
+			"installation_id": .string(body.installationID),
+			"platform": .string(body.platform),
+			"os_version": .string("\(body.osMajorVersion).\(body.osMinorVersion)"),
+			"is_debug": .stringConvertible(body.isDebug),
+			"is_beta": .stringConvertible(body.isBeta),
 		])
 		return UserDeviceResponse(
 			installationID: device.installationID,
@@ -71,7 +123,7 @@ struct NotificationController: RouteCollection {
 			await SchoolDayActivityCoordinator().endActivities(for: device, database: req.db, logger: req.logger)
 			try await device.delete(on: req.db)
 		}
-		req.logger.info("Removed APNs device", metadata: [
+		req.logger.info("Removed device", metadata: [
 			"user_id": .string(payload.sub.uuidString),
 			"installation_id": .string(body.installationID),
 			"platform": .string(body.platform),
@@ -88,7 +140,7 @@ struct NotificationController: RouteCollection {
 		for device in devices where device.id != deviceID && device.lastSeenAt < cutoff {
 			await SchoolDayActivityCoordinator().endActivities(for: device, database: database, logger: logger)
 			try await device.delete(on: database)
-			logger.info("Pruned stale APNs device", metadata: [
+			logger.info("Pruned stale device", metadata: [
 				"user_id": .string(userID.uuidString),
 				"device_id": .string(device.id?.uuidString ?? "unknown"),
 				"platform": .string(platform),
@@ -124,14 +176,26 @@ struct NotificationController: RouteCollection {
 			throw AppError(.badRequest, code: .invalidRequest, reason: "The installation ID is invalid.", field: "installationID")
 		}
 
-		guard (1 ... 999).contains(body.osMajorVersion) else {
-			throw AppError(.badRequest, code: .invalidRequest, reason: "The operating system version is invalid.", field: "osMajorVersion")
+		guard !body.apnsToken.isEmpty, body.apnsToken.count >= 32, body.apnsToken.count <= 200 else {
+			throw AppError(.badRequest, code: .invalidRequest, reason: "The APNS token is invalid.", field: "apnsToken")
+		}
+	}
+
+	private func validate(_ body: SynchronizeUserDeviceRequest) throws {
+		guard ["iOS", "iPadOS", "macOS", "watchOS"].contains(body.platform) else {
+			throw AppError(.badRequest, code: .invalidRequest, reason: "The platform is invalid.", field: "platform")
 		}
 
-		if let apnsToken = body.apnsToken,
-		   apnsToken.isEmpty || apnsToken.count < 32 || apnsToken.count > 200
-		{
-			throw AppError(.badRequest, code: .invalidRequest, reason: "The APNS token is invalid.", field: "apnsToken")
+		guard !body.installationID.isEmpty, body.installationID.count <= 200 else {
+			throw AppError(.badRequest, code: .invalidRequest, reason: "The installation ID is invalid.", field: "installationID")
+		}
+
+		guard (1 ... 999).contains(body.osMajorVersion) else {
+			throw AppError(.badRequest, code: .invalidRequest, reason: "The operating system major version is invalid.", field: "osMajorVersion")
+		}
+
+		guard (0 ... 999).contains(body.osMinorVersion) else {
+			throw AppError(.badRequest, code: .invalidRequest, reason: "The operating system minor version is invalid.", field: "osMinorVersion")
 		}
 	}
 }

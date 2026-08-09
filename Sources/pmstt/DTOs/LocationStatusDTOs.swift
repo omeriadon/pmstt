@@ -22,6 +22,8 @@ struct AdministrationStatisticsResponse: Content {
 	let averageAssessmentsPerUserWithMultipleAssessments: Double?
 	let totalDevices: Int
 	let activeDevicesLast30Days: Int
+	let debugDevices: Int
+	let betaDevices: Int
 	let iPhoneDevices: Int
 	let iPadDevices: Int
 	let macDevices: Int
@@ -39,21 +41,26 @@ struct AdministrationStatisticsResponse: Content {
 	let usersWithLocationStatus: Int
 	let totalLocationStatusUpdates: Int
 	let deviceTypes: [AdministrationStatisticCount]
-	let osMajorVersions: [AdministrationStatisticCount]
-	let deviceOSMajorVersions: [AdministrationDeviceOSMajorVersionCount]
+	let osVersions: [AdministrationStatisticCount]
+	let deviceOSVersions: [AdministrationDeviceOSVersionCount]
 }
 
 struct AdministrationStatisticCount: Content, Identifiable {
 	let label: String
 	let count: Int
 
-	var id: String { label }
+	var id: String {
+		label
+	}
 }
 
-struct AdministrationDeviceOSMajorVersionCount: Content, Identifiable {
+struct AdministrationDeviceOSVersionCount: Content, Identifiable {
 	let platform: String
 	let osMajorVersion: Int
+	let osMinorVersion: Int
 	let count: Int
 
-	var id: String { "\(platform)-\(osMajorVersion)" }
+	var id: String {
+		"\(platform)-\(osMajorVersion)-\(osMinorVersion)"
+	}
 }

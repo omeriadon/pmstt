@@ -19,11 +19,17 @@ final class UserDevice: Model, Content, @unchecked Sendable {
 	@OptionalField(key: "os_major_version")
 	var osMajorVersion: Int?
 
+	@OptionalField(key: "os_minor_version")
+	var osMinorVersion: Int?
+
 	@Field(key: "apns_token")
 	var apnsToken: String?
 
 	@Field(key: "is_debug")
 	var isDebug: Bool
+
+	@Field(key: "is_beta")
+	var isBeta: Bool
 
 	@Field(key: "live_activity_push_to_start_token")
 	var liveActivityPushToStartToken: String?
@@ -45,8 +51,10 @@ final class UserDevice: Model, Content, @unchecked Sendable {
 		installationID: String,
 		platform: String,
 		osMajorVersion: Int? = nil,
+		osMinorVersion: Int? = nil,
 		apnsToken: String? = nil,
 		isDebug: Bool = false,
+		isBeta: Bool = false,
 		liveActivityPushToStartToken: String? = nil,
 		lastSeenAt: Date = Date()
 	) {
@@ -55,8 +63,10 @@ final class UserDevice: Model, Content, @unchecked Sendable {
 		self.installationID = installationID
 		self.platform = platform
 		self.osMajorVersion = osMajorVersion
+		self.osMinorVersion = osMinorVersion
 		self.apnsToken = apnsToken
 		self.isDebug = isDebug
+		self.isBeta = isBeta
 		self.liveActivityPushToStartToken = liveActivityPushToStartToken
 		self.lastSeenAt = lastSeenAt
 	}

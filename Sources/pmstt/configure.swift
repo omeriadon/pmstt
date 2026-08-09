@@ -76,6 +76,7 @@ func pmsttMigrationList() -> [any Migration] {
 		AddTimetableClassroomAndTeacher(),
 		AddUserDeviceDebugFlag(),
 		AddUserDeviceOSMajorVersion(),
+		AddUserDeviceRuntimeMetadata(),
 		RemoveLegacyDevices(),
 		CreateSchoolDayLiveActivity(),
 		CreateSchoolDayLiveActivityTransition(),

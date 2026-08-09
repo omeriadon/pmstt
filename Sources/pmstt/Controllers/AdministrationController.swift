@@ -198,6 +198,12 @@ struct AdministrationController: RouteCollection {
 		async let activeDevicesLast30Days = UserDevice.query(on: req.db)
 			.filter(\.$lastSeenAt >= activeDeviceCutoff)
 			.count()
+		async let debugDevices = UserDevice.query(on: req.db)
+			.filter(\.$isDebug == true)
+			.count()
+		async let betaDevices = UserDevice.query(on: req.db)
+			.filter(\.$isBeta == true)
+			.count()
 		async let iPhoneDevices = UserDevice.query(on: req.db)
 			.filter(\.$platform == ClientPlatform.iOS.rawValue)
 			.count()
@@ -229,6 +235,8 @@ struct AdministrationController: RouteCollection {
 			usersWithOwnerTimetable,
 			totalDevices,
 			activeDevicesLast30Days,
+			debugDevices,
+			betaDevices,
 			iPhoneDevices,
 			iPadDevices,
 			macDevices,
@@ -241,11 +249,11 @@ struct AdministrationController: RouteCollection {
 			activeEventTagSubscriptions
 		)
 		let friendshipParticipantIDs = Set(
-			counts.8.flatMap { friendship in
+			counts.10.flatMap { friendship in
 				[friendship.$requester.id, friendship.$recipient.id]
 			}
 		)
-		let totalFriendConnections = counts.8.count * 2
+		let totalFriendConnections = counts.10.count * 2
 
 		return AdministrationStatisticsResponse(
 			totalUsers: users.count,
@@ -261,12 +269,14 @@ struct AdministrationController: RouteCollection {
 			),
 			totalDevices: counts.1,
 			activeDevicesLast30Days: counts.2,
-			iPhoneDevices: counts.3,
-			iPadDevices: counts.4,
-			macDevices: counts.5,
-			watchDevices: counts.6,
-			legacyDevices: counts.7,
-			acceptedFriendships: counts.8.count,
+			debugDevices: counts.3,
+			betaDevices: counts.4,
+			iPhoneDevices: counts.5,
+			iPadDevices: counts.6,
+			macDevices: counts.7,
+			watchDevices: counts.8,
+			legacyDevices: counts.9,
+			acceptedFriendships: counts.10.count,
 			averageFriendsPerUser: average(
 				total: totalFriendConnections,
 				across: users.count
@@ -275,17 +285,17 @@ struct AdministrationController: RouteCollection {
 				total: totalFriendConnections,
 				across: friendshipParticipantIDs.count
 			),
-			totalCalendarEvents: counts.9,
-			globalCalendarEvents: counts.10,
-			personalCalendarEvents: counts.11,
-			activeEventTagSubscriptions: counts.12,
+			totalCalendarEvents: counts.11,
+			globalCalendarEvents: counts.12,
+			personalCalendarEvents: counts.13,
+			activeEventTagSubscriptions: counts.14,
 			averageArrivalSecondsSinceMidnight: LocationStatusStatisticsService().averageArrival(for: histories),
 			usersWithAssessments: usersWithAssessments.count,
 			usersWithLocationStatus: usersWithLocationStatus.count,
 			totalLocationStatusUpdates: totalLocationStatusUpdates,
 			deviceTypes: deviceTypeCounts(devices),
-			osMajorVersions: osMajorVersionCounts(devices),
-			deviceOSMajorVersions: deviceOSMajorVersionCounts(devices)
+			osVersions: osVersionCounts(devices),
+			deviceOSVersions: deviceOSVersionCounts(devices)
 		)
 	}
 
@@ -296,27 +306,42 @@ struct AdministrationController: RouteCollection {
 			.sorted { $0.count > $1.count }
 	}
 
-	private func osMajorVersionCounts(_ devices: [UserDevice]) -> [AdministrationStatisticCount] {
-		let counts = Dictionary(grouping: devices.compactMap { $0.osMajorVersion }, by: { $0 }).mapValues { $0.count }
+	private func osVersionCounts(_ devices: [UserDevice]) -> [AdministrationStatisticCount] {
+		let counts = Dictionary(grouping: devices.compactMap { device -> DeviceOSVersionKey? in
+			guard let major = device.osMajorVersion, let minor = device.osMinorVersion else { return nil }
+			return DeviceOSVersionKey(platform: "", osMajorVersion: major, osMinorVersion: minor)
+		}, by: { $0 }).mapValues { $0.count }
 		return counts
-			.map { AdministrationStatisticCount(label: "OS \($0.key)", count: $0.value) }
-			.sorted { Int(String($0.label.dropFirst(3))) ?? 0 > Int(String($1.label.dropFirst(3))) ?? 0 }
+			.map {
+				AdministrationStatisticCount(
+					label: "OS \($0.key.osMajorVersion).\($0.key.osMinorVersion)",
+					count: $0.value
+				)
+			}
+			.sorted { $0.label > $1.label }
 	}
 
-	private func deviceOSMajorVersionCounts(_ devices: [UserDevice]) -> [AdministrationDeviceOSMajorVersionCount] {
+	private func deviceOSVersionCounts(_ devices: [UserDevice]) -> [AdministrationDeviceOSVersionCount] {
 		let grouped = Dictionary(grouping: devices.compactMap { device in
-			device.osMajorVersion.map {
-				DeviceOSMajorVersionKey(platform: device.platform, osMajorVersion: $0)
-			}
+			guard let major = device.osMajorVersion, let minor = device.osMinorVersion else { return nil }
+			return DeviceOSVersionKey(
+				platform: device.platform,
+				osMajorVersion: major,
+				osMinorVersion: minor
+			)
 		}, by: { $0 })
 		return grouped.map { key, entries in
-			AdministrationDeviceOSMajorVersionCount(
+			AdministrationDeviceOSVersionCount(
 				platform: deviceTypeLabel(for: key.platform),
 				osMajorVersion: key.osMajorVersion,
+				osMinorVersion: key.osMinorVersion,
 				count: entries.count
 			)
 		}.sorted {
 			if $0.platform == $1.platform {
+				if $0.osMajorVersion == $1.osMajorVersion {
+					return $0.osMinorVersion > $1.osMinorVersion
+				}
 				return $0.osMajorVersion > $1.osMajorVersion
 			}
 			return $0.platform < $1.platform
@@ -1055,9 +1080,10 @@ struct AdministrationController: RouteCollection {
 	}
 }
 
-private struct DeviceOSMajorVersionKey: Hashable {
+private struct DeviceOSVersionKey: Hashable {
 	let platform: String
 	let osMajorVersion: Int
+	let osMinorVersion: Int
 }
 
 private extension String {

@@ -43,7 +43,6 @@ struct TokenResponse: Content {
 
 struct WatchSessionRequest: Content {
 	let installationID: String
-	let osMajorVersion: Int
 }
 
 struct UserAccountResponse: Content {
@@ -307,10 +306,18 @@ struct FeedbackRequest: Content {
 struct RegisterUserDeviceRequest: Content {
 	let installationID: String
 	let platform: String
-	let osMajorVersion: Int
-	let apnsToken: String?
+	let apnsToken: String
 	/// `true` when the token was obtained from a debug/sandbox build (APNs sandbox endpoint).
 	let isDebug: Bool
+}
+
+struct SynchronizeUserDeviceRequest: Content {
+	let installationID: String
+	let platform: String
+	let osMajorVersion: Int
+	let osMinorVersion: Int
+	let isDebug: Bool
+	let isBeta: Bool
 }
 
 struct RemoveUserDeviceRequest: Content {
