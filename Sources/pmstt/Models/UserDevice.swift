@@ -16,6 +16,9 @@ final class UserDevice: Model, Content, @unchecked Sendable {
 	@Field(key: "platform")
 	var platform: String
 
+	@OptionalField(key: "os_major_version")
+	var osMajorVersion: Int?
+
 	@Field(key: "apns_token")
 	var apnsToken: String?
 
@@ -41,6 +44,7 @@ final class UserDevice: Model, Content, @unchecked Sendable {
 		userID: User.IDValue,
 		installationID: String,
 		platform: String,
+		osMajorVersion: Int? = nil,
 		apnsToken: String? = nil,
 		isDebug: Bool = false,
 		liveActivityPushToStartToken: String? = nil,
@@ -50,6 +54,7 @@ final class UserDevice: Model, Content, @unchecked Sendable {
 		$user.id = userID
 		self.installationID = installationID
 		self.platform = platform
+		self.osMajorVersion = osMajorVersion
 		self.apnsToken = apnsToken
 		self.isDebug = isDebug
 		self.liveActivityPushToStartToken = liveActivityPushToStartToken

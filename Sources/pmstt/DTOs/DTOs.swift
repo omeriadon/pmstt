@@ -306,6 +306,7 @@ struct FeedbackRequest: Content {
 struct RegisterUserDeviceRequest: Content {
 	let installationID: String
 	let platform: String
+	let osMajorVersion: Int? = nil
 	let apnsToken: String
 	/// `true` when the token was obtained from a debug/sandbox build (APNs sandbox endpoint).
 	let isDebug: Bool

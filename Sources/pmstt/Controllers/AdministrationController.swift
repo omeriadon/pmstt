@@ -178,6 +178,7 @@ struct AdministrationController: RouteCollection {
 		_ = try await requireAdministrator(req)
 		let users = try await User.query(on: req.db).all()
 		let histories = try users.map { try $0.locationStatusHistory() }
+		let devices = try await UserDevice.query(on: req.db).filter(\.$platform != ClientPlatform.legacy.rawValue).all()
 		let assessmentCounts = users.map { user in
 			guard let data = user.gradeTrackerData,
 			      let document = try? JSONDecoder().decode(GradeTrackerDocument.self, from: data)
@@ -188,7 +189,9 @@ struct AdministrationController: RouteCollection {
 			return document.assessments.count
 		}
 		let totalAssessments = assessmentCounts.reduce(0, +)
-		let usersWithMultipleAssessments = assessmentCounts.filter { $0 > 1 }
+		let usersWithAssessments = assessmentCounts.filter { $0 > 0 }
+		let usersWithLocationStatus = histories.filter { !$0.isEmpty }
+		let totalLocationStatusUpdates = histories.reduce(0) { $0 + $1.count }
 		let activeDeviceCutoff = Date().addingTimeInterval(-30 * 24 * 60 * 60)
 		async let usersWithOwnerTimetable = OwnerTimetable.query(on: req.db).count()
 		async let totalDevices = UserDevice.query(on: req.db).count()
@@ -253,8 +256,8 @@ struct AdministrationController: RouteCollection {
 				across: users.count
 			),
 			averageAssessmentsPerUserWithMultipleAssessments: average(
-				total: usersWithMultipleAssessments.reduce(0, +),
-				across: usersWithMultipleAssessments.count
+				total: usersWithAssessments.reduce(0, +),
+				across: usersWithAssessments.count
 			),
 			totalDevices: counts.1,
 			activeDevicesLast30Days: counts.2,
@@ -276,8 +279,60 @@ struct AdministrationController: RouteCollection {
 			globalCalendarEvents: counts.10,
 			personalCalendarEvents: counts.11,
 			activeEventTagSubscriptions: counts.12,
-			averageArrivalSecondsSinceMidnight: LocationStatusStatisticsService().averageArrival(for: histories)
+			averageArrivalSecondsSinceMidnight: LocationStatusStatisticsService().averageArrival(for: histories),
+			usersWithAssessments: usersWithAssessments.count,
+			usersWithLocationStatus: usersWithLocationStatus.count,
+			totalLocationStatusUpdates: totalLocationStatusUpdates,
+			deviceTypes: deviceTypeCounts(devices),
+			osMajorVersions: osMajorVersionCounts(devices),
+			deviceOSMajorVersions: deviceOSMajorVersionCounts(devices)
 		)
+	}
+
+	private func deviceTypeCounts(_ devices: [UserDevice]) -> [AdministrationStatisticCount] {
+		let counts = Dictionary(grouping: devices, by: { deviceTypeLabel(for: $0) }).mapValues { $0.count }
+		return counts
+			.map { AdministrationStatisticCount(label: $0.key, count: $0.value) }
+			.sorted { $0.count > $1.count }
+	}
+
+	private func osMajorVersionCounts(_ devices: [UserDevice]) -> [AdministrationStatisticCount] {
+		let counts = Dictionary(grouping: devices.compactMap { $0.osMajorVersion }, by: { $0 }).mapValues { $0.count }
+		return counts
+			.map { AdministrationStatisticCount(label: "OS \($0.key)", count: $0.value) }
+			.sorted { Int(String($0.label.dropFirst(3))) ?? 0 > Int(String($1.label.dropFirst(3))) ?? 0 }
+	}
+
+	private func deviceOSMajorVersionCounts(_ devices: [UserDevice]) -> [AdministrationDeviceOSMajorVersionCount] {
+		let grouped = Dictionary(grouping: devices.compactMap { device in
+			device.osMajorVersion.map { (device.platform, $0) }
+		}, by: { $0 })
+		return grouped.map { key, entries in
+			AdministrationDeviceOSMajorVersionCount(
+				platform: deviceTypeLabel(for: key.0),
+				osMajorVersion: key.1,
+				count: entries.count
+			)
+		}.sorted {
+			if $0.platform == $1.platform {
+				return $0.osMajorVersion > $1.osMajorVersion
+			}
+			return $0.platform < $1.platform
+		}
+	}
+
+	private func deviceTypeLabel(for device: UserDevice) -> String {
+		deviceTypeLabel(for: device.platform)
+	}
+
+	private func deviceTypeLabel(for platform: String) -> String {
+		switch platform {
+			case ClientPlatform.iOS.rawValue: "iPhone"
+			case ClientPlatform.iPadOS.rawValue: "iPad"
+			case ClientPlatform.macOS.rawValue: "Mac"
+			case ClientPlatform.watchOS.rawValue: "Apple Watch"
+			default: platform
+		}
 	}
 
 	private func average(total: Int, across count: Int) -> Double? {

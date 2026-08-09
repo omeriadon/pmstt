@@ -17,6 +17,9 @@ struct LocationArrivalStatisticsResponse: Content {
 struct AdministrationStatisticsResponse: Content {
 	let totalUsers: Int
 	let usersWithOwnerTimetable: Int
+	let usersWithAssessments: Int
+	let usersWithLocationStatus: Int
+	let totalLocationStatusUpdates: Int
 	let totalAssessments: Int
 	let averageAssessmentsPerUser: Double?
 	let averageAssessmentsPerUserWithMultipleAssessments: Double?
@@ -35,4 +38,22 @@ struct AdministrationStatisticsResponse: Content {
 	let personalCalendarEvents: Int
 	let activeEventTagSubscriptions: Int
 	let averageArrivalSecondsSinceMidnight: Double?
+	let deviceTypes: [AdministrationStatisticCount]
+	let osMajorVersions: [AdministrationStatisticCount]
+	let deviceOSMajorVersions: [AdministrationDeviceOSMajorVersionCount]
+}
+
+struct AdministrationStatisticCount: Content, Identifiable {
+	let label: String
+	let count: Int
+
+	var id: String { label }
+}
+
+struct AdministrationDeviceOSMajorVersionCount: Content, Identifiable {
+	let platform: String
+	let osMajorVersion: Int
+	let count: Int
+
+	var id: String { "\(platform)-\(osMajorVersion)" }
 }

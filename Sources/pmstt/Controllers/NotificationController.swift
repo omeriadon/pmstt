@@ -29,6 +29,7 @@ struct NotificationController: RouteCollection {
 
 		device.$user.id = payload.sub
 		device.platform = body.platform
+		device.osMajorVersion = body.osMajorVersion
 		device.apnsToken = body.apnsToken
 		device.isDebug = body.isDebug
 		device.lastSeenAt = Date()
