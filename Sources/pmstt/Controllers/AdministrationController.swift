@@ -309,7 +309,7 @@ struct AdministrationController: RouteCollection {
 	private func osVersionCounts(_ devices: [UserDevice]) -> [AdministrationStatisticCount] {
 		let counts = Dictionary(grouping: devices.compactMap { device -> DeviceOSVersionKey? in
 			guard let major = device.osMajorVersion, let minor = device.osMinorVersion else { return nil }
-			return DeviceOSVersionKey(platform: "", osMajorVersion: major, osMinorVersion: minor)
+			return DeviceOSVersionKey(platform: "", osMajorVersion: major, osMinorVersion: minor, isDebug: false)
 		}, by: { $0 }).mapValues { $0.count }
 		return counts
 			.map {
@@ -327,7 +327,8 @@ struct AdministrationController: RouteCollection {
 			return DeviceOSVersionKey(
 				platform: device.platform,
 				osMajorVersion: major,
-				osMinorVersion: minor
+				osMinorVersion: minor,
+				isDebug: device.isDebug
 			)
 		}
 		let grouped = Dictionary(grouping: keys, by: { $0 })
@@ -336,11 +337,15 @@ struct AdministrationController: RouteCollection {
 				platform: deviceTypeLabel(for: key.platform),
 				osMajorVersion: key.osMajorVersion,
 				osMinorVersion: key.osMinorVersion,
+				isDebug: key.isDebug,
 				count: entries.count
 			)
 		}.sorted {
 			if $0.platform == $1.platform {
 				if $0.osMajorVersion == $1.osMajorVersion {
+					if $0.osMinorVersion == $1.osMinorVersion {
+						return !$0.isDebug && $1.isDebug
+					}
 					return $0.osMinorVersion > $1.osMinorVersion
 				}
 				return $0.osMajorVersion > $1.osMajorVersion
@@ -1085,6 +1090,7 @@ private struct DeviceOSVersionKey: Hashable {
 	let platform: String
 	let osMajorVersion: Int
 	let osMinorVersion: Int
+	let isDebug: Bool
 }
 
 private extension String {
