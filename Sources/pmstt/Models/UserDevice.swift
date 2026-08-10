@@ -29,7 +29,10 @@ final class UserDevice: Model, Content, @unchecked Sendable {
 	var isDebug: Bool
 
 	@Field(key: "is_beta")
-	var isBeta: Bool
+	var isTestFlight: Bool
+
+	@Field(key: "is_os_beta")
+	var isOSBeta: Bool
 
 	@Field(key: "live_activity_push_to_start_token")
 	var liveActivityPushToStartToken: String?
@@ -54,7 +57,8 @@ final class UserDevice: Model, Content, @unchecked Sendable {
 		osMinorVersion: Int? = nil,
 		apnsToken: String? = nil,
 		isDebug: Bool = false,
-		isBeta: Bool = false,
+		isTestFlight: Bool = false,
+		isOSBeta: Bool = false,
 		liveActivityPushToStartToken: String? = nil,
 		lastSeenAt: Date = Date()
 	) {
@@ -66,7 +70,8 @@ final class UserDevice: Model, Content, @unchecked Sendable {
 		self.osMinorVersion = osMinorVersion
 		self.apnsToken = apnsToken
 		self.isDebug = isDebug
-		self.isBeta = isBeta
+		self.isTestFlight = isTestFlight
+		self.isOSBeta = isOSBeta
 		self.liveActivityPushToStartToken = liveActivityPushToStartToken
 		self.lastSeenAt = lastSeenAt
 	}

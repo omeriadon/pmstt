@@ -77,7 +77,8 @@ struct NotificationController: RouteCollection {
 		device.osMajorVersion = body.osMajorVersion
 		device.osMinorVersion = body.osMinorVersion
 		device.isDebug = body.isDebug
-		device.isBeta = body.isBeta
+		device.isTestFlight = body.isTestFlight
+		device.isOSBeta = body.isOSBeta
 		device.lastSeenAt = Date()
 		try await device.save(on: req.db)
 
@@ -96,7 +97,8 @@ struct NotificationController: RouteCollection {
 			"platform": .string(body.platform),
 			"os_version": .string("\(body.osMajorVersion).\(body.osMinorVersion)"),
 			"is_debug": .stringConvertible(body.isDebug),
-			"is_beta": .stringConvertible(body.isBeta),
+			"is_test_flight": .stringConvertible(body.isTestFlight),
+			"is_os_beta": .stringConvertible(body.isOSBeta),
 		])
 		return UserDeviceResponse(
 			installationID: device.installationID,

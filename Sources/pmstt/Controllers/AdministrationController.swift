@@ -201,13 +201,13 @@ struct AdministrationController: RouteCollection {
 		async let debugDevices = UserDevice.query(on: req.db)
 			.filter(\.$isDebug == true)
 			.count()
-		async let betaDevices = UserDevice.query(on: req.db)
+		async let testFlightDevices = UserDevice.query(on: req.db)
 			.filter(\.$isDebug == false)
-			.filter(\.$isBeta == true)
+			.filter(\.$isTestFlight == true)
 			.count()
 		async let releaseDevices = UserDevice.query(on: req.db)
 			.filter(\.$isDebug == false)
-			.filter(\.$isBeta == false)
+			.filter(\.$isTestFlight == false)
 			.count()
 		async let iPhoneDevices = UserDevice.query(on: req.db)
 			.filter(\.$platform == ClientPlatform.iOS.rawValue)
@@ -241,7 +241,7 @@ struct AdministrationController: RouteCollection {
 			totalDevices,
 			activeDevicesLast30Days,
 			debugDevices,
-			betaDevices,
+			testFlightDevices,
 			releaseDevices,
 			iPhoneDevices,
 			iPadDevices,
@@ -276,7 +276,7 @@ struct AdministrationController: RouteCollection {
 			totalDevices: counts.1,
 			activeDevicesLast30Days: counts.2,
 			debugDevices: counts.3,
-			betaDevices: counts.4,
+			testFlightDevices: counts.4,
 			releaseDevices: counts.5,
 			iPhoneDevices: counts.6,
 			iPadDevices: counts.7,
@@ -321,7 +321,7 @@ struct AdministrationController: RouteCollection {
 				osMajorVersion: major,
 				osMinorVersion: minor,
 				isDebug: false,
-				isBeta: false
+				isOSBeta: false
 			)
 		}, by: { $0 }).mapValues { $0.count }
 		return counts
@@ -342,7 +342,7 @@ struct AdministrationController: RouteCollection {
 				osMajorVersion: major,
 				osMinorVersion: minor,
 				isDebug: device.isDebug,
-				isBeta: device.isBeta
+				isOSBeta: device.isOSBeta
 			)
 		}
 		let grouped = Dictionary(grouping: keys, by: { $0 })
@@ -352,14 +352,14 @@ struct AdministrationController: RouteCollection {
 				osMajorVersion: key.osMajorVersion,
 				osMinorVersion: key.osMinorVersion,
 				isDebug: key.isDebug,
-				isBeta: key.isBeta,
+				isOSBeta: key.isOSBeta,
 				count: entries.count
 			)
 		}.sorted {
 			if $0.platform == $1.platform {
 				if $0.osMajorVersion == $1.osMajorVersion {
 					if $0.osMinorVersion == $1.osMinorVersion {
-						return !$0.isDebug && $1.isDebug
+						return !$0.isOSBeta && $1.isOSBeta
 					}
 					return $0.osMinorVersion > $1.osMinorVersion
 				}
@@ -1106,7 +1106,7 @@ private struct DeviceOSVersionKey: Hashable {
 	let osMajorVersion: Int
 	let osMinorVersion: Int
 	let isDebug: Bool
-	let isBeta: Bool
+	let isOSBeta: Bool
 }
 
 private extension String {

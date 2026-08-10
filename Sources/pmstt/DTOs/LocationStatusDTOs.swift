@@ -23,7 +23,7 @@ struct AdministrationStatisticsResponse: Content {
 	let totalDevices: Int
 	let activeDevicesLast30Days: Int
 	let debugDevices: Int
-	let betaDevices: Int
+	let testFlightDevices: Int
 	let releaseDevices: Int
 	let iPhoneDevices: Int
 	let iPadDevices: Int
@@ -60,10 +60,10 @@ struct AdministrationDeviceOSVersionCount: Content, Identifiable {
 	let osMajorVersion: Int
 	let osMinorVersion: Int
 	let isDebug: Bool
-	let isBeta: Bool
+	let isOSBeta: Bool
 	let count: Int
 
 	var id: String {
-		"\(platform)-\(osMajorVersion)-\(osMinorVersion)-\(isDebug)-\(isBeta)"
+		"\(platform)-\(osMajorVersion)-\(osMinorVersion)-\(isDebug)-\(isOSBeta)"
 	}
 }

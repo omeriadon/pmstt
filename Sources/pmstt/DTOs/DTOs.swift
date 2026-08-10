@@ -317,7 +317,8 @@ struct SynchronizeUserDeviceRequest: Content {
 	let osMajorVersion: Int
 	let osMinorVersion: Int
 	let isDebug: Bool
-	let isBeta: Bool
+	let isTestFlight: Bool
+	let isOSBeta: Bool
 }
 
 struct RemoveUserDeviceRequest: Content {

@@ -136,7 +136,8 @@ final class AuthIntegrationTests: XCTestCase, @unchecked Sendable {
 				osMajorVersion: 26,
 				osMinorVersion: 3,
 				isDebug: true,
-				isBeta: true
+				isTestFlight: true,
+				isOSBeta: true
 			)
 		)
 		XCTAssertEqual(synchronized.status, .ok)
@@ -147,7 +148,8 @@ final class AuthIntegrationTests: XCTestCase, @unchecked Sendable {
 		XCTAssertEqual(watchDevice?.osMajorVersion, 26)
 		XCTAssertEqual(watchDevice?.osMinorVersion, 3)
 		XCTAssertEqual(watchDevice?.isDebug, true)
-		XCTAssertEqual(watchDevice?.isBeta, true)
+		XCTAssertEqual(watchDevice?.isTestFlight, true)
+		XCTAssertEqual(watchDevice?.isOSBeta, true)
 
 		let watchCannotProvision = try await request(app, .POST, "/v1/auth/watch-session", token: watch.accessToken, body: WatchSessionRequest(installationID: "watch-2"))
 		XCTAssertEqual(watchCannotProvision.status, .forbidden)
@@ -254,7 +256,8 @@ final class AuthIntegrationTests: XCTestCase, @unchecked Sendable {
 					osMajorVersion: 26,
 					osMinorVersion: 0,
 					isDebug: true,
-					isBeta: false
+					isTestFlight: false,
+					isOSBeta: false
 				)
 			)
 			XCTAssertNotEqual(registered.status, .forbidden, "PUT device synchronization for \(platform)")
