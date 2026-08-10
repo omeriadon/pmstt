@@ -20,6 +20,8 @@ struct AdministrationController: RouteCollection {
 		admin.get("broadcast-notifications", use: broadcastNotifications)
 		admin.delete("broadcast-notifications", ":notificationID", use: deleteBroadcastNotification)
 		admin.get("profile-storage-quota", use: profileStorageQuota)
+		admin.get("app-version", use: appVersionRequirement)
+		admin.put("app-version", use: updateAppVersionRequirement)
 		admin.get("badges", use: specialBadges)
 		admin.post("badges", use: createSpecialBadge)
 		admin.put("badges", "order", use: reorderSpecialBadges)
@@ -43,6 +45,37 @@ struct AdministrationController: RouteCollection {
 		_ = try await requireAdministrator(req)
 		let configuration = try ProfileStorageConfiguration.load()
 		return try await ProfileStorageQuotaService(configuration: configuration).snapshot(on: req.db)
+	}
+
+	private func appVersionRequirement(req: Request) async throws -> AppVersionRequirementResponse {
+		_ = try await requireSystemOwner(req)
+		let requirement = try await AppVersionRequirementService.current(on: req.db)
+		return AppVersionRequirementResponse(requirement)
+	}
+
+	private func updateAppVersionRequirement(req: Request) async throws -> AppVersionRequirementResponse {
+		_ = try await requireSystemOwner(req)
+		let update = try req.content.decode(AppVersionRequirementUpdateRequest.self)
+		guard Self.isValidVersion(update.appVersion),
+		      Self.isValidVersion(update.macVersion),
+		      update.appBuild >= 0,
+		      update.macBuild >= 0
+		else {
+			throw Abort(.badRequest, reason: "Versions must use the xx.xx.xx format and builds cannot be negative.")
+		}
+
+		let requirement = try await AppVersionRequirementService.current(on: req.db)
+		requirement.appVersion = update.appVersion
+		requirement.appBuild = update.appBuild
+		requirement.macVersion = update.macVersion
+		requirement.macBuild = update.macBuild
+		try await requirement.update(on: req.db)
+		return AppVersionRequirementResponse(requirement)
+	}
+
+	private static func isValidVersion(_ value: String) -> Bool {
+		let components = value.split(separator: ".", omittingEmptySubsequences: false)
+		return components.count == 3 && components.allSatisfy { !$0.isEmpty && $0.allSatisfy(\.isNumber) }
 	}
 
 	private func specialBadges(req: Request) async throws -> [AdministrationSpecialBadgeResponse] {

@@ -114,5 +114,6 @@ func pmsttMigrationList() -> [any Migration] {
 		RemoveCreatedTimetables(),
 		CorrectTermThreeStartDate(),
 		RemoveTimetableSharing(),
+		CreateAppVersionRequirement(),
 	]
 }
