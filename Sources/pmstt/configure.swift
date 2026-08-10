@@ -115,5 +115,6 @@ func pmsttMigrationList() -> [any Migration] {
 		CorrectTermThreeStartDate(),
 		RemoveTimetableSharing(),
 		CreateAppVersionRequirement(),
+		CreateSchoolWeatherCache(),
 	]
 }

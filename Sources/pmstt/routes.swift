@@ -33,6 +33,7 @@ func routes(_ app: Application) throws {
 	let api = app.grouped("api")
 	try api.register(collection: ServerAccessModeController())
 	try api.register(collection: AppVersionController())
+	try api.register(collection: SchoolWeatherController())
 	try api.register(collection: AuthController())
 	try api.register(collection: AccountController())
 	try api.register(collection: OwnerTimetableController())
