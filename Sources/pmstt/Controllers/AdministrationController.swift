@@ -30,6 +30,7 @@ struct AdministrationController: RouteCollection {
 		admin.post("event-tags", use: createEventTag)
 		admin.put("event-tags", "order", use: reorderEventTags)
 		admin.put("event-tags", ":tagID", use: updateEventTag)
+		admin.delete("event-tags", ":tagID", use: deleteEventTag)
 		admin.post("event-tags", "sections", use: createEventTagSection)
 		admin.put("event-tags", "sections", ":sectionID", use: updateEventTagSection)
 		admin.get("calendar", use: calendar)
@@ -722,6 +723,28 @@ struct AdministrationController: RouteCollection {
 				try await removeAssociations(for: tagID, on: database)
 			}
 		}
+		return try await eventTagCatalogue(on: req.db)
+	}
+
+	private func deleteEventTag(req: Request) async throws -> AdministrationEventTagCatalogueResponse {
+		_ = try await requireAdministrator(req)
+		guard let tagID = req.parameters.get("tagID", as: UUID.self),
+		      let tag = try await EventTag.find(tagID, on: req.db)
+		else {
+			throw Abort(.notFound)
+		}
+		guard tag.category != .yearGroup else {
+			throw Abort(.badRequest, reason: "Canonical year-group tags cannot be deleted.")
+		}
+
+		try await req.db.transaction { database in
+			try await removeAssociations(for: tagID, on: database)
+			try await EventTagAssociatedName.query(on: database)
+				.filter(\.$eventTag.$id == tagID)
+				.delete()
+			try await tag.delete(on: database)
+		}
+
 		return try await eventTagCatalogue(on: req.db)
 	}
 
