@@ -15,15 +15,23 @@ struct RequireUserEmail: AsyncMigration {
 			"""
 		).run()
 
-		try await database.schema(User.schema)
-			.field("email", .string, .required)
-			.update()
+		if sqlDatabase.dialect.name == "postgresql" {
+			try await sqlDatabase.raw(
+				"ALTER TABLE \"users\" ALTER COLUMN \"email\" SET NOT NULL"
+			).run()
+		}
 	}
 
 	func revert(on database: any Database) async throws {
-		try await database.schema(User.schema)
-			.field("email", .string)
-			.update()
+		guard let sqlDatabase = database as? any SQLDatabase else {
+			throw RequireUserEmailMigrationError.unsupportedDatabase
+		}
+
+		if sqlDatabase.dialect.name == "postgresql" {
+			try await sqlDatabase.raw(
+				"ALTER TABLE \"users\" ALTER COLUMN \"email\" DROP NOT NULL"
+			).run()
+		}
 	}
 }
 
