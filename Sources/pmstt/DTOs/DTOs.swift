@@ -67,6 +67,7 @@ struct UpdateSettingsRequest: Content {
 	var liveActivitiesEnabled: Bool
 	var highlightsCurrentDay: Bool
 	var appFontDesign: AppFontDesign
+	var watchBleedEnabled: Bool
 	var notificationsEnabled: Bool
 	var broadcastNotificationsEnabled: Bool
 	var notificationLeadTimes: Set<NotificationLeadTime>
@@ -79,6 +80,7 @@ struct UpdateSettingsRequest: Content {
 		liveActivitiesEnabled: true,
 		highlightsCurrentDay: true,
 		appFontDesign: .monospaced,
+		watchBleedEnabled: true,
 		notificationsEnabled: true,
 		broadcastNotificationsEnabled: true,
 		notificationLeadTimes: [.zero],
@@ -93,6 +95,7 @@ struct UpdateSettingsRequest: Content {
 			liveActivitiesEnabled: liveActivitiesEnabled,
 			highlightsCurrentDay: highlightsCurrentDay,
 			appFontDesign: appFontDesign,
+			watchBleedEnabled: watchBleedEnabled,
 			notificationsEnabled: notificationsEnabled,
 			broadcastNotificationsEnabled: broadcastNotificationsEnabled,
 			notificationLeadTimes: notificationLeadTimes,
@@ -151,6 +154,7 @@ extension UpdateSettingsRequest {
 		)
 		highlightsCurrentDay = try container.decodeIfPresent(Bool.self, forKey: .highlightsCurrentDay, default: defaults.highlightsCurrentDay)
 		appFontDesign = try container.decodeIfPresent(AppFontDesign.self, forKey: .appFontDesign, default: defaults.appFontDesign)
+		watchBleedEnabled = try container.decodeIfPresent(Bool.self, forKey: .watchBleedEnabled, default: defaults.watchBleedEnabled)
 		notificationsEnabled = try container.decodeIfPresent(Bool.self, forKey: .notificationsEnabled, default: defaults.notificationsEnabled)
 		broadcastNotificationsEnabled = try container.decodeIfPresent(Bool.self, forKey: .broadcastNotificationsEnabled, default: defaults.broadcastNotificationsEnabled)
 		if let leadTimes = try container.decodeIfPresent(Set<NotificationLeadTime>.self, forKey: .notificationLeadTimes) {
