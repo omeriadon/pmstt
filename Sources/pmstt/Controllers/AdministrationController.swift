@@ -1447,6 +1447,12 @@ private struct AdministrationRawAccount: Content {
 	let displayName: String
 	let selfPassSerialNumber: String
 	let settingsData: Data
+	let settingsRevision: Int
+	let gradeTracker: GradeTrackerDocument?
+	let gradeTrackerRevision: Int
+	let profileAppearanceData: Data?
+	let profileRevision: Int
+	let accountAuthority: AccountAuthority
 	let locationStatusHistory: [LocationStatusItem]
 	let createdAt: Date?
 	let updatedAt: Date?
@@ -1457,6 +1463,14 @@ private struct AdministrationRawAccount: Content {
 		displayName = user.displayName
 		selfPassSerialNumber = user.selfPassSerialNumber
 		settingsData = user.settingsData
+		settingsRevision = user.settingsRevision
+		gradeTracker = try user.gradeTrackerData.map {
+			try JSONDecoder().decode(GradeTrackerDocument.self, from: $0)
+		}
+		gradeTrackerRevision = user.gradeTrackerRevision
+		profileAppearanceData = user.profileAppearanceData
+		profileRevision = user.profileRevision
+		accountAuthority = user.resolvedAccountAuthority
 		locationStatusHistory = try user.locationStatusHistory()
 		createdAt = user.createdAt
 		updatedAt = user.updatedAt
