@@ -22,6 +22,7 @@ struct AdministrationController: RouteCollection {
 		admin.get("profile-storage-quota", use: profileStorageQuota)
 		admin.get("app-version", use: appVersionRequirement)
 		admin.put("app-version", use: updateAppVersionRequirement)
+		admin.post("test-email", use: sendTestEmail)
 		admin.get("badges", use: specialBadges)
 		admin.post("badges", use: createSpecialBadge)
 		admin.put("badges", "order", use: reorderSpecialBadges)
@@ -45,6 +46,12 @@ struct AdministrationController: RouteCollection {
 		_ = try await requireAdministrator(req)
 		let configuration = try ProfileStorageConfiguration.load()
 		return try await ProfileStorageQuotaService(configuration: configuration).snapshot(on: req.db)
+	}
+
+	private func sendTestEmail(req: Request) async throws -> HTTPStatus {
+		_ = try await requireSystemOwner(req)
+		try await sendAdministrationTestEmail()
+		return .noContent
 	}
 
 	private func appVersionRequirement(req: Request) async throws -> AppVersionRequirementResponse {
