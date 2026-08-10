@@ -17,7 +17,24 @@ struct LocationStatusStatisticsService {
 		return total / Double(firstArrivals.count)
 	}
 
+	func averageArrivalBySchoolDay(for history: [LocationStatusItem]) -> [Double?] {
+		let arrivals = firstArrivalsByDate(in: history)
+		return (2 ... 6).map { weekday in
+			let matching = arrivals.compactMap { date, seconds in
+				Self.calendar.component(.weekday, from: date) == weekday ? seconds : nil
+			}
+			guard !matching.isEmpty else {
+				return nil
+			}
+			return matching.reduce(0, +) / Double(matching.count)
+		}
+	}
+
 	private func firstArrivalsByDay(in history: [LocationStatusItem]) -> [Double] {
+		Array(firstArrivalsByDate(in: history).values)
+	}
+
+	private func firstArrivalsByDate(in history: [LocationStatusItem]) -> [Date: Double] {
 		var firstArrivalByDay: [Date: Double] = [:]
 
 		for item in history where item.state == .onCampus {
@@ -34,7 +51,7 @@ struct LocationStatusStatisticsService {
 			}
 		}
 
-		return Array(firstArrivalByDay.values)
+		return firstArrivalByDay
 	}
 
 	private func secondsSinceMidnight(for date: Date) -> Double {

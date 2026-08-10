@@ -506,13 +506,18 @@ struct FriendController: RouteCollection {
 		guard let user = try await User.find(friend, on: req.db), let acceptedAt = friendship.acceptedAt else { throw Abort(.notFound) }
 		let friendProfile = try await profile(for: user, on: req.db)
 		let friendTimetable = try await timetable(for: friend, on: req.db)
+		let locationHistory = try user.locationStatusHistory()
+		let statistics = LocationStatusStatisticsService()
 		return try FriendDetailDTO(
 			relationshipID: friendship.requireID(),
 			friend: friendProfile,
 			acceptedAt: acceptedAt,
 			timetable: friendTimetable,
-			averageArrivalSecondsSinceMidnight: LocationStatusStatisticsService().averageArrival(
-				for: [user.locationStatusHistory()]
+			averageArrivalSecondsSinceMidnight: statistics.averageArrival(
+				for: [locationHistory]
+			),
+			weekdayAverageArrivalSecondsSinceMidnight: statistics.averageArrivalBySchoolDay(
+				for: locationHistory
 			),
 			locationNotificationPreferences: friendship.locationNotificationPreferences(for: userID)
 		)
