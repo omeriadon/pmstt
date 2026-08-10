@@ -1194,7 +1194,7 @@ private struct AdministrationUserDetailResponse: Content {
 private struct AdministrationUserResponse: Content {
 	let id: UUID
 	let displayName: String
-	let email: String?
+	let email: String
 	let createdAt: Date?
 	let authority: AccountAuthority
 	let appearance: ProfileAppearanceDTO

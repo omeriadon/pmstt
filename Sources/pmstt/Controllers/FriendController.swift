@@ -242,7 +242,7 @@ struct FriendController: RouteCollection {
 	func profileAppearance(req: Request) async throws -> FriendProfileDTO {
 		let userID = try req.auth.require(UserPayload.self).sub
 		guard let user = try await User.find(userID, on: req.db) else { throw Abort(.notFound) }
-		return try await profile(for: user, includesEmail: true, on: req.db)
+		return try await profile(for: user, on: req.db)
 	}
 
 	func updateProfileAppearance(req: Request) async throws -> FriendProfileDTO {
@@ -278,7 +278,7 @@ struct FriendController: RouteCollection {
 		user.profileAppearanceData = appearanceData
 		user.profileRevision += 1
 		try await user.save(on: req.db)
-		return try await profile(for: user, includesEmail: true, on: req.db)
+		return try await profile(for: user, on: req.db)
 	}
 
 	func uploadProfilePhoto(req: Request) async throws -> FriendProfileDTO {
@@ -382,7 +382,7 @@ struct FriendController: RouteCollection {
 		guard let user = try await User.find(userID, on: req.db) else {
 			throw Abort(.notFound)
 		}
-		return try await profile(for: user, includesEmail: true, on: req.db)
+		return try await profile(for: user, on: req.db)
 	}
 
 	func profilePhoto(req: Request) async throws -> Response {
@@ -669,14 +669,13 @@ struct FriendController: RouteCollection {
 
 	private func profile(
 		for user: User,
-		includesEmail: Bool = false,
 		on database: any Database
 	) async throws -> FriendProfileDTO {
 		let photo = try await user.profilePhotoMetadata(on: database)
 		return try await FriendProfileDTO(
 			userID: user.requireID(),
 			displayName: user.displayName,
-			email: includesEmail ? user.email : nil,
+			email: user.email,
 			appearanceData: user.profileAppearanceData,
 			appearance: user.decodedProfileAppearance,
 			photo: photo,

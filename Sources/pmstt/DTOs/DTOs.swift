@@ -47,7 +47,7 @@ struct WatchSessionRequest: Content {
 
 struct UserAccountResponse: Content {
 	let id: UUID
-	let email: String?
+	let email: String
 	let displayName: String
 	let createdAt: Date?
 	let authority: AccountAuthority

@@ -9,7 +9,7 @@ enum FriendRelationshipState: String, Content {
 struct FriendProfileDTO: Content {
 	let userID: UUID
 	let displayName: String
-	let email: String?
+	let email: String
 	let appearanceData: Data?
 	let appearance: ProfileAppearanceDTO
 	let photo: ProfilePhotoMetadataDTO?

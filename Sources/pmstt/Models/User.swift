@@ -8,7 +8,7 @@ final class User: Model, Content, @unchecked Sendable {
 	var id: UUID?
 
 	@Field(key: "email")
-	var email: String?
+	var email: String
 
 	@Field(key: "password_hash")
 	var passwordHash: String?
@@ -53,7 +53,7 @@ final class User: Model, Content, @unchecked Sendable {
 
 	init(
 		id: UUID? = nil,
-		email: String? = nil,
+		email: String,
 		passwordHash: String? = nil,
 		displayName: String,
 		selfPassSerialNumber: String,
@@ -66,7 +66,7 @@ final class User: Model, Content, @unchecked Sendable {
 		accountAuthority: AccountAuthority = .user
 	) {
 		self.id = id
-		self.email = email?.lowercased()
+		self.email = email.lowercased()
 		self.passwordHash = passwordHash
 		self.displayName = displayName
 		self.selfPassSerialNumber = selfPassSerialNumber
