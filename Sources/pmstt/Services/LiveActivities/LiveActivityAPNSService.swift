@@ -88,7 +88,7 @@ struct LiveActivityAPNSService {
 	}
 
 	private func send(_ payload: LiveActivityPayload, to token: String, isDebug: Bool, priority: Int, collapseID: String, expiration: Int, logger: Logger) async throws -> Result {
-		let config = try configuration()
+		let config = try APNSConfig.load(isDebug: isDebug)
 		let authorization = try await makeJWT(config: config)
 		let host = isDebug ? "api.sandbox.push.apple.com" : "api.push.apple.com"
 		var request = HTTPClientRequest(url: "https://\(host)/3/device/\(token)")
@@ -120,20 +120,5 @@ struct LiveActivityAPNSService {
 			of: now
 		) ?? now
 		return Int(max(now, dismissal).timeIntervalSince1970)
-	}
-
-	private func configuration() throws -> APNSConfig {
-		guard let teamID = Environment.get("APNS_TEAM_ID"),
-		      let keyID = Environment.get("APNS_KEY_ID"),
-		      let privateKeyPath = Environment.get("APNS_PRIVATE_KEY_PATH")
-		else {
-			throw AppError(.serviceUnavailable, code: .internalServerError, reason: "APNs is not configured.")
-		}
-		return APNSConfig(
-			teamId: teamID,
-			keyId: keyID,
-			bundleId: Environment.get("APNS_BUNDLE_ID") ?? "com.omeriadon.Timetable",
-			privateKeyPath: privateKeyPath
-		)
 	}
 }

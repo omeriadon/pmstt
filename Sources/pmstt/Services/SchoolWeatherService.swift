@@ -63,9 +63,16 @@ struct SchoolWeatherService {
 	private func developerToken() throws -> String {
 		guard let teamID = Environment.get("WEATHERKIT_TEAM_ID"),
 		      let keyID = Environment.get("WEATHERKIT_KEY_ID"),
-		      let serviceID = Environment.get("WEATHERKIT_SERVICE_ID"),
-		      let privateKeyValue = Environment.get("WEATHERKIT_PRIVATE_KEY")
+		      let serviceID = Environment.get("WEATHERKIT_SERVICE_ID")
 		else {
+			throw Abort(.serviceUnavailable, reason: "WeatherKit credentials are not configured.")
+		}
+		let privateKeyValue: String
+		if let privateKeyPath = Environment.get("WEATHERKIT_PRIVATE_KEY_PATH") {
+			privateKeyValue = try String(contentsOfFile: privateKeyPath, encoding: .utf8)
+		} else if let configuredPrivateKey = Environment.get("WEATHERKIT_PRIVATE_KEY") {
+			privateKeyValue = configuredPrivateKey
+		} else {
 			throw Abort(.serviceUnavailable, reason: "WeatherKit credentials are not configured.")
 		}
 

@@ -163,8 +163,6 @@ struct NotificationService {
 			return 0
 		}
 
-		let config = try configuration()
-		let authorization = try await makeJWT(config: config)
 		let expiration = Self.apnsExpiration(sentAt: Date())
 
 		var deliveredCount = 0
@@ -187,6 +185,8 @@ struct NotificationService {
 			}
 
 			do {
+				let config = try APNSConfig.load(isDebug: device.isDebug)
+				let authorization = try await makeJWT(config: config)
 				let response = try await send(
 					title: title,
 					subtitle: nil,
@@ -296,8 +296,6 @@ struct NotificationService {
 				return try response(for: record)
 			}
 
-			let config = try configuration()
-			let authorization = try await makeJWT(config: config)
 			let expiration = Self.apnsExpiration(sentAt: Date())
 			let collapseID = "broadcast-\(UUID().uuidString)"
 
@@ -307,6 +305,8 @@ struct NotificationService {
 				}
 
 				do {
+					let config = try APNSConfig.load(isDebug: device.isDebug)
+					let authorization = try await makeJWT(config: config)
 					let status = try await send(
 						title: title,
 						subtitle: subtitle,
@@ -372,8 +372,6 @@ struct NotificationService {
 			return
 		}
 
-		let config = try configuration()
-		let authorization = try await makeJWT(config: config)
 		let expiration = Self.apnsExpiration(sentAt: Date())
 		let broadcastID = try record.requireID()
 		var sentTokens = Set<String>()
@@ -388,6 +386,8 @@ struct NotificationService {
 				continue
 			}
 
+			let config = try APNSConfig.load(isDebug: device.isDebug)
+			let authorization = try await makeJWT(config: config)
 			let response = try await send(
 				title: "",
 				subtitle: nil,
@@ -499,28 +499,6 @@ struct NotificationService {
 		)
 
 		return try await APNSClient().send(request: request)
-	}
-
-	private func configuration() throws -> APNSConfig {
-		guard
-			let teamID = Environment.get("APNS_TEAM_ID"),
-			let keyID = Environment.get("APNS_KEY_ID"),
-			let privateKeyPath = Environment.get("APNS_PRIVATE_KEY_PATH")
-		else {
-			throw AppError(
-				.serviceUnavailable,
-				code: .internalServerError,
-				reason: "APNs is not configured."
-			)
-		}
-
-		return APNSConfig(
-			teamId: teamID,
-			keyId: keyID,
-			bundleId: Environment.get("APNS_BUNDLE_ID")
-				?? "com.omeriadon.Timetable",
-			privateKeyPath: privateKeyPath
-		)
 	}
 }
 
