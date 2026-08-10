@@ -562,7 +562,7 @@ struct FriendController: RouteCollection {
 					return
 				}
 
-				try await NotificationService().send(
+				_ = try await NotificationService().send(
 					title: "Location notifications",
 					body: "\(user.displayName) has set notifications for you.",
 					threadID: "friend-location-notifications",
