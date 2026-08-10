@@ -90,7 +90,73 @@ struct AccountController: RouteCollection {
 		history.append(LocationStatusItem(state: request.state, updatedAt: request.updatedAt))
 		try user.setLocationStatusHistory(history)
 		try await user.update(on: req.db)
+		await notifyFriendLocationObservers(
+			for: user,
+			status: request.state,
+			updatedAt: request.updatedAt,
+			on: req
+		)
 		return .noContent
+	}
+
+	private func notifyFriendLocationObservers(
+		for watchedUser: User,
+		status: LocationStatus,
+		updatedAt: Date,
+		on req: Request
+	) async {
+		guard let watchedUserID = watchedUser.id,
+		      let preference = LocationNotificationPreference(for: status)
+		else {
+			return
+		}
+
+		do {
+			let relationships = try await Friendship.query(on: req.db)
+				.group(.or) { group in
+					group.filter(\.$requester.$id == watchedUserID)
+					group.filter(\.$recipient.$id == watchedUserID)
+				}
+				.filter(\.$status == .accepted)
+				.with(\.$requester)
+				.with(\.$recipient)
+				.all()
+
+			for relationship in relationships {
+				let observerID = relationship.$requester.id == watchedUserID
+					? relationship.$recipient.id
+					: relationship.$requester.id
+				let preferences = try relationship.locationNotificationPreferences(for: observerID)
+				guard preferences.contains(preference),
+				      let relationshipID = relationship.id
+				else {
+					continue
+				}
+
+				do {
+					_ = try await NotificationService().send(
+						title: "Friend location",
+						body: "\(watchedUser.displayName) is \(preference.notificationDescription).",
+						threadID: "friend-location-\(watchedUserID.uuidString)",
+						collapseID: "friend-location-\(relationshipID.uuidString)-\(preference.rawValue)-\(Int(updatedAt.timeIntervalSince1970))",
+						to: observerID,
+						on: req,
+						notificationType: "friend-location"
+					)
+				} catch {
+					req.logger.error("Friend location notification delivery failed", metadata: [
+						"observer_id": .string(observerID.uuidString),
+						"watched_user_id": .string(watchedUserID.uuidString),
+						"error": .string(error.localizedDescription),
+					])
+				}
+			}
+		} catch {
+			req.logger.error("Friend location observer lookup failed", metadata: [
+				"watched_user_id": .string(watchedUserID.uuidString),
+				"error": .string(error.localizedDescription),
+			])
+		}
 	}
 
 	func currentLocationStatus(req: Request) async throws -> LocationStatusCurrentResponse {
@@ -127,6 +193,32 @@ struct AccountController: RouteCollection {
 				.conflict,
 				reason: "The account profile has changed on the server."
 			)
+		}
+	}
+}
+
+private extension LocationNotificationPreference {
+	init?(for status: LocationStatus) {
+		switch status {
+			case .withinTenMinutes:
+				self = .withinTenMinutes
+			case .withinFiveMinutes:
+				self = .withinFiveMinutes
+			case .onCampus:
+				self = .arrived
+			case .offCampus:
+				return nil
+		}
+	}
+
+	var notificationDescription: String {
+		switch self {
+			case .withinTenMinutes:
+				"within 10 minutes of school"
+			case .withinFiveMinutes:
+				"within 5 minutes of school"
+			case .arrived:
+				"at school"
 		}
 	}
 }

@@ -93,6 +93,7 @@ func pmsttMigrationList() -> [any Migration] {
 		CreateEventTags(),
 		CreateServerAccessMode(),
 		AddFriendshipOrder(),
+		AddFriendshipLocationNotifications(),
 		CreateEmailVerificationChallenge(),
 		CreateAuthorityAuditRecord(),
 		CreateProfileMedia(),

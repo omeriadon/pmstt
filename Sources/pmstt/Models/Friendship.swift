@@ -34,6 +34,24 @@ final class Friendship: Model, Content, @unchecked Sendable {
 	@Field(key: "recipient_sort_order")
 	var recipientSortOrder: Int
 
+	@OptionalField(key: "requester_location_notification_preferences")
+	var requesterLocationNotificationPreferences: Data?
+
+	@OptionalField(key: "recipient_location_notification_preferences")
+	var recipientLocationNotificationPreferences: Data?
+
+	@OptionalField(key: "requester_location_notification_announced_preferences")
+	var requesterLocationNotificationAnnouncedPreferences: Data?
+
+	@OptionalField(key: "recipient_location_notification_announced_preferences")
+	var recipientLocationNotificationAnnouncedPreferences: Data?
+
+	@OptionalField(key: "requester_location_notification_preferences_updated_at")
+	var requesterLocationNotificationPreferencesUpdatedAt: Date?
+
+	@OptionalField(key: "recipient_location_notification_preferences_updated_at")
+	var recipientLocationNotificationPreferencesUpdatedAt: Date?
+
 	@Timestamp(key: "created_at", on: .create)
 	var createdAt: Date?
 
@@ -63,5 +81,58 @@ final class Friendship: Model, Content, @unchecked Sendable {
 		self.acceptedAt = acceptedAt
 		requesterSortOrder = 0
 		recipientSortOrder = 0
+	}
+
+	func locationNotificationPreferences(for userID: UUID) throws -> Set<LocationNotificationPreference> {
+		let data = $requester.id == userID
+			? requesterLocationNotificationPreferences
+			: recipientLocationNotificationPreferences
+		guard let data else {
+			return []
+		}
+		return try JSONDecoder().decode(Set<LocationNotificationPreference>.self, from: data)
+	}
+
+	func setLocationNotificationPreferences(
+		_ preferences: Set<LocationNotificationPreference>,
+		for userID: UUID,
+		updatedAt: Date
+	) throws {
+		let data = try JSONEncoder().encode(preferences)
+		if $requester.id == userID {
+			requesterLocationNotificationPreferences = data
+			requesterLocationNotificationPreferencesUpdatedAt = updatedAt
+		} else {
+			recipientLocationNotificationPreferences = data
+			recipientLocationNotificationPreferencesUpdatedAt = updatedAt
+		}
+	}
+
+	func announcedLocationNotificationPreferences(for userID: UUID) throws -> Set<LocationNotificationPreference> {
+		let data = $requester.id == userID
+			? requesterLocationNotificationAnnouncedPreferences
+			: recipientLocationNotificationAnnouncedPreferences
+		guard let data else {
+			return []
+		}
+		return try JSONDecoder().decode(Set<LocationNotificationPreference>.self, from: data)
+	}
+
+	func setAnnouncedLocationNotificationPreferences(
+		_ preferences: Set<LocationNotificationPreference>,
+		for userID: UUID
+	) throws {
+		let data = try JSONEncoder().encode(preferences)
+		if $requester.id == userID {
+			requesterLocationNotificationAnnouncedPreferences = data
+		} else {
+			recipientLocationNotificationAnnouncedPreferences = data
+		}
+	}
+
+	func locationNotificationPreferencesUpdatedAt(for userID: UUID) -> Date? {
+		$requester.id == userID
+			? requesterLocationNotificationPreferencesUpdatedAt
+			: recipientLocationNotificationPreferencesUpdatedAt
 	}
 }

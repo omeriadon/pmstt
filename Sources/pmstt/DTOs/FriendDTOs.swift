@@ -39,6 +39,11 @@ struct FriendDetailDTO: Content {
 	let acceptedAt: Date
 	let timetable: FriendTimetableDTO?
 	let averageArrivalSecondsSinceMidnight: Double?
+	let locationNotificationPreferences: Set<LocationNotificationPreference>
+}
+
+struct FriendLocationNotificationPreferencesRequest: Content {
+	let preferences: Set<LocationNotificationPreference>
 }
 
 struct FriendSearchResultDTO: Content {

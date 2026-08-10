@@ -29,6 +29,7 @@ struct FriendController: RouteCollection {
 		protected.delete("requests", ":relationshipID", use: deleteRequest)
 		protected.put("order", use: reorder)
 		protected.get(":friendID", use: detail)
+		protected.put(":friendID", "location-notifications", use: updateLocationNotificationPreferences)
 		protected.delete(":friendID", use: removeFriend)
 		protected.post(":friendID", "block", use: blockFriend)
 	}
@@ -512,8 +513,73 @@ struct FriendController: RouteCollection {
 			timetable: friendTimetable,
 			averageArrivalSecondsSinceMidnight: LocationStatusStatisticsService().averageArrival(
 				for: [user.locationStatusHistory()]
-			)
+			),
+			locationNotificationPreferences: friendship.locationNotificationPreferences(for: userID)
 		)
+	}
+
+	func updateLocationNotificationPreferences(req: Request) async throws -> HTTPStatus {
+		let userID = try req.auth.require(UserPayload.self).sub
+		let friendID = try requireFriendID(req)
+		let request = try req.content.decode(FriendLocationNotificationPreferencesRequest.self)
+		guard let friendship = try await relationship(between: userID, and: friendID, on: req.db),
+		      friendship.status == .accepted
+		else {
+			throw Abort(.notFound)
+		}
+
+		let updatedAt = Date()
+		try friendship.setLocationNotificationPreferences(
+			request.preferences,
+			for: userID,
+			updatedAt: updatedAt
+		)
+		try await friendship.save(on: req.db)
+		let relationshipID = try friendship.requireID()
+
+		Task {
+			try? await Task.sleep(for: .seconds(60))
+			do {
+				guard let current = try await Friendship.find(relationshipID, on: req.db),
+				      current.status == .accepted,
+				      current.locationNotificationPreferencesUpdatedAt(for: userID) == updatedAt
+				else {
+					return
+				}
+
+				let preferences = try current.locationNotificationPreferences(for: userID)
+				let announced = try current.announcedLocationNotificationPreferences(for: userID)
+				guard preferences != announced else {
+					return
+				}
+
+				try current.setAnnouncedLocationNotificationPreferences(preferences, for: userID)
+				try await current.save(on: req.db)
+				guard !preferences.isEmpty,
+				      let friend = try await User.find(friendID, on: req.db),
+				      let user = try await User.find(userID, on: req.db)
+				else {
+					return
+				}
+
+				try await NotificationService().send(
+					title: "Location notifications",
+					body: "\(user.displayName) has set notifications for you.",
+					threadID: "friend-location-notifications",
+					collapseID: "friend-location-settings-\(relationshipID.uuidString)",
+					to: friend.requireID(),
+					on: req,
+					notificationType: "friend-location-notifications"
+				)
+			} catch {
+				req.logger.error("Friend location notification preference announcement failed", metadata: [
+					"relationship_id": .string(relationshipID.uuidString),
+					"error": .string(error.localizedDescription),
+				])
+			}
+		}
+
+		return .noContent
 	}
 
 	func requestFriendsSinceDate(req: Request) async throws -> HTTPStatus {
