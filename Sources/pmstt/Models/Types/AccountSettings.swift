@@ -25,6 +25,7 @@ struct AccountSettings: Content, Hashable {
 	var liveActivitiesEnabled: Bool
 	var highlightsCurrentDay: Bool
 	var appFontDesign: AppFontDesign
+	var futureEventRange: FutureEventRange
 	var watchBleedEnabled: Bool
 	var notificationsEnabled: Bool
 	var broadcastNotificationsEnabled: Bool
@@ -39,6 +40,7 @@ struct AccountSettings: Content, Hashable {
 			liveActivitiesEnabled: true,
 			highlightsCurrentDay: true,
 			appFontDesign: .monospaced,
+			futureEventRange: .oneMonth,
 			watchBleedEnabled: true,
 			notificationsEnabled: true,
 			broadcastNotificationsEnabled: true,
@@ -63,6 +65,7 @@ extension AccountSettings {
 		liveActivitiesEnabled = try container.decodeIfPresent(Bool.self, forKey: .liveActivitiesEnabled) ?? defaults.liveActivitiesEnabled
 		highlightsCurrentDay = try container.decodeIfPresent(Bool.self, forKey: .highlightsCurrentDay) ?? defaults.highlightsCurrentDay
 		appFontDesign = try container.decodeIfPresent(AppFontDesign.self, forKey: .appFontDesign) ?? defaults.appFontDesign
+		futureEventRange = try container.decodeIfPresent(FutureEventRange.self, forKey: .futureEventRange) ?? defaults.futureEventRange
 		watchBleedEnabled = try container.decodeIfPresent(Bool.self, forKey: .watchBleedEnabled) ?? defaults.watchBleedEnabled
 		notificationsEnabled = try container.decodeIfPresent(Bool.self, forKey: .notificationsEnabled) ?? defaults.notificationsEnabled
 		broadcastNotificationsEnabled = try container.decodeIfPresent(Bool.self, forKey: .broadcastNotificationsEnabled) ?? defaults.broadcastNotificationsEnabled
