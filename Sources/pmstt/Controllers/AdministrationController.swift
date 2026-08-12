@@ -23,6 +23,7 @@ struct AdministrationController: RouteCollection {
 		admin.get("app-version", use: appVersionRequirement)
 		admin.put("app-version", use: updateAppVersionRequirement)
 		admin.post("test-email", use: sendTestEmail)
+		admin.get("email-log", use: emailLog)
 		admin.get("badges", use: specialBadges)
 		admin.post("badges", use: createSpecialBadge)
 		admin.put("badges", "order", use: reorderSpecialBadges)
@@ -50,8 +51,17 @@ struct AdministrationController: RouteCollection {
 
 	private func sendTestEmail(req: Request) async throws -> HTTPStatus {
 		_ = try await requireSystemOwner(req)
-		try await sendAdministrationTestEmail()
+		try await sendAdministrationTestEmail(on: req.db)
 		return .noContent
+	}
+
+	private func emailLog(req: Request) async throws -> [AdministrationEmailDeliveryRecordResponse] {
+		_ = try await requireAdministrator(req)
+		return try await EmailDeliveryRecord.query(on: req.db)
+			.sort(\.$createdAt, .descending)
+			.limit(500)
+			.all()
+			.map(AdministrationEmailDeliveryRecordResponse.init)
 	}
 
 	private func appVersionRequirement(req: Request) async throws -> AppVersionRequirementResponse {
@@ -1438,6 +1448,28 @@ private struct AdministrationEventTagSectionUpdateRequest: Content {
 
 private struct AdministrationModerationResolutionRequest: Content {
 	let action: ModerationAction
+}
+
+private struct AdministrationEmailDeliveryRecordResponse: Content {
+	let id: UUID
+	let recipient: String
+	let subject: String
+	let body: String
+	let status: String
+	let failureReason: String?
+	let createdAt: Date?
+	let updatedAt: Date?
+
+	init(_ record: EmailDeliveryRecord) throws {
+		id = try record.requireID()
+		recipient = record.recipient
+		subject = record.subject
+		body = record.body
+		status = record.status
+		failureReason = record.failureReason
+		createdAt = record.createdAt
+		updatedAt = record.updatedAt
+	}
 }
 
 private struct AdministrationFriendshipDateChangeRequestResponse: Content {

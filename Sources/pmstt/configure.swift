@@ -97,6 +97,7 @@ func pmsttMigrationList() -> [any Migration] {
 		AddFriendshipOrder(),
 		AddFriendshipLocationNotifications(),
 		CreateEmailVerificationChallenge(),
+		CreateEmailDeliveryRecord(),
 		CreateAuthorityAuditRecord(),
 		CreateProfileMedia(),
 		RemoveAppleAccounts(),
