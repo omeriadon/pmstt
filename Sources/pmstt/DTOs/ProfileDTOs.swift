@@ -46,6 +46,7 @@ struct ProfileAppearanceDTO: Content {
 	let contentKind: ProfileContentKind
 	let monogram: String
 	let emoji: String
+	let foregroundColour: ProfileColorDTO
 	let fontDesign: ProfileFontDesign
 	let fontWeight: ProfileFontWeight
 	let colours: [ProfileColorDTO]
@@ -57,6 +58,7 @@ struct ProfileAppearanceDTO: Content {
 		case contentKind
 		case monogram
 		case emoji
+		case foregroundColour
 		case fontDesign
 		case fontWeight
 		case colours
@@ -68,10 +70,11 @@ struct ProfileAppearanceDTO: Content {
 	}
 
 	static let `default` = ProfileAppearanceDTO(
-		version: 2,
+		version: 3,
 		contentKind: .emoji,
 		monogram: "",
 		emoji: "👤",
+		foregroundColour: ProfileColorDTO(red: 1, green: 1, blue: 1, alpha: 1),
 		fontDesign: .rounded,
 		fontWeight: .semibold,
 		colours: [
@@ -88,6 +91,7 @@ struct ProfileAppearanceDTO: Content {
 		contentKind: ProfileContentKind,
 		monogram: String,
 		emoji: String,
+		foregroundColour: ProfileColorDTO,
 		fontDesign: ProfileFontDesign,
 		fontWeight: ProfileFontWeight,
 		colours: [ProfileColorDTO],
@@ -98,6 +102,7 @@ struct ProfileAppearanceDTO: Content {
 		self.contentKind = contentKind
 		self.monogram = monogram
 		self.emoji = emoji
+		self.foregroundColour = foregroundColour
 		self.fontDesign = fontDesign
 		self.fontWeight = fontWeight
 		self.colours = colours
@@ -109,6 +114,8 @@ struct ProfileAppearanceDTO: Content {
 		let container = try decoder.container(keyedBy: CodingKeys.self)
 		version = try container.decodeIfPresent(Int.self, forKey: .version) ?? 1
 		monogram = try container.decodeIfPresent(String.self, forKey: .monogram) ?? ""
+		foregroundColour = try container.decodeIfPresent(ProfileColorDTO.self, forKey: .foregroundColour)
+			?? Self.default.foregroundColour
 		colours = try container.decodeIfPresent([ProfileColorDTO].self, forKey: .colours) ?? Self.default.colours
 		speed = try container.decodeIfPresent(Double.self, forKey: .speed) ?? 0.2
 		noise = try container.decodeIfPresent(Double.self, forKey: .noise) ?? 64
@@ -135,6 +142,7 @@ struct ProfileAppearanceDTO: Content {
 		try container.encode(contentKind, forKey: .contentKind)
 		try container.encode(monogram, forKey: .monogram)
 		try container.encode(emoji, forKey: .emoji)
+		try container.encode(foregroundColour, forKey: .foregroundColour)
 		try container.encode(fontDesign, forKey: .fontDesign)
 		try container.encode(fontWeight, forKey: .fontWeight)
 		try container.encode(colours, forKey: .colours)
@@ -143,7 +151,7 @@ struct ProfileAppearanceDTO: Content {
 	}
 
 	func validated() throws -> ProfileAppearanceDTO {
-		guard version == 2 else {
+		guard (2 ... 3).contains(version) else {
 			throw AppError(.badRequest, code: .invalidRequest, reason: "Unsupported profile appearance version.", field: "version")
 		}
 		guard (1 ... 3).contains(colours.count) else {
@@ -151,6 +159,9 @@ struct ProfileAppearanceDTO: Content {
 		}
 		guard colours.allSatisfy(\.isValid) else {
 			throw AppError(.badRequest, code: .invalidRequest, reason: "Profile colours must use values between zero and one.", field: "colours")
+		}
+		guard foregroundColour.isValid else {
+			throw AppError(.badRequest, code: .invalidRequest, reason: "The profile foreground colour must use values between zero and one.", field: "foregroundColour")
 		}
 		guard monogram.count <= 3 else {
 			throw AppError(.badRequest, code: .invalidRequest, reason: "A monogram can contain at most three characters.", field: "monogram")
