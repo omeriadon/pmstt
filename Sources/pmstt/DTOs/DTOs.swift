@@ -67,6 +67,7 @@ struct UpdateSettingsRequest: Content {
 	var liveActivitiesEnabled: Bool
 	var highlightsCurrentDay: Bool
 	var appFontDesign: AppFontDesign
+	var appBackground: AppBackground
 	var futureEventRange: FutureEventRange
 	var watchBleedEnabled: Bool
 	var notificationsEnabled: Bool
@@ -81,6 +82,7 @@ struct UpdateSettingsRequest: Content {
 		liveActivitiesEnabled: true,
 		highlightsCurrentDay: true,
 		appFontDesign: .monospaced,
+		appBackground: .blackPaper,
 		futureEventRange: .oneMonth,
 		watchBleedEnabled: true,
 		notificationsEnabled: true,
@@ -97,6 +99,7 @@ struct UpdateSettingsRequest: Content {
 			liveActivitiesEnabled: liveActivitiesEnabled,
 			highlightsCurrentDay: highlightsCurrentDay,
 			appFontDesign: appFontDesign,
+			appBackground: appBackground,
 			futureEventRange: futureEventRange,
 			watchBleedEnabled: watchBleedEnabled,
 			notificationsEnabled: notificationsEnabled,
@@ -157,6 +160,7 @@ extension UpdateSettingsRequest {
 		)
 		highlightsCurrentDay = try container.decodeIfPresent(Bool.self, forKey: .highlightsCurrentDay, default: defaults.highlightsCurrentDay)
 		appFontDesign = try container.decodeIfPresent(AppFontDesign.self, forKey: .appFontDesign, default: defaults.appFontDesign)
+		appBackground = try container.decodeIfPresent(AppBackground.self, forKey: .appBackground, default: defaults.appBackground)
 		futureEventRange = try container.decodeIfPresent(FutureEventRange.self, forKey: .futureEventRange, default: defaults.futureEventRange)
 		watchBleedEnabled = try container.decodeIfPresent(Bool.self, forKey: .watchBleedEnabled, default: defaults.watchBleedEnabled)
 		notificationsEnabled = try container.decodeIfPresent(Bool.self, forKey: .notificationsEnabled, default: defaults.notificationsEnabled)
