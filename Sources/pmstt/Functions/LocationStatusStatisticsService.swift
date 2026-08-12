@@ -19,7 +19,8 @@ struct LocationStatusStatisticsService {
 
 	func averageArrivalBySchoolDay(for history: [LocationStatusItem]) -> [Double?] {
 		let arrivals = firstArrivalsByDate(in: history)
-		return (2 ... 6).map { weekday in
+		let weekdays = [2, 3, 4, 5, 6, 7, 1]
+		return weekdays.map { weekday in
 			let matching = arrivals.compactMap { date, seconds in
 				Self.calendar.component(.weekday, from: date) == weekday ? seconds : nil
 			}

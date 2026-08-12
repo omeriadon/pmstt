@@ -174,9 +174,14 @@ struct AccountController: RouteCollection {
 			throw AppError(.notFound, code: .accountNotFound, reason: "User not found.")
 		}
 
-		return try LocationArrivalStatisticsResponse(
-			averageArrivalSecondsSinceMidnight: LocationStatusStatisticsService().averageArrival(
-				for: [user.locationStatusHistory()]
+		let history = try user.locationStatusHistory()
+		let statistics = LocationStatusStatisticsService()
+		return LocationArrivalStatisticsResponse(
+			averageArrivalSecondsSinceMidnight: statistics.averageArrival(
+				for: [history]
+			),
+			weekdayAverageArrivalSecondsSinceMidnight: statistics.averageArrivalBySchoolDay(
+				for: history
 			)
 		)
 	}

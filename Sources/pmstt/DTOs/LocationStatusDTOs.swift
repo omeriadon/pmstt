@@ -12,6 +12,7 @@ struct LocationStatusCurrentResponse: Content {
 
 struct LocationArrivalStatisticsResponse: Content {
 	let averageArrivalSecondsSinceMidnight: Double?
+	let weekdayAverageArrivalSecondsSinceMidnight: [Double?]
 }
 
 struct AdministrationStatisticsResponse: Content {
