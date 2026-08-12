@@ -464,11 +464,7 @@ struct AdministrationController: RouteCollection {
 			.sort(\.$createdAt, .descending)
 			.all()
 		return try await requests.asyncMap { request in
-			let requester = try await User.find(request.requesterID, on: req.db)
-			return try AdministrationFriendshipDateChangeRequestResponse(
-				request,
-				requesterDisplayName: requester?.displayName
-			)
+			try await friendshipDateChangeRequestResponse(request, on: req.db)
 		}
 	}
 
@@ -492,10 +488,29 @@ struct AdministrationController: RouteCollection {
 		}
 		changeRequest.action = resolution.action
 		try await changeRequest.update(on: req.db)
-		let requester = try await User.find(changeRequest.requesterID, on: req.db)
+		return try await friendshipDateChangeRequestResponse(changeRequest, on: req.db)
+	}
+
+	private func friendshipDateChangeRequestResponse(
+		_ request: FriendshipDateChangeRequest,
+		on database: any Database
+	) async throws -> AdministrationFriendshipDateChangeRequestResponse {
+		let requester = try await User.find(request.requesterID, on: database)
+		let friendship = try await Friendship.find(request.friendshipID, on: database)
+		let friendID = friendship.map {
+			$0.$requester.id == request.requesterID ? $0.$recipient.id : $0.$requester.id
+		}
+		let friend: User? = if let friendID {
+			try await User.find(friendID, on: database)
+		} else {
+			nil
+		}
+
 		return try AdministrationFriendshipDateChangeRequestResponse(
-			changeRequest,
-			requesterDisplayName: requester?.displayName
+			request,
+			requesterDisplayName: requester?.displayName,
+			friendID: friendID,
+			friendDisplayName: friend?.displayName
 		)
 	}
 
@@ -1429,14 +1444,23 @@ private struct AdministrationFriendshipDateChangeRequestResponse: Content {
 	let id: UUID
 	let requesterID: UUID
 	let requesterDisplayName: String?
+	let friendID: UUID?
+	let friendDisplayName: String?
 	let requestedDate: Date
 	let action: ModerationAction
 	let createdAt: Date?
 
-	init(_ request: FriendshipDateChangeRequest, requesterDisplayName: String?) throws {
+	init(
+		_ request: FriendshipDateChangeRequest,
+		requesterDisplayName: String?,
+		friendID: UUID?,
+		friendDisplayName: String?
+	) throws {
 		id = try request.requireID()
 		requesterID = request.requesterID
 		self.requesterDisplayName = requesterDisplayName
+		self.friendID = friendID
+		self.friendDisplayName = friendDisplayName
 		requestedDate = request.requestedDate
 		action = request.action
 		createdAt = request.createdAt
