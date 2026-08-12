@@ -76,6 +76,8 @@ struct NotificationController: RouteCollection {
 		device.platform = body.platform
 		device.osMajorVersion = body.osMajorVersion
 		device.osMinorVersion = body.osMinorVersion
+		device.appVersion = body.appVersion
+		device.appBuild = body.appBuild
 		device.isDebug = body.isDebug
 		device.isTestFlight = body.isTestFlight
 		device.isOSBeta = body.isOSBeta
@@ -96,6 +98,8 @@ struct NotificationController: RouteCollection {
 			"installation_id": .string(body.installationID),
 			"platform": .string(body.platform),
 			"os_version": .string("\(body.osMajorVersion).\(body.osMinorVersion)"),
+			"app_version": .string(body.appVersion),
+			"app_build": .string(body.appBuild),
 			"is_debug": .stringConvertible(body.isDebug),
 			"is_test_flight": .stringConvertible(body.isTestFlight),
 			"is_os_beta": .stringConvertible(body.isOSBeta),
@@ -198,6 +202,14 @@ struct NotificationController: RouteCollection {
 
 		guard (0 ... 999).contains(body.osMinorVersion) else {
 			throw AppError(.badRequest, code: .invalidRequest, reason: "The operating system minor version is invalid.", field: "osMinorVersion")
+		}
+
+		guard !body.appVersion.isEmpty, body.appVersion.count <= 50 else {
+			throw AppError(.badRequest, code: .invalidRequest, reason: "The app version is invalid.", field: "appVersion")
+		}
+
+		guard !body.appBuild.isEmpty, body.appBuild.count <= 50 else {
+			throw AppError(.badRequest, code: .invalidRequest, reason: "The app build is invalid.", field: "appBuild")
 		}
 	}
 }

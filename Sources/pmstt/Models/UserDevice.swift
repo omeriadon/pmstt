@@ -22,6 +22,12 @@ final class UserDevice: Model, Content, @unchecked Sendable {
 	@OptionalField(key: "os_minor_version")
 	var osMinorVersion: Int?
 
+	@OptionalField(key: "app_version")
+	var appVersion: String?
+
+	@OptionalField(key: "app_build")
+	var appBuild: String?
+
 	@Field(key: "apns_token")
 	var apnsToken: String?
 
@@ -55,6 +61,8 @@ final class UserDevice: Model, Content, @unchecked Sendable {
 		platform: String,
 		osMajorVersion: Int? = nil,
 		osMinorVersion: Int? = nil,
+		appVersion: String? = nil,
+		appBuild: String? = nil,
 		apnsToken: String? = nil,
 		isDebug: Bool = false,
 		isTestFlight: Bool = false,
@@ -68,6 +76,8 @@ final class UserDevice: Model, Content, @unchecked Sendable {
 		self.platform = platform
 		self.osMajorVersion = osMajorVersion
 		self.osMinorVersion = osMinorVersion
+		self.appVersion = appVersion
+		self.appBuild = appBuild
 		self.apnsToken = apnsToken
 		self.isDebug = isDebug
 		self.isTestFlight = isTestFlight

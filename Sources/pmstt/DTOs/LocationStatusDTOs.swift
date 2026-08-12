@@ -45,6 +45,8 @@ struct AdministrationStatisticsResponse: Content {
 	let deviceTypes: [AdministrationStatisticCount]
 	let osVersions: [AdministrationStatisticCount]
 	let deviceOSVersions: [AdministrationDeviceOSVersionCount]
+	let appVersions: [AdministrationStatisticCount]
+	let appVersionBuilds: [AdministrationStatisticCount]
 }
 
 struct AdministrationStatisticCount: Content, Identifiable {

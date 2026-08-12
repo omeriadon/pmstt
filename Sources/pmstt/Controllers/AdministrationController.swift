@@ -343,8 +343,34 @@ struct AdministrationController: RouteCollection {
 			totalLocationStatusUpdates: totalLocationStatusUpdates,
 			deviceTypes: deviceTypeCounts(devices),
 			osVersions: osVersionCounts(devices),
-			deviceOSVersions: deviceOSVersionCounts(devices)
+			deviceOSVersions: deviceOSVersionCounts(devices),
+			appVersions: appVersionCounts(devices),
+			appVersionBuilds: appVersionBuildCounts(devices)
 		)
+	}
+
+	private func appVersionCounts(_ devices: [UserDevice]) -> [AdministrationStatisticCount] {
+		let counts = Dictionary(grouping: devices.compactMap(\.appVersion), by: { $0 })
+			.mapValues { $0.count }
+
+		return counts
+			.map { AdministrationStatisticCount(label: $0.key, count: $0.value) }
+			.sorted { $0.label.localizedStandardCompare($1.label) == .orderedDescending }
+	}
+
+	private func appVersionBuildCounts(_ devices: [UserDevice]) -> [AdministrationStatisticCount] {
+		let labels = devices.compactMap { device -> String? in
+			guard let version = device.appVersion, let build = device.appBuild else {
+				return nil
+			}
+
+			return "\(version) (\(build))"
+		}
+		let counts = Dictionary(grouping: labels, by: { $0 }).mapValues { $0.count }
+
+		return counts
+			.map { AdministrationStatisticCount(label: $0.key, count: $0.value) }
+			.sorted { $0.label.localizedStandardCompare($1.label) == .orderedDescending }
 	}
 
 	private func deviceTypeCounts(_ devices: [UserDevice]) -> [AdministrationStatisticCount] {
