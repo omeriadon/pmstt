@@ -52,6 +52,12 @@ struct ProfileAppearanceDTO: Content {
 	let colours: [ProfileColorDTO]
 	let speed: Double
 	let noise: Double
+	private static let defaultForegroundColour = ProfileColorDTO(
+		red: 1,
+		green: 1,
+		blue: 1,
+		alpha: 1
+	)
 
 	private enum CodingKeys: String, CodingKey {
 		case version
@@ -74,7 +80,7 @@ struct ProfileAppearanceDTO: Content {
 		contentKind: .emoji,
 		monogram: "",
 		emoji: "👤",
-		foregroundColour: ProfileColorDTO(red: 1, green: 1, blue: 1, alpha: 1),
+		foregroundColour: defaultForegroundColour,
 		fontDesign: .rounded,
 		fontWeight: .semibold,
 		colours: [
@@ -115,7 +121,7 @@ struct ProfileAppearanceDTO: Content {
 		version = try container.decodeIfPresent(Int.self, forKey: .version) ?? 1
 		monogram = try container.decodeIfPresent(String.self, forKey: .monogram) ?? ""
 		foregroundColour = try container.decodeIfPresent(ProfileColorDTO.self, forKey: .foregroundColour)
-			?? Self.default.foregroundColour
+			?? Self.defaultForegroundColour
 		colours = try container.decodeIfPresent([ProfileColorDTO].self, forKey: .colours) ?? Self.default.colours
 		speed = try container.decodeIfPresent(Double.self, forKey: .speed) ?? 0.2
 		noise = try container.decodeIfPresent(Double.self, forKey: .noise) ?? 64
