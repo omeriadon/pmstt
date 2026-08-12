@@ -82,6 +82,9 @@ struct AuthController: RouteCollection {
 		guard body.password.count >= 8 else {
 			throw AppError(.badRequest, code: .invalidRequest, reason: "Password must be at least eight characters long.", field: "password")
 		}
+		guard body.password.count <= 100 else {
+			throw AppError(.badRequest, code: .invalidRequest, reason: "Password must contain 100 characters or fewer.", field: "password")
+		}
 		guard try await User.query(on: req.db).filter(\.$email == email).first() == nil else {
 			throw AppError(.conflict, code: .emailAlreadyExists, reason: "Email is already registered.", field: "email")
 		}
@@ -120,6 +123,12 @@ struct AuthController: RouteCollection {
 	func login(req: Request) async throws -> TokenResponse {
 		let body = try req.content.decode(LoginRequest.self)
 		let platform = try validatedSessionClient(platform: body.platform, installationID: body.installationID)
+		guard body.email.count <= 100 else {
+			throw AppError(.badRequest, code: .invalidRequest, reason: "Email must contain 100 characters or fewer.", field: "email")
+		}
+		guard body.password.count <= 100 else {
+			throw AppError(.badRequest, code: .invalidRequest, reason: "Password must contain 100 characters or fewer.", field: "password")
+		}
 		guard let user = try await User.query(on: req.db).filter(\.$email == body.email.lowercased()).first(),
 		      let passwordHash = user.passwordHash,
 		      try req.password.verify(body.password, created: passwordHash)

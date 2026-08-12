@@ -548,7 +548,7 @@ struct AdministrationController: RouteCollection {
 		user.displayName = displayName
 		user.email = email
 		if let password = update.password, !password.isEmpty {
-			guard password.count >= 8 else { throw Abort(.badRequest) }
+			guard (8 ... 100).contains(password.count) else { throw Abort(.badRequest) }
 			user.passwordHash = try req.password.hash(password)
 		}
 		try await user.update(on: req.db)
@@ -595,7 +595,7 @@ struct AdministrationController: RouteCollection {
 		let displayName = create.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
 		let email = try normalizedEmail(create.email)
 		try await ServerAccessModeService.requirePermittedEmail(email, on: req.db)
-		guard !displayName.isEmpty, create.password.count >= 8 else {
+		guard !displayName.isEmpty, (8 ... 100).contains(create.password.count) else {
 			throw Abort(.badRequest)
 		}
 		guard try await User.query(on: req.db).filter(\.$email == email).first() == nil else {

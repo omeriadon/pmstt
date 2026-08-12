@@ -5,7 +5,7 @@ func normalizedEmail(_ value: String) throws -> String {
 	let components = email.split(separator: "@", omittingEmptySubsequences: false)
 
 	guard
-		email.count <= 254,
+		email.count <= 100,
 		components.count == 2,
 		!components[0].isEmpty,
 		!components[1].isEmpty,
