@@ -11,6 +11,7 @@ final class CalendarEvent: Model, Content, @unchecked Sendable {
 	@Field(key: "symbol") var symbol: String
 	@Field(key: "event_date") var eventDate: String
 	@Field(key: "is_global") var isGlobal: Bool
+	@Field(key: "shows_weather") var showsWeather: Bool
 	@Field(key: "revision") var revision: Int
 	@Timestamp(key: "created_at", on: .create) var createdAt: Date?
 	@Timestamp(key: "updated_at", on: .update) var updatedAt: Date?
@@ -25,6 +26,7 @@ final class CalendarEvent: Model, Content, @unchecked Sendable {
 		symbol: String,
 		eventDate: String,
 		isGlobal: Bool,
+		showsWeather: Bool = false,
 		revision: Int = 1
 	) {
 		self.id = id
@@ -34,6 +36,7 @@ final class CalendarEvent: Model, Content, @unchecked Sendable {
 		self.symbol = symbol
 		self.eventDate = eventDate
 		self.isGlobal = isGlobal
+		self.showsWeather = showsWeather
 		self.revision = revision
 	}
 }

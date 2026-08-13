@@ -31,7 +31,8 @@ struct CalendarEventsController: RouteCollection {
 			notes: request.notes,
 			symbol: request.symbol,
 			eventDate: request.date.storageValue,
-			isGlobal: false
+			isGlobal: false,
+			showsWeather: false
 		)
 		try await req.db.transaction { database in
 			try await event.create(on: database)
@@ -88,7 +89,8 @@ struct CalendarEventsController: RouteCollection {
 			notes: request.notes,
 			symbol: request.symbol,
 			eventDate: request.date.storageValue,
-			isGlobal: true
+			isGlobal: true,
+			showsWeather: request.showsWeather ?? false
 		)
 		try await req.db.transaction { database in
 			try await event.create(on: database)
@@ -128,8 +130,8 @@ struct CalendarEventsController: RouteCollection {
 			.filter(\.$user.$id == userID)
 			.all()
 		return try await CalendarEventsResponse(
-			globalEvents: globalEvents.asyncMap { try await CalendarEventResponse($0, on: req.db) },
-			privateEvents: privateEvents.asyncMap { try await CalendarEventResponse($0, on: req.db) },
+			globalEvents: globalEvents.asyncMap { try await CalendarEventResponse($0, on: req) },
+			privateEvents: privateEvents.asyncMap { try await CalendarEventResponse($0, on: req) },
 			canManageGlobalEvents: canManageGlobalEvents(user)
 		)
 	}
@@ -175,6 +177,11 @@ struct CalendarEventsController: RouteCollection {
 		event.notes = request.notes
 		event.symbol = request.symbol
 		event.eventDate = request.date.storageValue
+		if event.isGlobal {
+			event.showsWeather = request.showsWeather ?? event.showsWeather
+		} else {
+			event.showsWeather = false
+		}
 	}
 
 	private func requireMatchingRevision(
@@ -274,6 +281,7 @@ private struct CreateCalendarEventRequest: Content {
 	let date: SchoolCalendarDate
 	let tagIDs: [UUID]
 	let baseRevision: Int?
+	let showsWeather: Bool?
 }
 
 private struct CalendarEventsResponse: Content {
@@ -290,19 +298,27 @@ private struct CalendarEventResponse: Content {
 	let date: SchoolCalendarDate
 	let isGlobal: Bool
 	let tagIDs: [UUID]
+	let showsWeather: Bool
+	let weather: SchoolWeatherResponse?
 	let revision: Int
 	let updatedAt: Date?
 
-	init(_ event: CalendarEvent, on database: any Database) async throws {
+	init(_ event: CalendarEvent, on request: Request) async throws {
 		id = try event.requireID()
 		title = event.title
 		notes = event.notes
 		symbol = event.symbol
 		date = try SchoolCalendarDate(storageValue: event.eventDate)
 		isGlobal = event.isGlobal
+		showsWeather = event.isGlobal && event.showsWeather
 		tagIDs = try await CalendarEventsController()
-			.tags(for: event, on: database)
+			.tags(for: event, on: request.db)
 			.compactMap(\.id)
+		if showsWeather {
+			weather = try? await SchoolWeatherService().daily(for: date, on: request)
+		} else {
+			weather = nil
+		}
 		revision = event.revision
 		updatedAt = event.updatedAt
 	}

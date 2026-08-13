@@ -118,5 +118,6 @@ func pmsttMigrationList() -> [any Migration] {
 		RemoveTimetableSharing(),
 		CreateAppVersionRequirement(),
 		CreateSchoolWeatherCache(),
+		AddCalendarEventWeather(),
 	]
 }

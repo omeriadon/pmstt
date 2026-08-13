@@ -16,6 +16,9 @@ final class SchoolWeatherCache: Model, Content, @unchecked Sendable {
 	@Field(key: "uv_index")
 	var uvIndex: Int
 
+	@Field(key: "precipitation_chance")
+	var precipitationChance: Double
+
 	@Field(key: "observed_at")
 	var observedAt: Date
 
@@ -28,12 +31,14 @@ final class SchoolWeatherCache: Model, Content, @unchecked Sendable {
 		temperatureCelsius: Double,
 		conditionCode: String,
 		uvIndex: Int,
+		precipitationChance: Double,
 		observedAt: Date,
 		fetchedAt: Date
 	) {
 		self.temperatureCelsius = temperatureCelsius
 		self.conditionCode = conditionCode
 		self.uvIndex = uvIndex
+		self.precipitationChance = precipitationChance
 		self.observedAt = observedAt
 		self.fetchedAt = fetchedAt
 	}
