@@ -83,7 +83,13 @@ struct AccountController: RouteCollection {
 
 		let request = try req.content.decode(LocationStatusUpdateRequest.self)
 		var history = try user.locationStatusHistory()
-		guard history.last?.state != request.state else {
+		if history.last?.state == request.state {
+			history[history.index(before: history.endIndex)] = LocationStatusItem(
+				state: request.state,
+				updatedAt: request.updatedAt
+			)
+			try user.setLocationStatusHistory(history)
+			try await user.update(on: req.db)
 			return .noContent
 		}
 

@@ -87,6 +87,7 @@ struct SchoolDayActivityScheduler {
 			.filter(\.$userDevice.$id == deviceID)
 			.filter(\.$schoolDate == schoolDate)
 			.filter(\.$status == .active)
+			.filter(\.$isDebug == false)
 			.all()
 		if let localActivityKeys {
 			guard !existingActivities.contains(where: { localActivityKeys.contains($0.activityKey) }) else { return false }
@@ -197,6 +198,7 @@ struct SchoolDayActivityScheduler {
 		do {
 			let activities = try await SchoolDayLiveActivity.query(on: database)
 				.filter(\.$status == .active)
+				.filter(\.$isDebug == false)
 				.with(\.$userDevice)
 				.all()
 
@@ -256,6 +258,7 @@ struct SchoolDayActivityScheduler {
 		do {
 			let activities = try await SchoolDayLiveActivity.query(on: database)
 				.filter(\.$status == .active)
+				.filter(\.$isDebug == false)
 				.with(\.$userDevice)
 				.all()
 			let projection = projector.projection(for: .finished, on: date, dayIndex: dayIndex, subjects: [])

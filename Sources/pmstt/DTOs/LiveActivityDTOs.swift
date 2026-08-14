@@ -24,3 +24,17 @@ struct ReconcileLiveActivityRequest: Content {
 struct ReconcileLiveActivityResponse: Content {
 	let started: Bool
 }
+
+struct LiveActivityDebugStateResponse: Content {
+	let isActive: Bool
+	let canUpdate: Bool
+}
+
+struct LiveActivityDebugRequest: Content {
+	let installationID: String
+}
+
+struct LiveActivityDebugUpdateRequest: Content {
+	let installationID: String
+	let transition: String
+}

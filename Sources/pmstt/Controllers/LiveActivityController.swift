@@ -11,6 +11,10 @@ struct LiveActivityController: RouteCollection {
 		protected.delete("devices", "current", "live-activity-token", use: removePushToStartToken)
 		protected.put("live-activities", ":activityKey", "update-token", use: registerUpdateToken)
 		protected.post("live-activities", "current", "reconcile", use: reconcileCurrentActivity)
+		protected.get("live-activities", "debug", use: debugState)
+		protected.post("live-activities", "debug", "start", use: startDebugActivity)
+		protected.post("live-activities", "debug", "update", use: updateDebugActivity)
+		protected.post("live-activities", "debug", "stop", use: stopDebugActivity)
 	}
 
 	func registerPushToStartToken(req: Request) async throws -> HTTPStatus {
@@ -112,11 +116,188 @@ struct LiveActivityController: RouteCollection {
 		return ReconcileLiveActivityResponse(started: started)
 	}
 
+	private func debugState(req: Request) async throws -> LiveActivityDebugStateResponse {
+		let user = try await requireSystemOwner(req)
+		guard let installationID = req.query[String.self, at: "installationID"] else {
+			throw AppError(.badRequest, code: .invalidRequest, reason: "The installation ID is required.", field: "installationID")
+		}
+		try validateInstallationID(installationID)
+		guard let device = try await device(userID: user.requireID(), installationID: installationID, database: req.db) else {
+			return LiveActivityDebugStateResponse(isActive: false, canUpdate: false)
+		}
+
+		return try await debugState(for: device, database: req.db)
+	}
+
+	private func startDebugActivity(req: Request) async throws -> LiveActivityDebugStateResponse {
+		let user = try await requireSystemOwner(req)
+		let body = try req.content.decode(LiveActivityDebugRequest.self)
+		try validateInstallationID(body.installationID)
+		guard let device = try await device(userID: user.requireID(), installationID: body.installationID, database: req.db) else {
+			throw AppError(.notFound, code: .notFound, reason: "Device not found.")
+		}
+		guard try await activeDebugActivity(for: device, database: req.db) == nil else {
+			return try await debugState(for: device, database: req.db)
+		}
+		guard let token = device.liveActivityPushToStartToken,
+		      let timetable = try await OwnerTimetable.query(on: req.db).filter(\.$user.$id == user.requireID()).first()
+		else {
+			throw AppError(.notFound, code: .notFound, reason: "A Live Activity push-to-start token and timetable are required.")
+		}
+
+		let now = Date()
+		let dayIndex = SchoolCalendar.configured.dayIndex(for: now) ?? 0
+		let subjects = try JSONDecoder().decode([TimetableSubjectDTO].self, from: timetable.subjectsData)
+		let projection = SchoolDayActivityProjector().projection(
+			for: .morning,
+			on: now,
+			dayIndex: dayIndex,
+			subjects: subjects
+		)
+		let activity = try SchoolDayLiveActivity(
+			userDeviceID: device.requireID(),
+			activityKey: UUID().uuidString,
+			schoolDate: "debug-\(UUID().uuidString)",
+			currentTransition: SchoolDayTransition.morning.rawValue,
+			isDebug: true
+		)
+		try await activity.create(on: req.db)
+
+		do {
+			let result = try await LiveActivityAPNSService().sendStart(
+				to: token,
+				isDebug: device.isDebug,
+				attributes: SchoolDayActivityAttributesPayload(
+					activityKey: activity.activityKey,
+					schoolDate: activity.schoolDate
+				),
+				projection: projection,
+				logger: req.logger
+			)
+			guard result.succeeded else {
+				try await activity.delete(on: req.db)
+				if result.permanentlyInvalidToken {
+					device.liveActivityPushToStartToken = nil
+					try await device.save(on: req.db)
+				}
+				throw AppError(.badGateway, code: .internalServerError, reason: "APNs did not start the Live Activity.")
+			}
+		} catch {
+			try? await activity.delete(on: req.db)
+			throw error
+		}
+
+		activity.lastAPNSTimestamp = now
+		try await activity.save(on: req.db)
+		return LiveActivityDebugStateResponse(isActive: true, canUpdate: false)
+	}
+
+	private func updateDebugActivity(req: Request) async throws -> LiveActivityDebugStateResponse {
+		let user = try await requireSystemOwner(req)
+		let body = try req.content.decode(LiveActivityDebugUpdateRequest.self)
+		try validateInstallationID(body.installationID)
+		guard let transition = SchoolDayTransition(rawValue: body.transition),
+		      [.morning, .period1, .recess, .lunch, .period6, .finished].contains(transition),
+		      let device = try await device(userID: user.requireID(), installationID: body.installationID, database: req.db),
+		      let activity = try await activeDebugActivity(for: device, database: req.db),
+		      let token = activity.updateToken,
+		      let timetable = try await OwnerTimetable.query(on: req.db).filter(\.$user.$id == user.requireID()).first()
+		else {
+			throw AppError(.notFound, code: .notFound, reason: "An active Live Activity with an update token is required.")
+		}
+
+		let now = Date()
+		let dayIndex = SchoolCalendar.configured.dayIndex(for: now) ?? 0
+		let subjects = try JSONDecoder().decode([TimetableSubjectDTO].self, from: timetable.subjectsData)
+		let projection = SchoolDayActivityProjector().projection(for: transition, on: now, dayIndex: dayIndex, subjects: subjects)
+		let result = try await LiveActivityAPNSService().sendUpdate(
+			to: token,
+			activityKey: activity.activityKey,
+			isDebug: device.isDebug,
+			projection: projection,
+			logger: req.logger
+		)
+		guard result.succeeded else {
+			if result.permanentlyInvalidToken {
+				activity.updateToken = nil
+				try await activity.save(on: req.db)
+			}
+			throw AppError(.badGateway, code: .internalServerError, reason: "APNs did not update the Live Activity.")
+		}
+
+		activity.currentTransition = transition.rawValue
+		activity.lastAPNSTimestamp = now
+		try await activity.save(on: req.db)
+		return LiveActivityDebugStateResponse(isActive: true, canUpdate: true)
+	}
+
+	private func stopDebugActivity(req: Request) async throws -> LiveActivityDebugStateResponse {
+		let user = try await requireSystemOwner(req)
+		let body = try req.content.decode(LiveActivityDebugRequest.self)
+		try validateInstallationID(body.installationID)
+		guard let device = try await device(userID: user.requireID(), installationID: body.installationID, database: req.db),
+		      let activity = try await activeDebugActivity(for: device, database: req.db),
+		      let token = activity.updateToken
+		else {
+			throw AppError(.notFound, code: .notFound, reason: "An active Live Activity with an update token is required.")
+		}
+
+		let now = Date()
+		let projection = SchoolDayActivityProjector().projection(for: .finished, on: now, dayIndex: 0, subjects: [])
+		let result = try await LiveActivityAPNSService().sendEnd(
+			to: token,
+			activityKey: activity.activityKey,
+			isDebug: device.isDebug,
+			projection: projection,
+			logger: req.logger
+		)
+		guard result.succeeded || result.permanentlyInvalidToken else {
+			throw AppError(.badGateway, code: .internalServerError, reason: "APNs did not stop the Live Activity.")
+		}
+
+		activity.status = .ended
+		activity.currentTransition = SchoolDayTransition.finished.rawValue
+		activity.lastAPNSTimestamp = now
+		if result.permanentlyInvalidToken {
+			activity.updateToken = nil
+		}
+		try await activity.save(on: req.db)
+		return LiveActivityDebugStateResponse(isActive: false, canUpdate: false)
+	}
+
 	private func device(userID: UUID, installationID: String, database: any Database) async throws -> UserDevice? {
 		try await UserDevice.query(on: database)
 			.filter(\.$user.$id == userID)
 			.filter(\.$installationID == installationID)
 			.first()
+	}
+
+	private func activeDebugActivity(for device: UserDevice, database: any Database) async throws -> SchoolDayLiveActivity? {
+		try await SchoolDayLiveActivity.query(on: database)
+			.filter(\.$userDevice.$id == device.requireID())
+			.filter(\.$status == .active)
+			.filter(\.$isDebug == true)
+			.sort(\.$createdAt, .descending)
+			.first()
+	}
+
+	private func debugState(for device: UserDevice, database: any Database) async throws -> LiveActivityDebugStateResponse {
+		guard let activity = try await activeDebugActivity(for: device, database: database) else {
+			return LiveActivityDebugStateResponse(isActive: false, canUpdate: false)
+		}
+
+		return LiveActivityDebugStateResponse(isActive: true, canUpdate: activity.updateToken != nil)
+	}
+
+	private func requireSystemOwner(_ req: Request) async throws -> User {
+		let payload = try req.auth.require(UserPayload.self)
+		guard let user = try await User.find(payload.sub, on: req.db) else {
+			throw Abort(.notFound)
+		}
+		guard user.resolvedAccountAuthority == .systemOwner else {
+			throw Abort(.forbidden)
+		}
+		return user
 	}
 
 	private func validate(installationID: String, token: String) throws {

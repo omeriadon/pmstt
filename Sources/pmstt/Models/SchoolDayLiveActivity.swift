@@ -30,6 +30,9 @@ final class SchoolDayLiveActivity: Model, Content, @unchecked Sendable {
 	@Field(key: "status")
 	var status: SchoolDayLiveActivityStatus
 
+	@Field(key: "is_debug")
+	var isDebug: Bool
+
 	@OptionalField(key: "last_apns_timestamp")
 	var lastAPNSTimestamp: Date?
 
@@ -49,6 +52,7 @@ final class SchoolDayLiveActivity: Model, Content, @unchecked Sendable {
 		updateToken: String? = nil,
 		currentTransition: String,
 		status: SchoolDayLiveActivityStatus = .active,
+		isDebug: Bool = false,
 		lastAPNSTimestamp: Date? = nil
 	) {
 		self.id = id
@@ -58,6 +62,7 @@ final class SchoolDayLiveActivity: Model, Content, @unchecked Sendable {
 		self.updateToken = updateToken
 		self.currentTransition = currentTransition
 		self.status = status
+		self.isDebug = isDebug
 		self.lastAPNSTimestamp = lastAPNSTimestamp
 	}
 }

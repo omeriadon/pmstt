@@ -82,6 +82,7 @@ func pmsttMigrationList() -> [any Migration] {
 		AddUserDeviceAppVersion(),
 		RemoveLegacyDevices(),
 		CreateSchoolDayLiveActivity(),
+		AddSchoolDayLiveActivityDebugMode(),
 		CreateSchoolDayLiveActivityTransition(),
 		AddUserTokenAuthority(),
 		CreateFriendship(),
