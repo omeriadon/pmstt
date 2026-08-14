@@ -136,6 +136,9 @@ struct LiveActivityController: RouteCollection {
 		guard let device = try await device(userID: user.requireID(), installationID: body.installationID, database: req.db) else {
 			throw AppError(.notFound, code: .notFound, reason: "Device not found.")
 		}
+		guard try await activeDebugActivity(for: device, database: req.db) == nil else {
+			return try await debugState(for: device, database: req.db)
+		}
 		guard let token = device.liveActivityPushToStartToken,
 		      let timetable = try await OwnerTimetable.query(on: req.db).filter(\.$user.$id == user.requireID()).first()
 		else {
@@ -143,12 +146,6 @@ struct LiveActivityController: RouteCollection {
 		}
 
 		let now = Date()
-		try await retireActiveDebugActivity(
-			for: device,
-			at: now,
-			database: req.db,
-			logger: req.logger
-		)
 		let dayIndex = SchoolCalendar.configured.dayIndex(for: now) ?? 0
 		let subjects = try JSONDecoder().decode([TimetableSubjectDTO].self, from: timetable.subjectsData)
 		let projection = SchoolDayActivityProjector().debugProjection(
@@ -244,32 +241,34 @@ struct LiveActivityController: RouteCollection {
 		let user = try await requireSystemOwner(req)
 		let body = try req.content.decode(LiveActivityDebugRequest.self)
 		try validateInstallationID(body.installationID)
-		guard let device = try await device(userID: user.requireID(), installationID: body.installationID, database: req.db),
-		      let activity = try await activeDebugActivity(for: device, database: req.db),
-		      let token = activity.updateToken
-		else {
-			throw AppError(.notFound, code: .notFound, reason: "An active Live Activity with an update token is required.")
+		guard let device = try await device(userID: user.requireID(), installationID: body.installationID, database: req.db) else {
+			throw AppError(.notFound, code: .notFound, reason: "Device not found.")
+		}
+		guard let activity = try await activeDebugActivity(for: device, database: req.db) else {
+			return LiveActivityDebugStateResponse(isActive: false, canUpdate: false)
 		}
 
 		let now = Date()
-		let projection = SchoolDayActivityProjector().projection(for: .finished, on: now, dayIndex: 0, subjects: [])
-		let result = try await LiveActivityAPNSService().sendEnd(
-			to: token,
-			activityKey: activity.activityKey,
-			isDebug: device.isDebug,
-			projection: projection,
-			logger: req.logger
-		)
-		guard result.succeeded || result.permanentlyInvalidToken else {
-			throw AppError(.badGateway, code: .internalServerError, reason: "APNs did not stop the Live Activity.")
+		if let token = activity.updateToken {
+			let projection = SchoolDayActivityProjector().projection(for: .finished, on: now, dayIndex: 0, subjects: [])
+			let result = try await LiveActivityAPNSService().sendEnd(
+				to: token,
+				activityKey: activity.activityKey,
+				isDebug: device.isDebug,
+				projection: projection,
+				logger: req.logger
+			)
+			guard result.succeeded || result.permanentlyInvalidToken else {
+				throw AppError(.badGateway, code: .internalServerError, reason: "APNs did not stop the Live Activity.")
+			}
+			if result.permanentlyInvalidToken {
+				activity.updateToken = nil
+			}
 		}
 
 		activity.status = .ended
 		activity.currentTransition = SchoolDayTransition.finished.rawValue
 		activity.lastAPNSTimestamp = now
-		if result.permanentlyInvalidToken {
-			activity.updateToken = nil
-		}
 		try await activity.save(on: req.db)
 		return LiveActivityDebugStateResponse(isActive: false, canUpdate: false)
 	}
@@ -288,48 +287,6 @@ struct LiveActivityController: RouteCollection {
 			.filter(\.$isDebug == true)
 			.sort(\.$createdAt, .descending)
 			.first()
-	}
-
-	private func retireActiveDebugActivity(
-		for device: UserDevice,
-		at date: Date,
-		database: any Database,
-		logger: Logger
-	) async throws {
-		let activities = try await SchoolDayLiveActivity.query(on: database)
-			.filter(\.$userDevice.$id == device.requireID())
-			.filter(\.$status == .active)
-			.filter(\.$isDebug == true)
-			.all()
-		let projection = SchoolDayActivityProjector().projection(
-			for: .finished,
-			on: date,
-			dayIndex: 0,
-			subjects: []
-		)
-
-		for activity in activities {
-			if let token = activity.updateToken {
-				do {
-					_ = try await LiveActivityAPNSService().sendEnd(
-						to: token,
-						activityKey: activity.activityKey,
-						isDebug: device.isDebug,
-						projection: projection,
-						logger: logger
-					)
-				} catch {
-					logger.report(error: error, metadata: [
-						"live_activity_id": .string(activity.id?.uuidString ?? "unknown"),
-					])
-				}
-			}
-
-			activity.status = .ended
-			activity.currentTransition = SchoolDayTransition.finished.rawValue
-			activity.lastAPNSTimestamp = date
-			try await activity.save(on: database)
-		}
 	}
 
 	private func debugState(for device: UserDevice, database: any Database) async throws -> LiveActivityDebugStateResponse {
