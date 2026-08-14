@@ -38,7 +38,15 @@ struct LiveActivityAPNSService {
 			inputPushToken: 1,
 			alert: alert(for: projection)
 		))
-		return try await send(payload, to: token, isDebug: isDebug, priority: 10, collapseID: "live-activity-\(attributes.activityKey)-start", expiration: schoolDayExpiration(), logger: logger)
+		return try await send(
+			payload,
+			to: token,
+			isDebug: isDebug,
+			priority: 10,
+			collapseID: "live-activity-\(attributes.activityKey)-start",
+			expiration: activityExpiration(isDebug: isDebug),
+			logger: logger
+		)
 	}
 
 	func sendUpdate(to token: String, activityKey: String, isDebug: Bool, projection: SchoolDayActivityProjection, logger: Logger) async throws -> Result {
@@ -53,7 +61,15 @@ struct LiveActivityAPNSService {
 			inputPushToken: nil,
 			alert: alert(for: projection)
 		))
-		return try await send(payload, to: token, isDebug: isDebug, priority: 10, collapseID: "live-activity-\(activityKey)-update", expiration: schoolDayExpiration(), logger: logger)
+		return try await send(
+			payload,
+			to: token,
+			isDebug: isDebug,
+			priority: 10,
+			collapseID: "live-activity-\(activityKey)-update",
+			expiration: activityExpiration(isDebug: isDebug),
+			logger: logger
+		)
 	}
 
 	func sendEnd(to token: String, activityKey: String, isDebug: Bool, projection: SchoolDayActivityProjection, logger: Logger) async throws -> Result {
@@ -120,5 +136,13 @@ struct LiveActivityAPNSService {
 			of: now
 		) ?? now
 		return Int(max(now, dismissal).timeIntervalSince1970)
+	}
+
+	private func activityExpiration(isDebug: Bool, now: Date = .now) -> Int {
+		if isDebug {
+			return Int(now.addingTimeInterval(2 * 60 * 60).timeIntervalSince1970)
+		}
+
+		return schoolDayExpiration(now: now)
 	}
 }
