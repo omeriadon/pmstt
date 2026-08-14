@@ -107,7 +107,9 @@ struct CapabilityMiddleware: AsyncMiddleware {
 			case "timetables":
 				return path.dropFirst(2).first == "owner" ? .mutateOwnerTimetable : .read
 			case "devices":
-				if path.contains("synchronize") || (request.method == .DELETE && path == ["v1", "devices", "current"]) {
+				if path.contains("synchronize")
+					|| path == ["v1", "devices", "current"]
+				{
 					return .read
 				}
 				return path.contains("live-activity-token") ? .mutateLiveActivities : .mutateNotifications
