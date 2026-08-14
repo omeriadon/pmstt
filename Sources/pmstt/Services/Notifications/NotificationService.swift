@@ -255,7 +255,7 @@ struct NotificationService {
 	) async throws -> BroadcastNotificationResponse {
 		let record = BroadcastNotificationRecord(
 			senderAccountID: sender.id,
-			senderEmail: sender.email ?? "unknown",
+			senderEmail: sender.email,
 			senderAuthority: sender.resolvedAccountAuthority,
 			audience: respectsUserPreference ? "broadcastNotificationSubscribers" : "allRegisteredDevices",
 			title: title,
