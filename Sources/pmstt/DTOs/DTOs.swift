@@ -65,7 +65,6 @@ struct UpdateAccountRequest: Content {
 
 struct UpdateSettingsRequest: Content {
 	var liveActivitiesEnabled: Bool
-	var highlightsCurrentDay: Bool
 	var appFontDesign: AppFontDesign
 	var appBackground: AppBackground
 	var futureEventRange: FutureEventRange
@@ -80,7 +79,6 @@ struct UpdateSettingsRequest: Content {
 
 	static let `default` = UpdateSettingsRequest(
 		liveActivitiesEnabled: true,
-		highlightsCurrentDay: true,
 		appFontDesign: .monospaced,
 		appBackground: .blackPaper,
 		futureEventRange: .oneMonth,
@@ -97,7 +95,6 @@ struct UpdateSettingsRequest: Content {
 	var accountSettings: AccountSettings {
 		AccountSettings(
 			liveActivitiesEnabled: liveActivitiesEnabled,
-			highlightsCurrentDay: highlightsCurrentDay,
 			appFontDesign: appFontDesign,
 			appBackground: appBackground,
 			futureEventRange: futureEventRange,
@@ -158,7 +155,6 @@ extension UpdateSettingsRequest {
 			forKey: .liveActivitiesEnabled,
 			default: defaults.liveActivitiesEnabled
 		)
-		highlightsCurrentDay = try container.decodeIfPresent(Bool.self, forKey: .highlightsCurrentDay, default: defaults.highlightsCurrentDay)
 		appFontDesign = try container.decodeIfPresent(AppFontDesign.self, forKey: .appFontDesign, default: defaults.appFontDesign)
 		appBackground = try container.decodeIfPresent(AppBackground.self, forKey: .appBackground, default: defaults.appBackground)
 		futureEventRange = try container.decodeIfPresent(FutureEventRange.self, forKey: .futureEventRange, default: defaults.futureEventRange)

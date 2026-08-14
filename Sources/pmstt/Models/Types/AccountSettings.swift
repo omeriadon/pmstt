@@ -23,7 +23,6 @@ enum AppFontDesign: String, Content, CaseIterable, Hashable {
 
 struct AccountSettings: Content, Hashable {
 	var liveActivitiesEnabled: Bool
-	var highlightsCurrentDay: Bool
 	var appFontDesign: AppFontDesign
 	var appBackground: AppBackground
 	var futureEventRange: FutureEventRange
@@ -39,7 +38,6 @@ struct AccountSettings: Content, Hashable {
 	static var `default`: AccountSettings {
 		AccountSettings(
 			liveActivitiesEnabled: true,
-			highlightsCurrentDay: true,
 			appFontDesign: .monospaced,
 			appBackground: .blackPaper,
 			futureEventRange: .oneMonth,
@@ -65,7 +63,6 @@ extension AccountSettings {
 		let defaults = Self.default
 
 		liveActivitiesEnabled = try container.decodeIfPresent(Bool.self, forKey: .liveActivitiesEnabled) ?? defaults.liveActivitiesEnabled
-		highlightsCurrentDay = try container.decodeIfPresent(Bool.self, forKey: .highlightsCurrentDay) ?? defaults.highlightsCurrentDay
 		appFontDesign = try container.decodeIfPresent(AppFontDesign.self, forKey: .appFontDesign) ?? defaults.appFontDesign
 		appBackground = try container.decodeIfPresent(AppBackground.self, forKey: .appBackground) ?? defaults.appBackground
 		futureEventRange = try container.decodeIfPresent(FutureEventRange.self, forKey: .futureEventRange) ?? defaults.futureEventRange
