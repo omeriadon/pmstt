@@ -785,8 +785,8 @@ struct AdministrationController: RouteCollection {
 		let request = try req.content.decode(AdministrationEventTagRequest.self)
 		try await req.db.transaction { database in
 			let section = try await eventTagSection(id: request.sectionID, on: database)
-			guard section.category != .yearGroup else {
-				throw Abort(.badRequest, reason: "Canonical year-group tags are seeded by the server.")
+			guard section.category == .yearGroup else {
+				throw Abort(.badRequest, reason: "Only year-group tags are supported.")
 			}
 			let tag = try eventTag(from: request, section: section)
 			try await validateTag(tag, aliases: request.associatedNames, excluding: nil, on: database)
@@ -871,6 +871,9 @@ struct AdministrationController: RouteCollection {
 	private func createEventTagSection(req: Request) async throws -> AdministrationEventTagCatalogueResponse {
 		_ = try await requireAdministrator(req)
 		let request = try req.content.decode(AdministrationEventTagSectionCreateRequest.self)
+		guard request.category == .yearGroup else {
+			throw Abort(.badRequest, reason: "Only the year-group tag section is supported.")
+		}
 		let displayName = try validatedDisplayName(request.displayName)
 		guard try await EventTagSection.query(on: req.db).filter(\.$category == request.category).first() == nil else {
 			throw Abort(.conflict)
