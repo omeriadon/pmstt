@@ -39,7 +39,7 @@ struct AccountSettings: Content, Hashable {
 		AccountSettings(
 			liveActivitiesEnabled: true,
 			appFontDesign: .monospaced,
-			appBackground: .blackPaper,
+			appBackground: .paper,
 			futureEventRange: .oneMonth,
 			watchBleedEnabled: true,
 			notificationsEnabled: true,

@@ -80,7 +80,7 @@ struct UpdateSettingsRequest: Content {
 	static let `default` = UpdateSettingsRequest(
 		liveActivitiesEnabled: true,
 		appFontDesign: .monospaced,
-		appBackground: .blackPaper,
+		appBackground: .paper,
 		futureEventRange: .oneMonth,
 		watchBleedEnabled: true,
 		notificationsEnabled: true,

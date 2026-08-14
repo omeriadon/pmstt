@@ -1,13 +1,11 @@
 import Vapor
 
 enum AppBackground: String, Content, CaseIterable, Hashable {
-	case blackPaper
-	case grayPaper
-	case brownPaper
 	case solid
-	case systemGray
-	case dome
-	case peak
-	case tree
-	case valley
+	case paper
+
+	init(from decoder: any Decoder) throws {
+		let value = try decoder.singleValueContainer().decode(String.self)
+		self = value == Self.solid.rawValue ? .solid : .paper
+	}
 }
