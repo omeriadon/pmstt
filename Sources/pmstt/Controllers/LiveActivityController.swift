@@ -148,7 +148,7 @@ struct LiveActivityController: RouteCollection {
 		let now = Date()
 		let dayIndex = SchoolCalendar.configured.dayIndex(for: now) ?? 0
 		let subjects = try JSONDecoder().decode([TimetableSubjectDTO].self, from: timetable.subjectsData)
-		let projection = SchoolDayActivityProjector().projection(
+		let projection = SchoolDayActivityProjector().debugProjection(
 			for: .morning,
 			on: now,
 			dayIndex: dayIndex,
@@ -209,7 +209,12 @@ struct LiveActivityController: RouteCollection {
 		let now = Date()
 		let dayIndex = SchoolCalendar.configured.dayIndex(for: now) ?? 0
 		let subjects = try JSONDecoder().decode([TimetableSubjectDTO].self, from: timetable.subjectsData)
-		let projection = SchoolDayActivityProjector().projection(for: transition, on: now, dayIndex: dayIndex, subjects: subjects)
+		let projection = SchoolDayActivityProjector().debugProjection(
+			for: transition,
+			on: now,
+			dayIndex: dayIndex,
+			subjects: subjects
+		)
 		let result = try await LiveActivityAPNSService().sendUpdate(
 			to: token,
 			activityKey: activity.activityKey,

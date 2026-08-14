@@ -143,6 +143,42 @@ struct SchoolDayActivityProjector {
 		)
 	}
 
+	func debugProjection(
+		for transition: SchoolDayTransition,
+		on date: Date,
+		dayIndex: Int,
+		subjects: [TimetableSubjectDTO]
+	) -> SchoolDayActivityProjection {
+		let projection = projection(
+			for: transition,
+			on: date,
+			dayIndex: dayIndex,
+			subjects: subjects
+		)
+		guard let scheduledStart = projection.content.startDate,
+		      let scheduledEnd = projection.content.endDate
+		else {
+			return projection
+		}
+
+		let duration = scheduledEnd.timeIntervalSince(scheduledStart)
+		let content = SchoolDayActivityContentState(
+			phase: projection.content.phase,
+			title: projection.content.title,
+			symbol: projection.content.symbol,
+			color: projection.content.color,
+			nextText: projection.content.nextText,
+			startDate: date,
+			endDate: date.addingTimeInterval(duration)
+		)
+
+		return SchoolDayActivityProjection(
+			transition: transition,
+			content: content,
+			staleDate: content.endDate?.addingTimeInterval(60)
+		)
+	}
+
 	private func lesson(period: Int, date baseDate: Date, dayIndex: Int, subjects: [TimetableSubjectDTO], next: String?, end: (Int, Int)) -> SchoolDayActivityContentState {
 		let current = subject(period: period, dayIndex: dayIndex, subjects: subjects)
 		return .init(
