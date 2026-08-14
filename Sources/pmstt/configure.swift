@@ -110,6 +110,7 @@ func pmsttMigrationList() -> [any Migration] {
 		AddUserProfileRevision(),
 		CreateSpecialProfileBadges(),
 		AddDefaultYearGroupSubscriptions(),
+		RemoveNonYearGroupEventTags(),
 		InvalidateLegacyPlatformSessions(),
 		AddUserLocationStatusHistory(),
 		CreateModerationRecords(),

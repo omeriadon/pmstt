@@ -3,18 +3,13 @@ import Foundation
 
 enum EventTagSubscriptionService {
 	static func subscribeNewAccount(_ accountID: UUID, on database: any Database) async throws {
-		let generalTag = try await EventTag.query(on: database)
-			.filter(\.$category == .general)
-			.filter(\.$isArchived == false)
-			.sort(\.$sortOrder)
-			.first()
 		let yearSevenTag = try await EventTag.query(on: database)
 			.filter(\.$category == .yearGroup)
 			.filter(\.$slug == "year-7")
 			.filter(\.$isArchived == false)
 			.first()
 
-		for tag in [generalTag, yearSevenTag].compactMap(\.self) {
+		for tag in [yearSevenTag].compactMap(\.self) {
 			let tagID = try tag.requireID()
 			let existingSubscription = try await AccountEventTagSubscription.query(on: database)
 				.filter(\.$account.$id == accountID)
