@@ -99,7 +99,9 @@ struct LiveActivityAPNSService {
 	private func alert(for projection: SchoolDayActivityProjection) -> LiveActivityPayload.Alert {
 		LiveActivityPayload.Alert(
 			title: projection.content.title,
-			body: projection.content.nextText.map { "Next: \($0)" } ?? "Your timetable has been updated."
+			body: projection.content.nextText.map {
+				projection.content.phase == .beforeSchool ? "First: \($0)" : "Next: \($0)"
+			} ?? "Your timetable has been updated."
 		)
 	}
 

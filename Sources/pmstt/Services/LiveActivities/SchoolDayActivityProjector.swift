@@ -109,7 +109,7 @@ struct SchoolDayActivityProjector {
 					title: "Before School",
 					symbol: first?.symbol ?? "studentdesk",
 					color: color(first),
-					nextText: "First Period: \(first?.id ?? "Free Period")",
+					nextText: first?.id ?? "Free Period",
 					startDate: self.date(on: date, hour: 8, minute: 0),
 					endDate: self.date(on: date, hour: 8, minute: 50)
 				)
