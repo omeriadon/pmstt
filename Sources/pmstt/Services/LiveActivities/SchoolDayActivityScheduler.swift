@@ -119,7 +119,8 @@ struct SchoolDayActivityScheduler {
 			}
 			let attributes = SchoolDayActivityAttributesPayload(
 				activityKey: activity.activityKey,
-				schoolDate: activity.schoolDate
+				schoolDate: activity.schoolDate,
+				isDebug: false
 			)
 			let result = try await apns.sendStart(
 				to: token,
@@ -170,7 +171,11 @@ struct SchoolDayActivityScheduler {
 					let activity = try await activityRecord(for: device, date: date, database: database)
 					guard let claim = try await claim(activity: activity, transition: .morning, database: database) else { continue }
 
-					let attributes = SchoolDayActivityAttributesPayload(activityKey: activity.activityKey, schoolDate: activity.schoolDate)
+					let attributes = SchoolDayActivityAttributesPayload(
+						activityKey: activity.activityKey,
+						schoolDate: activity.schoolDate,
+						isDebug: false
+					)
 					let result = try await apns.sendStart(to: token, isDebug: device.isDebug, attributes: attributes, projection: projection, logger: logger)
 					guard result.succeeded else {
 						try await claim.delete(on: database)

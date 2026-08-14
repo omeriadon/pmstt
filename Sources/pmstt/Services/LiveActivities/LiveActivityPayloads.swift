@@ -23,6 +23,7 @@ struct SchoolDayActivityColor: Codable {
 struct SchoolDayActivityAttributesPayload: Codable {
 	let activityKey: String
 	let schoolDate: String
+	let isDebug: Bool
 }
 
 struct SchoolDayActivityContentState: Codable {

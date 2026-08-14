@@ -172,7 +172,8 @@ struct LiveActivityController: RouteCollection {
 				isDebug: device.isDebug,
 				attributes: SchoolDayActivityAttributesPayload(
 					activityKey: activity.activityKey,
-					schoolDate: activity.schoolDate
+					schoolDate: activity.schoolDate,
+					isDebug: true
 				),
 				projection: projection,
 				logger: req.logger
