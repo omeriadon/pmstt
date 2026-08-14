@@ -80,7 +80,7 @@ struct UpdateSettingsRequest: Content {
 	static let `default` = UpdateSettingsRequest(
 		liveActivitiesEnabled: true,
 		appFontDesign: .monospaced,
-		appBackground: .paper,
+		appBackground: .solid,
 		futureEventRange: .oneMonth,
 		watchBleedEnabled: true,
 		notificationsEnabled: true,
@@ -351,6 +351,7 @@ struct BroadcastNotificationRequest: Content {
 	let title: String
 	let subtitle: String?
 	let body: String?
+	let respectsUserPreference: Bool?
 }
 
 struct BroadcastNotificationResponse: Content {

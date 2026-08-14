@@ -248,6 +248,7 @@ struct NotificationService {
 		title: String,
 		subtitle: String?,
 		body: String?,
+		respectsUserPreference: Bool,
 		sender: User,
 		threadID: String? = nil,
 		on req: Request
@@ -256,7 +257,7 @@ struct NotificationService {
 			senderAccountID: sender.id,
 			senderEmail: sender.email ?? "unknown",
 			senderAuthority: sender.resolvedAccountAuthority,
-			audience: "broadcastNotificationSubscribers",
+			audience: respectsUserPreference ? "broadcastNotificationSubscribers" : "allRegisteredDevices",
 			title: title,
 			subtitle: subtitle,
 			body: body
@@ -268,6 +269,9 @@ struct NotificationService {
 			let eligibleUserIDs = try users.compactMap { user -> UUID? in
 				guard let userID = user.id else {
 					return nil
+				}
+				guard respectsUserPreference else {
+					return userID
 				}
 
 				let settings = try JSONDecoder().decode(

@@ -744,6 +744,7 @@ struct AdministrationController: RouteCollection {
 			title: title,
 			subtitle: subtitle?.nilIfEmpty,
 			body: body?.nilIfEmpty,
+			respectsUserPreference: request.respectsUserPreference ?? true,
 			sender: sender,
 			on: req
 		)
