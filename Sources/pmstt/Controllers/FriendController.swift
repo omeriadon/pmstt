@@ -24,7 +24,7 @@ struct FriendController: RouteCollection {
 		protected.delete("profile", "photo", use: deleteProfilePhoto)
 		protected.get("profile", "photo", ":userID", use: profilePhoto)
 		protected.post("requests", use: createRequest)
-		protected.post(":friendID", "friends-since-request", use: requestFriendsSinceDate)
+		protected.put(":friendID", "friends-since", use: updateFriendsSinceDate)
 		protected.post("requests", ":relationshipID", "accept", use: acceptRequest)
 		protected.delete("requests", ":relationshipID", use: deleteRequest)
 		protected.put("order", use: reorder)
@@ -587,37 +587,28 @@ struct FriendController: RouteCollection {
 		return .noContent
 	}
 
-	func requestFriendsSinceDate(req: Request) async throws -> HTTPStatus {
-		let requesterID = try req.auth.require(UserPayload.self).sub
+	func updateFriendsSinceDate(req: Request) async throws -> HTTPStatus {
+		let userID = try req.auth.require(UserPayload.self).sub
 		let friendID = try requireFriendID(req)
 		let request = try req.content.decode(FriendshipDateChangeRequestDTO.self)
-		guard let friendship = try await relationship(between: requesterID, and: friendID, on: req.db), friendship.status == .accepted else {
-			throw Abort(.notFound)
-		}
-
-		try await FriendshipDateChangeRequest(
-			friendshipID: friendship.requireID(),
-			requesterID: requesterID,
-			requestedDate: request.requestedDate
-		).create(on: req.db)
-
-		guard let requester = try await User.find(requesterID, on: req.db),
-		      let friend = try await User.find(friendID, on: req.db)
+		guard let friendship = try await relationship(between: userID, and: friendID, on: req.db),
+		      friendship.status == .accepted
 		else {
 			throw Abort(.notFound)
 		}
-		do {
-			try await NotificationService().sendToAdministrators(
-				title: "Friends-since request",
-				body: "\(requester.displayName) requested a date change with \(friend.displayName).",
-				threadID: "administration-moderation",
-				collapseID: "friends-since-\(friendship.requireID().uuidString)",
-				on: req
-			)
-		} catch {
-			req.logger.error("Friends-since request notification delivery failed: \(error.localizedDescription)")
+
+		var calendar = Calendar(identifier: .gregorian)
+		calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? calendar.timeZone
+		guard let minimumDate = calendar.date(from: DateComponents(year: 2010, month: 1, day: 1)),
+		      request.requestedDate >= minimumDate,
+		      request.requestedDate < calendar.startOfDay(for: .now)
+		else {
+			throw Abort(.badRequest, reason: "Friends-since date must be from 2010 and before the current day.")
 		}
-		return .created
+
+		friendship.acceptedAt = request.requestedDate
+		try await friendship.update(on: req.db)
+		return .noContent
 	}
 
 	func removeFriend(req: Request) async throws -> HTTPStatus {

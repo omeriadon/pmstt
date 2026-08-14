@@ -6,8 +6,6 @@ struct AdministrationController: RouteCollection {
 		let admin = routes.grouped("v1", "administration").grouped(SessionAuthenticator(), UserPayload.guardMiddleware(), CapabilityMiddleware())
 		admin.get(use: dashboard)
 		admin.get("statistics", use: locationStatusStatistics)
-		admin.get("friends-since-requests", use: friendshipDateChangeRequests)
-		admin.put("friends-since-requests", ":requestID", use: resolveFriendshipDateChangeRequest)
 		admin.get("user-reports", use: userReports)
 		admin.put("user-reports", ":reportID", use: resolveUserReport)
 		admin.get("users", use: users)
@@ -210,14 +208,10 @@ struct AdministrationController: RouteCollection {
 
 	private func dashboard(req: Request) async throws -> AdministrationDashboardResponse {
 		let user = try await requireAdministrator(req)
-		async let pendingFriendshipRequests = FriendshipDateChangeRequest.query(on: req.db)
-			.filter(\.$action == .pending)
-			.count()
 		async let pendingReports = UserReport.query(on: req.db)
 			.filter(\.$action == .pending)
 			.count()
-		let pendingCounts = try await (pendingFriendshipRequests, pendingReports)
-		let pendingModerationCount = pendingCounts.0 + pendingCounts.1
+		let pendingModerationCount = try await pendingReports
 		return AdministrationDashboardResponse(
 			isAdmin: true,
 			authority: user.resolvedAccountAuthority,
@@ -466,62 +460,6 @@ struct AdministrationController: RouteCollection {
 		}
 
 		return Double(total) / Double(count)
-	}
-
-	private func friendshipDateChangeRequests(req: Request) async throws -> [AdministrationFriendshipDateChangeRequestResponse] {
-		_ = try await requireAdministrator(req)
-		let requests = try await FriendshipDateChangeRequest.query(on: req.db)
-			.sort(\.$createdAt, .descending)
-			.all()
-		return try await requests.asyncMap { request in
-			try await friendshipDateChangeRequestResponse(request, on: req.db)
-		}
-	}
-
-	private func resolveFriendshipDateChangeRequest(req: Request) async throws -> AdministrationFriendshipDateChangeRequestResponse {
-		_ = try await requireAdministrator(req)
-		guard let requestID = req.parameters.get("requestID", as: UUID.self),
-		      let changeRequest = try await FriendshipDateChangeRequest.find(requestID, on: req.db)
-		else {
-			throw Abort(.notFound)
-		}
-		let resolution = try req.content.decode(AdministrationModerationResolutionRequest.self)
-		guard resolution.action == .approved || resolution.action == .rejected else {
-			throw Abort(.badRequest)
-		}
-		if resolution.action == .approved {
-			guard let friendship = try await Friendship.find(changeRequest.friendshipID, on: req.db) else {
-				throw Abort(.notFound)
-			}
-			friendship.acceptedAt = changeRequest.requestedDate
-			try await friendship.update(on: req.db)
-		}
-		changeRequest.action = resolution.action
-		try await changeRequest.update(on: req.db)
-		return try await friendshipDateChangeRequestResponse(changeRequest, on: req.db)
-	}
-
-	private func friendshipDateChangeRequestResponse(
-		_ request: FriendshipDateChangeRequest,
-		on database: any Database
-	) async throws -> AdministrationFriendshipDateChangeRequestResponse {
-		let requester = try await User.find(request.requesterID, on: database)
-		let friendship = try await Friendship.find(request.friendshipID, on: database)
-		let friendID = friendship.map {
-			$0.$requester.id == request.requesterID ? $0.$recipient.id : $0.$requester.id
-		}
-		let friend: User? = if let friendID {
-			try await User.find(friendID, on: database)
-		} else {
-			nil
-		}
-
-		return try AdministrationFriendshipDateChangeRequestResponse(
-			request,
-			requesterDisplayName: requester?.displayName,
-			friendID: friendID,
-			friendDisplayName: friend?.displayName
-		)
 	}
 
 	private func userReports(req: Request) async throws -> [AdministrationUserReportResponse] {
@@ -1473,33 +1411,6 @@ private struct AdministrationEmailDeliveryRecordResponse: Content {
 		failureReason = record.failureReason
 		createdAt = record.createdAt
 		updatedAt = record.updatedAt
-	}
-}
-
-private struct AdministrationFriendshipDateChangeRequestResponse: Content {
-	let id: UUID
-	let requesterID: UUID
-	let requesterDisplayName: String?
-	let friendID: UUID?
-	let friendDisplayName: String?
-	let requestedDate: Date
-	let action: ModerationAction
-	let createdAt: Date?
-
-	init(
-		_ request: FriendshipDateChangeRequest,
-		requesterDisplayName: String?,
-		friendID: UUID?,
-		friendDisplayName: String?
-	) throws {
-		id = try request.requireID()
-		requesterID = request.requesterID
-		self.requesterDisplayName = requesterDisplayName
-		self.friendID = friendID
-		self.friendDisplayName = friendDisplayName
-		requestedDate = request.requestedDate
-		action = request.action
-		createdAt = request.createdAt
 	}
 }
 
