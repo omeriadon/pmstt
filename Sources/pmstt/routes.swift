@@ -22,7 +22,9 @@ func routes(_ app: Application) throws {
 		return response
 	}
 
-	app.get("health") { req async -> HealthResponse in
+	let api = app.grouped("api")
+
+	api.get("health") { req async -> HealthResponse in
 		req.logger.debug("Health check completed")
 		return HealthResponse(
 			status: "ok",
@@ -30,7 +32,6 @@ func routes(_ app: Application) throws {
 		)
 	}
 
-	let api = app.grouped("api")
 	try api.register(collection: ServerAccessModeController())
 	try api.register(collection: AppVersionController())
 	try api.register(collection: SchoolWeatherController())
