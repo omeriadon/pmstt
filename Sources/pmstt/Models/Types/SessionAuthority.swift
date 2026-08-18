@@ -6,6 +6,7 @@ enum ClientPlatform: String, Codable, Sendable {
 	case iOS
 	case iPadOS
 	case macOS
+	case website
 	case watchOS
 	case legacy
 
@@ -14,14 +15,14 @@ enum ClientPlatform: String, Codable, Sendable {
 
 	var signupAllowed: Bool {
 		switch self {
-			case .iOS, .iPadOS, .macOS: true
+			case .iOS, .iPadOS, .macOS, .website: true
 			case .watchOS, .legacy: false
 		}
 	}
 
 	var loginAllowed: Bool {
 		switch self {
-			case .iOS, .iPadOS, .macOS: true
+			case .iOS, .iPadOS, .macOS, .website: true
 			case .watchOS, .legacy: false
 		}
 	}
@@ -41,7 +42,7 @@ enum Capability: String, Codable, Sendable {
 extension ClientPlatform {
 	var capabilities: [Capability] {
 		switch self {
-			case .iOS, .iPadOS, .macOS:
+			case .iOS, .iPadOS, .macOS, .website:
 				[.read, .logout, .mutateAccount, .mutateSettings, .mutateOwnerTimetable, .mutateNotifications]
 					+ (self == .iOS ? [.mutateLiveActivities, .createWatchSession] : [])
 			case .watchOS:

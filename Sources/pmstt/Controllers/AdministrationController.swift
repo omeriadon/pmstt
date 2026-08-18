@@ -449,6 +449,7 @@ struct AdministrationController: RouteCollection {
 			case ClientPlatform.iOS.rawValue: "iPhone"
 			case ClientPlatform.iPadOS.rawValue: "iPad"
 			case ClientPlatform.macOS.rawValue: "Mac"
+			case ClientPlatform.website.rawValue: "Website"
 			case ClientPlatform.watchOS.rawValue: "Apple Watch"
 			default: platform
 		}
