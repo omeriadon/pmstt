@@ -5,7 +5,10 @@ struct AuthRateLimitMiddleware: AsyncMiddleware {
 	private let limit: Int
 	private let window: TimeInterval
 
-	init(limit: Int = 12, window: TimeInterval = 60) {
+	init(
+		limit: Int = AuthRateLimitPolicy.maxAttemptsPerIP,
+		window: TimeInterval = AuthRateLimitPolicy.window
+	) {
 		self.limit = limit
 		self.window = window
 	}
@@ -13,10 +16,15 @@ struct AuthRateLimitMiddleware: AsyncMiddleware {
 	func respond(to request: Request, chainingTo next: any AsyncResponder) async throws -> Response {
 		let key = request.remoteAddress?.ipAddress ?? "unknown"
 		guard await AuthRateLimiter.shared.allow(key: key, limit: limit, window: window) else {
-			throw AppError(.tooManyRequests, code: .rateLimited, reason: "Too many authentication attempts. Try again shortly.")
+			throw AppError(.tooManyRequests, code: .rateLimited, reason: "Too many authentication attempts. Try again after the daily limit resets.")
 		}
 		return try await next.respond(to: request)
 	}
+}
+
+enum AuthRateLimitPolicy {
+	static let maxAttemptsPerIP = 100
+	static let window: TimeInterval = 60 * 60 * 24
 }
 
 actor AuthRateLimiter {

@@ -19,6 +19,39 @@ final class AuthIntegrationTests: XCTestCase, @unchecked Sendable {
 		XCTAssertFalse(ClientPlatform.watchOS.signupAllowed)
 	}
 
+	func testAuthenticationRateLimiterAllows100AttemptsPerRollingDay() async {
+		let limiter = AuthRateLimiter()
+		let now = Date(timeIntervalSince1970: 1_000_000)
+
+		for _ in 0 ..< 100 {
+			await XCTAssertTrue(
+				limiter.allow(
+					key: "test-ip",
+					limit: 100,
+					window: 60 * 60 * 24,
+					now: now
+				)
+			)
+		}
+
+		await XCTAssertFalse(
+			limiter.allow(
+				key: "test-ip",
+				limit: 100,
+				window: 60 * 60 * 24,
+				now: now
+			)
+		)
+		await XCTAssertTrue(
+			limiter.allow(
+				key: "test-ip",
+				limit: 100,
+				window: 60 * 60 * 24,
+				now: now.addingTimeInterval(60 * 60 * 24 + 1)
+			)
+		)
+	}
+
 	func testRegisterAndRefreshRotateTheSameSession() async throws {
 		let app = try await makeApplication()
 

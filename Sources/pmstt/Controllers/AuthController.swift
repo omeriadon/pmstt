@@ -4,6 +4,10 @@ import JWT
 import SQLKit
 import Vapor
 
+private enum AuthTokenLifetime {
+	static let access: TimeInterval = 60 * 60
+}
+
 struct AuthController: RouteCollection {
 	func boot(routes: any RoutesBuilder) throws {
 		let auth = routes.grouped("v1", "auth").grouped(AuthRateLimitMiddleware())
@@ -223,19 +227,39 @@ struct AuthController: RouteCollection {
 	}
 
 	func logout(req: Request) async throws -> HTTPStatus {
-		struct LogoutBody: Decodable { let refreshToken: String }
-		let body = try req.content.decode(LogoutBody.self)
+		struct LogoutBody: Decodable {
+			let refreshToken: String?
+		}
+
+		let body = try? req.content.decode(LogoutBody.self)
 		let payload = try req.auth.require(UserPayload.self)
 		if payload.platformValue == .legacy {
-			if let token = try await UserToken.query(on: req.db).filter(\.$tokenHash == hashToken(body.refreshToken)).with(\.$user).first(), token.$user.id == payload.sub {
-				token.revokedAt = Date(); try await token.save(on: req.db)
+			if let refreshToken = body?.refreshToken,
+			   let token = try await UserToken.query(on: req.db)
+			   .filter(\.$tokenHash == hashToken(refreshToken))
+			   .with(\.$user)
+			   .first(),
+			   token.$user.id == payload.sub
+			{
+				token.revokedAt = Date()
+				try await token.save(on: req.db)
 				try await revokeOrphanedWatchSessions(userID: payload.sub, on: req.db)
 			}
 			return .noContent
 		}
-		guard let session = try await UserToken.find(payload.sid, on: req.db), session.$user.id == payload.sub, session.tokenHash == hashToken(body.refreshToken) else { throw Abort(.unauthorized) }
+		guard let session = try await UserToken.find(payload.sid, on: req.db),
+		      session.$user.id == payload.sub,
+		      body?.refreshToken.map({ session.tokenHash == hashToken($0) }) ?? true
+		else {
+			throw Abort(.unauthorized)
+		}
 		try await req.db.transaction { database in
-			guard let lockedSession = try await lockSession(payload.sid, on: database), lockedSession.$user.id == payload.sub, lockedSession.tokenHash == hashToken(body.refreshToken) else { throw Abort(.unauthorized) }
+			guard let lockedSession = try await lockSession(payload.sid, on: database),
+			      lockedSession.$user.id == payload.sub,
+			      body?.refreshToken.map({ lockedSession.tokenHash == hashToken($0) }) ?? true
+			else {
+				throw Abort(.unauthorized)
+			}
 			lockedSession.revokedAt = Date()
 			try await lockedSession.save(on: database)
 			if payload.platformValue == .iOS {
@@ -256,7 +280,16 @@ struct AuthController: RouteCollection {
 
 	private func response(for session: UserToken, on req: Request, refreshToken: String? = nil) async throws -> TokenResponse {
 		let user = try await session.$user.get(on: req.db)
-		let access = try await req.jwt.sign(UserPayload(sub: user.requireID(), sid: session.requireID(), platform: session.platformValue, installationID: session.installationID ?? "", capabilities: session.platformValue.capabilities, expiresAt: Date().addingTimeInterval(60 * 15)))
+		let access = try await req.jwt.sign(
+			UserPayload(
+				sub: user.requireID(),
+				sid: session.requireID(),
+				platform: session.platformValue,
+				installationID: session.installationID ?? "",
+				capabilities: session.platformValue.capabilities,
+				expiresAt: Date().addingTimeInterval(AuthTokenLifetime.access)
+			)
+		)
 		let refresh: String = if let refreshToken {
 			refreshToken
 		} else {
