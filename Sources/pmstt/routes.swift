@@ -37,6 +37,7 @@ func routes(_ app: Application) throws {
 	try api.register(collection: SchoolWeatherController())
 	try api.register(collection: AuthController())
 	try api.register(collection: AccountController())
+	try api.register(collection: AboutController())
 	try api.register(collection: OwnerTimetableController())
 	try api.register(collection: SettingsController())
 	try api.register(collection: CalendarEventsController())
