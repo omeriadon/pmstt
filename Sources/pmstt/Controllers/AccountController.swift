@@ -39,16 +39,16 @@ struct AccountController: RouteCollection {
 		}
 
 		if let email = body.email {
-			let normalizedEmail = try normalizedSchoolEmail(email)
-			try await ServerAccessModeService.requirePermittedEmail(normalizedEmail, on: req.db)
-			if normalizedEmail != user.email {
+			let normalizedAddress = try normalizedEmail(email)
+			try await ServerAccessModeService.requirePermittedEmail(normalizedAddress, on: req.db)
+			if normalizedAddress != user.email {
 				let existing = try await User.query(on: req.db)
-					.filter(\.$email == normalizedEmail)
+					.filter(\.$email == normalizedAddress)
 					.first()
 				if existing != nil {
 					throw AppError(.conflict, code: .emailAlreadyExists, reason: "Email is already registered.", field: "email")
 				}
-				user.email = normalizedEmail
+				user.email = normalizedAddress
 				didChangeProfile = true
 			}
 		}

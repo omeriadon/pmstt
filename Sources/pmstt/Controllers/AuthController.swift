@@ -23,7 +23,7 @@ struct AuthController: RouteCollection {
 
 	private func requestVerificationCode(req: Request) async throws -> VerificationCodeResponse {
 		let body = try req.content.decode(VerificationCodeRequest.self)
-		let email = try normalizedSchoolEmail(body.email)
+		let email = try normalizedEmail(body.email)
 		let installationID = try normalizedInstallation(body.installationID)
 		let sourceIP = req.remoteAddress?.ipAddress ?? "unknown"
 		guard try await User.query(on: req.db).filter(\.$email == email).first() == nil else {
@@ -78,7 +78,7 @@ struct AuthController: RouteCollection {
 	func verifyCodeAndRegister(req: Request) async throws -> TokenResponse {
 		let body = try req.content.decode(VerificationRegistrationRequest.self)
 		let platform = try validatedClient(platform: body.platform, installationID: body.installationID)
-		let email = try normalizedSchoolEmail(body.email)
+		let email = try normalizedEmail(body.email)
 		let installationID = try normalizedInstallation(body.installationID)
 		guard body.code.count == 6, body.code.allSatisfy(\.isNumber) else {
 			throw AppError(.badRequest, code: .invalidRequest, reason: "Enter the six-digit verification code.", field: "code")

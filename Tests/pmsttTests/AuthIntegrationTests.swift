@@ -19,6 +19,16 @@ final class AuthIntegrationTests: XCTestCase, @unchecked Sendable {
 		XCTAssertFalse(ClientPlatform.watchOS.signupAllowed)
 	}
 
+	func testNormalizedEmailAcceptsNonSchoolAddressesAndRetainsValidationLimits() throws {
+		XCTAssertEqual(
+			try normalizedEmail(" Person.Example@Example.com "),
+			"person.example@example.com"
+		)
+
+		XCTAssertThrowsError(try normalizedEmail("invalid-email"))
+		XCTAssertThrowsError(try normalizedEmail(String(repeating: "a", count: 92) + "@example.com"))
+	}
+
 	func testAuthenticationRateLimiterAllows100AttemptsPerRollingDay() async {
 		let limiter = AuthRateLimiter()
 		let now = Date(timeIntervalSince1970: 1_000_000)
