@@ -66,7 +66,6 @@ struct UpdateAccountRequest: Content {
 struct UpdateSettingsRequest: Content {
 	var liveActivitiesEnabled: Bool
 	var appFontDesign: AppFontDesign
-	var appBackground: AppBackground
 	var futureEventRange: FutureEventRange
 	var watchBleedEnabled: Bool
 	var notificationsEnabled: Bool
@@ -80,7 +79,6 @@ struct UpdateSettingsRequest: Content {
 	static let `default` = UpdateSettingsRequest(
 		liveActivitiesEnabled: true,
 		appFontDesign: .monospaced,
-		appBackground: .solid,
 		futureEventRange: .oneMonth,
 		watchBleedEnabled: true,
 		notificationsEnabled: true,
@@ -96,7 +94,6 @@ struct UpdateSettingsRequest: Content {
 		AccountSettings(
 			liveActivitiesEnabled: liveActivitiesEnabled,
 			appFontDesign: appFontDesign,
-			appBackground: appBackground,
 			futureEventRange: futureEventRange,
 			watchBleedEnabled: watchBleedEnabled,
 			notificationsEnabled: notificationsEnabled,
@@ -156,7 +153,6 @@ extension UpdateSettingsRequest {
 			default: defaults.liveActivitiesEnabled
 		)
 		appFontDesign = try container.decodeIfPresent(AppFontDesign.self, forKey: .appFontDesign, default: defaults.appFontDesign)
-		appBackground = try container.decodeIfPresent(AppBackground.self, forKey: .appBackground, default: defaults.appBackground)
 		futureEventRange = try container.decodeIfPresent(FutureEventRange.self, forKey: .futureEventRange, default: defaults.futureEventRange)
 		watchBleedEnabled = try container.decodeIfPresent(Bool.self, forKey: .watchBleedEnabled, default: defaults.watchBleedEnabled)
 		notificationsEnabled = try container.decodeIfPresent(Bool.self, forKey: .notificationsEnabled, default: defaults.notificationsEnabled)

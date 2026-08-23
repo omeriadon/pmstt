@@ -24,7 +24,6 @@ enum AppFontDesign: String, Content, CaseIterable, Hashable {
 struct AccountSettings: Content, Hashable {
 	var liveActivitiesEnabled: Bool
 	var appFontDesign: AppFontDesign
-	var appBackground: AppBackground
 	var futureEventRange: FutureEventRange
 	var watchBleedEnabled: Bool
 	var notificationsEnabled: Bool
@@ -39,7 +38,6 @@ struct AccountSettings: Content, Hashable {
 		AccountSettings(
 			liveActivitiesEnabled: true,
 			appFontDesign: .monospaced,
-			appBackground: .solid,
 			futureEventRange: .oneMonth,
 			watchBleedEnabled: true,
 			notificationsEnabled: true,
@@ -64,7 +62,6 @@ extension AccountSettings {
 
 		liveActivitiesEnabled = try container.decodeIfPresent(Bool.self, forKey: .liveActivitiesEnabled) ?? defaults.liveActivitiesEnabled
 		appFontDesign = try container.decodeIfPresent(AppFontDesign.self, forKey: .appFontDesign) ?? defaults.appFontDesign
-		appBackground = try container.decodeIfPresent(AppBackground.self, forKey: .appBackground) ?? defaults.appBackground
 		futureEventRange = try container.decodeIfPresent(FutureEventRange.self, forKey: .futureEventRange) ?? defaults.futureEventRange
 		watchBleedEnabled = try container.decodeIfPresent(Bool.self, forKey: .watchBleedEnabled) ?? defaults.watchBleedEnabled
 		notificationsEnabled = try container.decodeIfPresent(Bool.self, forKey: .notificationsEnabled) ?? defaults.notificationsEnabled
